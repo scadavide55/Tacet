@@ -5,6 +5,11 @@ import WebKit
 struct LumenApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
+    init() {
+        // A restored backup's files go in before anything reads them.
+        Backup.applyPendingRestore()
+    }
+
     var body: some Scene {
         WindowGroup("Tacet", id: "main") {
             ContentView(isPrivate: false)

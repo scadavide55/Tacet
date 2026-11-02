@@ -140,9 +140,12 @@
 "Back" = "Indietro";
 "Back (⌘[)" = "Indietro (⌘[)";
 "Back / forward" = "Indietro / avanti";
+"Back Up Everything makes one encrypted file with all of Tacet: settings and plugins, tabs, Spaces, history, bookmarks, Reading List, highlights, passwords, AI keys and the sites you're signed in to. It's locked with a password you choose. Export Settings and Plugins makes a small file with only those." = "Backup completo crea un unico file cifrato con tutto Tacet: impostazioni e plugin, schede, spazi, cronologia, preferiti, Elenco di lettura, evidenziazioni, password, chiavi AI e i siti in cui hai fatto l'accesso. È protetto da una password che scegli tu. Esporta impostazioni e plugin crea un file piccolo solo con quelli.";
+"Back Up Everything…" = "Backup completo…";
 "Back to Pinned Address" = "Torna all'indirizzo fissato";
 "Back to Top" = "Torna su";
 "Background" = "Sfondo";
+"Backup saved" = "Backup salvato";
 "Beta" = "Beta";
 "Bigger YouTube Captions" = "Sottotitoli YouTube più grandi";
 "Block" = "Blocca";
@@ -194,6 +197,7 @@
 "Check…" = "Controlla…";
 "Choose Apple (on this Mac) in Settings › AI to use the assistant for free, offline, with nothing leaving your Mac. It's smaller than cloud models, so it's best for short, simple questions." = "Scegli Apple (su questo Mac) in Impostazioni › AI per usare l’assistente gratis, offline, senza che niente esca dal Mac. È più piccolo dei modelli cloud, quindi va meglio per domande brevi e semplici.";
 "Choose a model in Settings › AI." = "Scegli un modello in Impostazioni › AI.";
+"Choose a password for the backup" = "Scegli una password per il backup";
 "Choose a start page" = "Scegli la pagina iniziale";
 "Choose an automation, or make one with +." = "Scegli un'automazione, o creane una con +.";
 "Choose an icon" = "Scegli un'icona";
@@ -348,6 +352,7 @@
 "Enable JavaScript" = "Abilita JavaScript";
 "Enable Web Inspector" = "Abilita Web Inspector";
 "Engine" = "Motore";
+"Enter the backup's password" = "Inserisci la password del backup";
 "Every Space becomes a tab group in this window" = "Ogni spazio diventa un gruppo di schede in questa finestra";
 "Every Space is removed. Nothing is lost: the tabs of your other Spaces come into this window, each Space as a tab group." = "Tutti gli spazi vengono rimossi. Non si perde niente: le schede degli altri spazi arrivano in questa finestra, ogni spazio come gruppo di schede.";
 "Every extension in one place" = "Tutte le estensioni in un posto";
@@ -420,6 +425,7 @@
 "Free memory used by background tabs" = "Libera la memoria usata dalle schede in background";
 "Free software under the GNU GPL v3" = "Software libero sotto GNU GPL v3";
 "From %@" = "Da %@";
+"From Tacet %@, %@. Your tabs, history, bookmarks, settings, passwords and sign-ins on this Mac are replaced. Tacet restarts to finish." = "Da Tacet %1$@, %2$@. Schede, cronologia, preferiti, impostazioni, password e accessi di questo Mac vengono sostituiti. Tacet si riavvia per finire.";
 "Full Screen Chat" = "Chat a schermo intero";
 "General" = "Generali";
 "Get %@" = "Scarica %@";
@@ -525,6 +531,7 @@
 "Just this page" = "Solo questa pagina";
 "Keep it as a tab (⌘↩)" = "Tienila come scheda (⌘↩)";
 "Keep it for" = "Conservalo per";
+"Keep the password safe: without it the backup can't be opened. On the other Mac, choose Settings › General › Restore from Backup…" = "Conserva la password: senza di lei il backup non si apre. Sull'altro Mac scegli Impostazioni › Generali › Ripristina da backup…";
 "Keep unsent text to put it back" = "Conserva il testo non inviato per poterlo rimettere";
 "Keep “Spaces and pinned tabs” on" = "Lascia attivo “Spazi e schede fissate”";
 "Keeps one tab per address" = "Tiene una sola scheda per indirizzo";
@@ -866,6 +873,7 @@
 "Rename…" = "Rinomina…";
 "Reopen Closed Tab" = "Riapri scheda chiusa";
 "Reopen closed tab" = "Riapri scheda chiusa";
+"Replace everything in Tacet with this backup?" = "Sostituire tutto in Tacet con questo backup?";
 "Replace your settings with the ones in this file?" = "Sostituire le tue impostazioni con quelle di questo file?";
 "Report a Bug" = "Segnala un problema";
 "Reset" = "Ripristina";
@@ -875,6 +883,8 @@
 "Rest the pointer on a tab to see the page, its site and how much memory it uses. Tabs that are sleeping say so, and use none." = "Tieni il puntatore su una scheda per vedere la pagina, il sito e quanta memoria usa. Le schede in pausa lo dicono, e non ne usano.";
 "Restart Now" = "Riavvia ora";
 "Restart Tacet to use the new language." = "Riavvia Tacet per usare la nuova lingua.";
+"Restore and Restart" = "Ripristina e riavvia";
+"Restore from Backup…" = "Ripristina da backup…";
 "Restore windows and tabs when Tacet opens" = "Ripristina finestre e schede all'apertura di Tacet";
 "Resume" = "Riprendi";
 "Right" = "Destra";
@@ -1174,6 +1184,7 @@
 "The assistant can look things up and open pages that appear in the chat. Searches go to DuckDuckGo, and pages are downloaded by your Mac without cookies or logins." = "L'assistente può cercare informazioni e aprire le pagine che compaiono nella chat. Le ricerche vanno a DuckDuckGo e le pagine vengono scaricate dal tuo Mac senza cookie né accessi.";
 "The assistant can look things up and open pages that appear in the chat. With Anthropic, searches and pages are handled on Anthropic's servers." = "L'assistente può cercare informazioni e aprire le pagine che compaiono nella chat. Con Anthropic, ricerche e pagine passano dai server di Anthropic.";
 "The assistant can search the web and read pages. Click to turn off." = "L'assistente può cercare sul web e leggere le pagine. Fai clic per disattivare.";
+"The backup holds your passwords and sign-ins, so it's encrypted with this password. Without it the backup can't be opened, and it can't be recovered." = "Il backup contiene le tue password e i tuoi accessi, quindi è cifrato con questa password. Senza di lei il backup non si apre, e non si può recuperare.";
 "The built-in list works offline. Filter lists add tens of thousands of community-maintained rules." = "La lista integrata funziona offline. Le liste di filtri aggiungono decine di migliaia di regole curate dalla comunità.";
 "The certificate %@ presented isn't valid. Someone on your network could be in the way. Continuing opens the site over plain HTTP, where what you send can be read." = "Il certificato presentato da %@ non è valido. Qualcuno sulla tua rete potrebbe essere in mezzo. Continuando, il sito si apre in HTTP semplice, dove quello che invii può essere letto.";
 "The download doesn't contain Tacet." = "Il download non contiene Tacet.";
@@ -1187,6 +1198,7 @@
 "The model declined to answer this request." = "Il modello ha rifiutato di rispondere a questa richiesta.";
 "The new icon is an eclipse: a dark disc in front of the sun" = "La nuova icona è un'eclissi: un disco scuro davanti al sole";
 "The one in your Dock and in Finder. Seal, corona is Tacet's own; the others are its alternatives. You can change it later in Settings › Appearance." = "Quella nel Dock e nel Finder. Sigillo, corona è l'icona di Tacet; le altre sono alternative. Puoi cambiarla in seguito in Impostazioni › Aspetto.";
+"The password is wrong, or the file is damaged." = "La password è sbagliata, oppure il file è danneggiato.";
 "The plugin list couldn't be verified, so nothing was installed." = "Non è stato possibile verificare l'elenco dei plugin, quindi non è stato installato niente.";
 "The puzzle button lists your plugins and extensions. A click opens, runs, turns on or off, or explains each one, so there are no shortcuts to remember." = "Il pulsante col pezzo di puzzle elenca plugin ed estensioni. Un clic apre, esegue, attiva o disattiva, o spiega ognuno, così non devi ricordare scorciatoie.";
 "The quiet browser for your Mac" = "Il browser silenzioso per il tuo Mac";
@@ -1198,6 +1210,7 @@
 "The sign-in didn't come across" = "L'accesso non è arrivato";
 "The site says: “%@”" = "Il sito dice: “%@”";
 "The site's" = "Quello del sito";
+"The two passwords don't match." = "Le due password non coincidono.";
 "The update couldn't be verified. It may be damaged or changed; try again later." = "Impossibile verificare l'aggiornamento. Potrebbe essere danneggiato o modificato; riprova più tardi.";
 "The update doesn't come from GitHub." = "L'aggiornamento non proviene da GitHub.";
 "The update isn't signed by Tacet's developer, so it wasn't installed." = "L'aggiornamento non è firmato dallo sviluppatore di Tacet, quindi non è stato installato.";
@@ -1211,6 +1224,7 @@
 "This extension" = "Questa estensione";
 "This extension couldn't be read: %@" = "Questa estensione non può essere letta: %@";
 "This extension has no settings page." = "Questa estensione non ha una pagina di impostazioni.";
+"This isn't a Tacet backup." = "Questo non è un backup di Tacet.";
 "This isn't a Tacet settings file." = "Questo non è un file di impostazioni di Tacet.";
 "This isn't a web extension: there is no manifest.json inside it." = "Questa non è un'estensione web: non contiene un manifest.json.";
 "This model can read images" = "Questo modello sa leggere le immagini";
@@ -1272,6 +1286,7 @@
 "Two pages side by side. Right-click a tab and choose Open in Split View." = "Due pagine affiancate. Fai clic destro su una scheda e scegli Apri nella vista divisa.";
 "Type a keyword, a space and your search in the command bar. For example: yt lofi beats" = "Scrivi una parola chiave, uno spazio e la ricerca nella barra dei comandi. Per esempio: yt lofi beats";
 "Type a model name" = "Scrivi il nome di un modello";
+"Type it again" = "Scrivila di nuovo";
 "Typing in “%@”" = "Scrittura in “%@”";
 "URL with %s" = "URL con %s";
 "Ungroup Tabs" = "Separa le schede";
@@ -1296,6 +1311,7 @@
 "Use Top Tabs" = "Usa schede in alto";
 "Use a cloud provider for long pages and hard questions" = "Per pagine lunghe e domande difficili usa un fornitore cloud";
 "Use another way to sign in" = "Accedi in un altro modo";
+"Use at least 8 characters." = "Usa almeno 8 caratteri.";
 "Use the %@ profile" = "Usa il profilo %@";
 "Use the page you're on when you click it" = "Usare la pagina in cui sei quando la clicchi";
 "Used on more than one site." = "Usata su più di un sito.";
@@ -1388,6 +1404,7 @@
 "ad or tracker blocked on this page" = "pubblicità o tracker bloccato su questa pagina";
 "ads and trackers blocked on this page" = "pubblicità e tracker bloccati su questa pagina";
 "another language" = "un'altra lingua";
+"back up your saved passwords" = "fare il backup delle password salvate";
 "camera" = "la fotocamera";
 "camera and microphone" = "fotocamera e microfono";
 "check your saved passwords" = "controllare le password salvate";

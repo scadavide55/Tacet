@@ -695,6 +695,24 @@ StoredFiles.flushAll()
 eq(stored.load()?.n, 3, "storage: quitting writes what was waiting")
 stored.delete()
 
+// MARK: Encrypted backups
+
+do {
+    var c = Backup.Contents()
+    c.files = ["bookmarks.json": Data("[1,2,3]".utf8), "Reading List/a.html": Data("<p>x</p>".utf8)]
+    c.passwords = "Title,URL,Username,Password\nx,https://x.example/,me,secret"
+    c.aiKeys = ["anthropic": "sk-test"]
+    c.cookies = ["main": [Backup.StoredCookie(HTTPCookie(properties: [.name: "sid", .value: "v", .domain: ".x.example", .path: "/", .secure: "TRUE"])!)]]
+    let sealed = try! Backup.seal(c, password: "correct horse")
+    check(!String(decoding: sealed, as: UTF8.self).contains("secret") && !String(decoding: sealed, as: UTF8.self).contains("sk-test"), "backup: nothing readable without the password")
+    let back = try? Backup.open(sealed, password: "correct horse")
+    eq(back?.files["Reading List/a.html"], Data("<p>x</p>".utf8), "backup: files come back")
+    eq(back?.aiKeys["anthropic"], "sk-test", "backup: keys come back")
+    eq(back?.cookies["main"]?.first?.cookie?.isSecure, true, "backup: sign-ins come back")
+    check((try? Backup.open(sealed, password: "wrong horse")) == nil, "backup: a wrong password opens nothing")
+    check((try? Backup.open(Data("{}".utf8), password: "x")) == nil, "backup: another file isn't taken for one")
+}
+
 // MARK: Long conversations fit the model
 
 do {

@@ -26,6 +26,7 @@ Updating from Lumen keeps everything: tabs, passwords, AI key, settings, history
 - 1.7: Spaces; finding pages by what they said; link preview (⌥-click); highlights and notes (Library › Highlights); opening rules; recovering unsent text; automations (⌃⌥⌘1–9); Sign In with Safari for passkeys; the assistant asks before buttons it can't judge; history beyond the newest 5,000 entries stays on disk and is still searched.
 - 1.7.0.1: Spaces made clearer: Turn Off Spaces keeps every tab as groups, delete or rename any Space from the Space button, Settings › General › Spaces.
 - 1.7.0.2: minor fixes; closing the unsent-text banner no longer quits Tacet.
+- 1.7.0.3: Back Up Everything, one encrypted file with all of Tacet, and Restore from Backup.
 
 ## Keyboard shortcuts
 ⌘T new tab · ⌘W close tab · ⇧⌘T reopen closed tab · ⌘N new window · ⇧⌘N new private window · ⇧⌘W close window · ⌘L or ⌘K command bar · ⌘S show or hide the sidebar · ⌃Tab / ⌃⇧Tab next / previous tab · ⌘1…⌘9 go to a tab (⌘9 the last) · ⌘[ / ⌘] back / forward · ⌘R reload · ⌥⌘R reload ignoring cache · ⌘. stop · ⌘F find · ⌘G / ⇧⌘G find next / previous · ⇧⌘R Reader · ⌥⌘T translate page · ⌥⌘A read aloud · ⇧⌘J Focus Mode · ⌥⌘S split view · ⌘+ / ⌘− / ⌘0 zoom · ⌘D bookmark the page · ⌘Y history · ⌥⌘B bookmarks · ⌥⌘L downloads · ⇧⌘C copy link · ⌘P print · ⇧⌘E export as PDF · ⇧⌘S screenshot of the page · ⇧⌘A Tacet Assistant · ⇧⌘B turn Tacet Shield on or off · ⇧⌘M mute tab · ⌥⌘F search tabs · ⇧⌘P Tacet Plugins · ⌃⌘L lock the window with Touch ID · ⌘, Settings. Help › Keyboard Shortcuts shows them all.
@@ -140,6 +141,7 @@ An AI assistant (beta) in a panel beside the page (⇧⌘A), or full-window. It 
 ## Moving to another Mac
 Settings › General › Move to another Mac › Export Settings and Plugins… saves one .tacetsettings file with your settings, search shortcuts, site styles, profiles and Tacet Plugins (on, off, pinned, sites where they're off). Import… on the other Mac reinstalls the plugins from Tacet Plugins (verified), applies the settings and restarts Tacet. Passwords, AI keys, history and bookmarks are not in the file: export passwords as CSV (Settings › Passwords) and bookmarks as HTML (Library).
 
+Back Up Everything… (Settings › General › Move to another Mac) makes one encrypted .tacetbackup file with all of Tacet: settings and plugins, open tabs and Spaces, history, bookmarks, Reading List with its saved articles, highlights, saved groups, rules, automations, page text, saved passwords (after Touch ID), AI keys and the cookies of the sites you're signed in to, for every profile. You choose a password (at least 8 characters, typed twice); the file is encrypted with it (AES-GCM) and can't be opened or recovered without it. Restore from Backup… on the other Mac asks for the password, replaces everything in Tacet with the backup and restarts. Icons and Tacet Plugins' files download again by themselves.
 ## Updates
 Tacet checks GitHub for updates once a day (Settings › General › Updates) and can install them for you; Tacet › Check for Updates… checks now. Each version shows a "Welcome to Tacet" screen with what's new, once. Updates are signed, so only real ones install.
 

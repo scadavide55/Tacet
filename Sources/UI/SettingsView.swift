@@ -127,13 +127,17 @@ struct GeneralPane: View {
             }
             Section {
                 HStack {
+                    Button("Back Up Everything…") { Backup.backUp() }
+                    Button("Restore from Backup…") { Backup.restore() }
+                }
+                HStack {
                     Button("Export Settings and Plugins…") { SettingsTransfer.export() }
                     Button("Import…") { SettingsTransfer.importFile() }
                 }
             } header: {
                 Text("Move to another Mac")
             } footer: {
-                Text("One file with your settings, search shortcuts, site styles, profiles and Tacet Plugins. Passwords, AI keys, history and bookmarks aren't in it: export those from their own settings.")
+                Text("Back Up Everything makes one encrypted file with all of Tacet: settings and plugins, tabs, Spaces, history, bookmarks, Reading List, highlights, passwords, AI keys and the sites you're signed in to. It's locked with a password you choose. Export Settings and Plugins makes a small file with only those.")
             }
             Section("Downloads") {
                 Toggle("Ask where to save each download", isOn: $s.askDownloadLocation)
