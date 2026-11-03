@@ -1,6 +1,8 @@
 // Tacet's logic tests. Run with: tools/test.sh
 // They use only pure functions and temporary files: nothing touches your Tacet data.
 import Foundation
+import JavaScriptCore
+import SQLite3
 import WebKit
 
 var failures = 0
@@ -90,12 +92,13 @@ check(!UpdateChecker.isNewer("1.5", than: "1.5.0"), "1.5 == 1.5.0")
 check(!UpdateChecker.isNewer("1.5.3", than: "1.5.4"), "1.5.3 < 1.5.4")
 
 // MARK: Welcome pages
-check(WhatsNew.pages(since: "1.7").isEmpty, "welcome after 1.7: nothing (1.7.0.1 is a fix)")
-eq(Set(WhatsNew.pages(since: "1.6.5").map(\.version)), ["1.7"], "welcome after 1.6.5: 1.7 and 1.7.0.1 pages")
-eq(Set(WhatsNew.pages(since: "1.6.1").map(\.version)), ["1.6.2", "1.6.3", "1.6.4", "1.6.5", "1.7"], "welcome after 1.6.1: every newer page")
+eq(Set(WhatsNew.pages(since: "1.7").map(\.version)), ["1.7.1"], "welcome after 1.7: the 1.7.1 pages")
+eq(Set(WhatsNew.pages(since: "1.7.0.3").map(\.version)), ["1.7.1"], "welcome after 1.7.0.3: the 1.7.1 pages")
+eq(Set(WhatsNew.pages(since: "1.6.5").map(\.version)), ["1.7", "1.7.1"], "welcome after 1.6.5: 1.7 and 1.7.1 pages")
+eq(Set(WhatsNew.pages(since: "1.6.1").map(\.version)), ["1.6.2", "1.6.3", "1.6.4", "1.6.5", "1.7", "1.7.1"], "welcome after 1.6.1: every newer page")
 eq(WhatsNew.pages(since: "1.6").count, WhatsNew.all.count, "welcome after 1.6: every page")
 eq(WhatsNew.pages(since: "").count, WhatsNew.all.count, "welcome never seen: every page")
-check(WhatsNew.pages(since: "1.7.0.1").isEmpty, "welcome already seen: nothing")
+check(WhatsNew.pages(since: "1.7.1").isEmpty, "welcome already seen: nothing")
 
 // MARK: Arc's sidebar
 do {
@@ -206,6 +209,32 @@ check(!AssistantPrompt.clientTools(provider: .openAI, web: false, control: false
 check(AssistantPrompt.system(web: false, control: false, vision: true).contains("take_screenshot:"), "prompt explains take_screenshot for vision models")
 check(!AssistantPrompt.system(web: false, control: false).contains("take_screenshot"), "no screenshot in prompt without vision")
 check(AssistantPrompt.system(web: false, control: false).contains("<selection>"), "prompt explains selections")
+// Quick answers from the command bar get a short prompt of their own, so the first words come sooner.
+let quickPrompt = AssistantPrompt.system(web: true, control: false, quick: true)
+check(quickPrompt.count * 5 < AssistantPrompt.system(web: true, control: false).count, "quick prompt is far shorter than the chat's")
+check(quickPrompt.contains("tacet_guide") && quickPrompt.contains("command bar"), "quick prompt knows the guide and where it was asked")
+check(!AssistantPrompt.system(web: false, control: false, quick: true).contains("search the web once"), "quick prompt without web access doesn't offer searches")
+eq(AssistantPrompt.clientTools(provider: .anthropic, web: true, control: false, quick: true).map(\.name), ["tacet_guide"], "quick answers on Anthropic only add the guide")
+eq(AssistantPrompt.clientTools(provider: .openAI, web: false, control: false, quick: true).map(\.name), ["tacet_guide"], "quick answers respect Web access turned off")
+eq((AssistantPrompt.anthropicWebTools(model: "claude-haiku-5-5", quick: true).first?["max_uses"] as? Int), 2, "quick answers search less")
+check(AIProvider.takesEffort("claude-haiku-5-5") && AIProvider.takesEffort("claude-opus-5-5") && !AIProvider.takesEffort("claude-haiku-4-5"), "effort only for models that take it")
+check(AIProvider.takesReasoningEffort("gpt-5-mini") && !AIProvider.takesReasoningEffort("gpt-4o"), "reasoning effort only for reasoning models")
+eq(AIProvider.anthropic.fastModel, "claude-haiku-5-5", "Anthropic's fast model for the command bar")
+check(AIProvider.deepSeek.fastModel == nil, "providers without a smaller model keep the chosen one")
+check(AssistantPrompt.system(web: true, control: false).contains("Your voice"), "the assistant has its voice")
+do {
+    let s = Settings.shared
+    let (personality, detailed) = (s.aiPersonality, s.aiDetailed)
+    s.aiPersonality = true; s.aiDetailed = false
+    let short = AssistantPrompt.system(web: true, control: false)
+    check(short.contains("tacet") && short.contains("Be brief"), "prompt: a voice of its own, and short answers by default")
+    s.aiPersonality = false
+    check(AssistantPrompt.system(web: true, control: false).contains("neutral and matter-of-fact"), "prompt: Personality off is neutral")
+    check(AssistantPrompt.system(web: true, control: false, quick: true).contains("neutral and matter-of-fact"), "prompt: the quick prompt follows Personality too")
+    s.aiDetailed = true
+    check(AssistantPrompt.system(web: true, control: false).contains("Be thorough"), "prompt: Detailed asks for fuller answers")
+    s.aiPersonality = personality; s.aiDetailed = detailed
+}
 for t in AssistantPrompt.tools + AssistantPrompt.visionTools { check(JSONSerialization.isValidJSONObject(AssistantPrompt.schema(t)), "schema \(t.name)") }
 eq(AssistantChat.number("3"), 3, "tool number from string")
 eq(AssistantChat.number(2.0), 2, "tool number from double")
@@ -325,6 +354,44 @@ eq(out.hide.count, 2, "filters: cosmetic")
 check(out.skipped >= 1, "filters: unsupported skipped")
 check(JSONSerialization.isValidJSONObject(out.block + out.allow + out.hide), "filters: valid JSON")
 
+// MARK: Downloads
+
+check(DownloadItem.timeText(3) == L("almost done"), "downloads: a few seconds left says almost done")
+check(DownloadItem.timeText(90) != L("almost done") && !DownloadItem.timeText(90).isEmpty, "downloads: time left in minutes")
+check(DownloadItem.speedText(2_500_000).hasSuffix("/s"), "downloads: speed per second")
+eq(UpdateInstaller.shellQuoted("a'b"), "'a'\\''b'", "shell quoting escapes single quotes")
+do {
+    func saved(_ state: String, resume: Bool) -> DownloadItem {
+        DownloadItem(saved: .init(id: UUID(), source: URL(string: "https://example.com/f.zip"), filename: "f.zip", destination: nil,
+                                  received: 50, total: 100, state: state, reason: nil, started: Date(), finished: nil,
+                                  resumeData: resume ? Data([1, 2, 3]) : nil))
+    }
+    let paused = saved("paused", resume: true)
+    check(paused.state == .paused && paused.canResume, "downloads: a paused download comes back paused, ready to resume")
+    eq(paused.fraction, 0.5, "downloads: a paused download keeps how far it got")
+    check(saved("paused", resume: false).state == .failed(L("Stopped when Tacet quit")), "downloads: paused without resume data can't go on")
+    check(saved("active", resume: false).state == .failed(L("Stopped when Tacet quit")), "downloads: one running when Tacet quit is shown as stopped")
+    let cancelled = saved("cancelled", resume: true)
+    check(cancelled.state == .cancelled && !cancelled.canResume && cancelled.canRetry, "downloads: a cancelled one can only be downloaded again")
+    eq(saved("finished", resume: false).fraction, 1, "downloads: a finished one is full")
+}
+eq(GroupHeader.colorNames.count, TabGroup.colors.count, "every group colour has a name (menus index both)")
+eq(Calculator.evaluate("12*7+3"), 87, "calculator: order of operations")
+eq(Calculator.evaluate("(4,5 + 2) / 2"), 3.25, "calculator: commas as decimal points, brackets")
+eq(Calculator.evaluate("2^10"), 1024, "calculator: powers")
+eq(Calculator.evaluate("-3 x 4"), -12, "calculator: a leading minus and x for times")
+eq(Calculator.evaluate("10 ÷ 4"), 2.5, "calculator: ÷")
+for halfway in ["2+", "(1+2", "1+2)", "42", "1/0", "3 apples", "", "((((", "2**3", "1..2+3"] {
+    check(Calculator.evaluate(halfway) == nil, "calculator: \"\(halfway)\" isn't a sum")
+}
+check(Calculator.evaluate(String(repeating: "(", count: 60) + "1" + String(repeating: ")", count: 60)) == nil, "calculator: deep nesting is refused")
+eq(DevTools.parseSize("390 × 844"), CGSize(width: 390, height: 844), "responsive: a size typed with ×")
+eq(DevTools.parseSize("1280x720"), CGSize(width: 1280, height: 720), "responsive: a size typed with x")
+check(DevTools.parseSize("12 × 5") == nil && DevTools.parseSize("390") == nil, "responsive: sizes too small or incomplete are refused")
+eq(Set(DevDevice.all.map(\.id)).count, DevDevice.all.count, "responsive: every device has its own id")
+check(DevUserAgent.allCases.allSatisfy { $0.value.hasPrefix("Mozilla/5.0 (") }, "user agents: every one is a full user agent")
+check(DevUserAgent.safariiPhone.value.contains("iPhone") && DevUserAgent.chromeAndroid.value.contains("Android"), "user agents: phones say what they are")
+
 // MARK: History database
 
 let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("lumen-tests-\(UUID().uuidString)")
@@ -338,6 +405,15 @@ if let db = HistoryDB(tmp.appendingPathComponent("h.sqlite")) {
     db.flush()
     let loaded = db.load()
     eq(loaded.map(\.url.absoluteString), ["https://b.com", "https://a.com"], "history: newest first")
+    // An old history.json left behind: only what the database doesn't have comes in.
+    let staleB = HistoryEntry(url: URL(string: "https://b.com")!, title: "Old B", date: now.addingTimeInterval(-99_999), visits: 1)
+    let onlyOld = HistoryEntry(url: URL(string: "https://old.example")!, title: "Old page", date: now.addingTimeInterval(-50_000))
+    check(db.insertMissing([staleB, onlyOld]), "history: merging an old copy works")
+    let merged = db.load()
+    eq(merged.first { $0.url.absoluteString == "https://b.com" }?.title, "B", "history: the newer row stays when merging")
+    check(merged.contains { $0.url.absoluteString == "https://old.example" }, "history: entries only in the old copy come in")
+    db.delete([onlyOld.id])
+    db.flush()
     eq(loaded.last?.title, a.title, "history: title with quotes survives")
     var a2 = a; a2.visits = 5; a2.date = now.addingTimeInterval(10)
     db.save([a2]); db.flush()
@@ -676,7 +752,16 @@ let swapNoMove = swapRun { dir in
     return (locked.appendingPathComponent("Tacet.app").path, dir.appendingPathComponent("Missing.app").path)
 }
 eq(marker(swapNoMove.appendingPathComponent("locked/Tacet.app")), "old", "updater: if the app can't be moved aside, it's left alone")
-for d in [swapOK, swapBadCopy, swapNoMove] {
+let swapOddPath = swapRun { dir in
+    let folder = dir.appendingPathComponent("Davide's $HOME \"apps\"")
+    for (n, v) in [("Tacet.app", "old"), ("New.app", "new")] {
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent(n), withIntermediateDirectories: true)
+        try v.write(to: folder.appendingPathComponent(n + "/v"), atomically: true, encoding: .utf8)
+    }
+    return (folder.appendingPathComponent("Tacet.app").path, folder.appendingPathComponent("New.app").path)
+}
+eq(marker(swapOddPath.appendingPathComponent("Davide's $HOME \"apps\"/Tacet.app")), "new", "updater: works in a folder whose name has quotes and $")
+for d in [swapOK, swapBadCopy, swapNoMove, swapOddPath] {
     try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: d.appendingPathComponent("locked").path)
     try? FileManager.default.removeItem(at: d)
 }
@@ -798,7 +883,177 @@ do {
         return out ?? -1
     }
     eq([inSpace(spaceA), inSpace(spaceB)], [1, 1], "page text: a page read in two Spaces is found in both")
+    // Keeping a page again replaces it; forgetting by address removes it; both go through the address table.
+    index.keep(url: swift, title: "Profiling apps", text: long, space: nil)
+    eq(found("reading"), [swift.absoluteString], "page text: a page kept again is there once")
+    index.keep(url: pasta, title: "Carbonara", text: "Guanciale again, for the address table. " + String(repeating: "Altro testo. ", count: 10), space: nil)
+    index.forget(urls: [pasta])
+    eq(found("guanciale"), [], "page text: forgetting an address removes its page")
+    eq(found("reading"), [swift.absoluteString], "page text: forgetting one address leaves the others")
+    // A database written without the address table (an older Tacet) gets it rebuilt when opened.
+    index.flush()
+    var raw: OpaquePointer?
+    sqlite3_open(dbURL.path, &raw)
+    sqlite3_exec(raw, "DELETE FROM page_rows", nil, nil, nil)
+    sqlite3_close(raw)
+    let reopened = PageText(dbURL)
+    reopened.keep(url: swift, title: "Profiling apps", text: long, space: nil)
+    var again: [String]?
+    Task { again = await reopened.search("reading").map(\.url.absoluteString) }
+    while again == nil { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    eq(again ?? [], [swift.absoluteString], "page text: the address table is rebuilt for an older database, with no duplicates")
+    // An older Tacet replacing a page leaves the table pointing at a row that's gone, with the same counts.
+    reopened.flush()
+    var older: OpaquePointer?
+    sqlite3_open(dbURL.path, &older)
+    sqlite3_exec(older, "DELETE FROM pages WHERE url = '\(swift.absoluteString)'", nil, nil, nil)
+    sqlite3_exec(older, "INSERT INTO pages (url, title, body, date, space) VALUES ('\(swift.absoluteString)', 'Profiling apps', 'Spaces keep their own reading, written by an older Tacet. More words here to pass the minimum length of kept text, and more.', 0, '')", nil, nil, nil)
+    sqlite3_close(older)
+    let third = PageText(dbURL)
+    third.keep(url: swift, title: "Profiling apps", text: long, space: nil)
+    var once: [String]?
+    Task { once = await third.search("reading").map(\.url.absoluteString) }
+    while once == nil { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    eq(once ?? [], [swift.absoluteString], "page text: a page an older Tacet replaced isn't doubled")
     try? FileManager.default.removeItem(at: dbURL)
+}
+
+// MARK: Every script Tacet puts in pages is valid JavaScript
+
+do {
+    let scripts: [(String, String)] = [
+        ("bridge", Scripts.bridge), ("drafts", Scripts.drafts), ("highlights", Scripts.highlights), ("passkeys", Scripts.passkeys),
+        ("logins", Scripts.logins), ("gpc", Scripts.gpc), ("cookieBanners", Scripts.cookieBanners),
+        ("fingerprinting", Scripts.fingerprinting), ("rejectCookies", Scripts.rejectCookies), ("youtube", Scripts.youtube),
+        ("forceDark", Scripts.forceDark), ("siteStyles", Scripts.siteStyles), ("picker", Scripts.picker), ("reader", Scripts.reader),
+        ("translate collect", PageTranslator.collectScript), ("translate apply", PageTranslator.applyScript),
+        ("translate restore", PageTranslator.restoreScript),
+        ("youtube transcript", AssistantSources.transcriptScript),
+    ]
+    let context = JSGlobalContextCreate(nil)
+    for (name, raw) in scripts {
+        // Placeholders are filled in before a script goes into a page.
+        let source = raw.replacingOccurrences(of: "__ALLOW__", with: "[]").replacingOccurrences(of: "__DARK__", with: "[\"\"]")
+            .replacingOccurrences(of: "__TIP__", with: "\"\"")
+        func valid(_ code: String) -> Bool {
+            let js = JSStringCreateWithUTF8CString(code)
+            defer { JSStringRelease(js) }
+            return JSCheckScriptSyntax(context, js, nil, 0, nil)
+        }
+        // Scripts run with callAsyncJavaScript are function bodies.
+        check(valid(source) || valid("(async function () {\n" + source + "\n})"), "script \(name) is valid JavaScript")
+    }
+    JSGlobalContextRelease(context)
+}
+
+// MARK: What a quick answer sends (a stand-in server on this Mac)
+
+/// Answers one HTTP request with `reply` and hands back the request's body.
+func fakeServer(reply: String) -> (port: Int, body: () -> Data?) {
+    let fd = socket(AF_INET, SOCK_STREAM, 0)
+    var addr = sockaddr_in()
+    addr.sin_family = sa_family_t(AF_INET)
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+    addr.sin_port = 0
+    var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+    _ = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, len) } }
+    listen(fd, 1)
+    _ = withUnsafeMutablePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &len) } }
+    let port = Int(UInt16(bigEndian: addr.sin_port))
+    let lock = NSLock()
+    var received: Data?
+    Thread.detachNewThread {
+        let client = accept(fd, nil, nil)
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 65536)
+        while true {
+            let n = read(client, &buffer, buffer.count)
+            if n <= 0 { break }
+            data.append(contentsOf: buffer[0..<n])
+            if let end = data.range(of: Data("\r\n\r\n".utf8)) {
+                let head = String(decoding: data[..<end.lowerBound], as: UTF8.self).lowercased()
+                let length = head.split(separator: "\r\n").first { $0.hasPrefix("content-length:") }
+                    .flatMap { Int($0.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)) } ?? 0
+                if data.count - end.upperBound >= length {
+                    lock.lock(); received = data[end.upperBound...].prefix(length); lock.unlock()
+                    break
+                }
+            }
+        }
+        let response = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n" + reply
+        _ = response.withCString { write(client, $0, strlen($0)) }
+        close(client)
+        close(fd)
+    }
+    return (port, { lock.lock(); defer { lock.unlock() }; return received })
+}
+
+func sse(_ events: [String]) -> String { events.map { "data: " + $0 + "\n\n" }.joined() }
+
+do {
+    let server = fakeServer(reply: sse([
+        #"{"type":"message_start","message":{"id":"m","type":"message","role":"assistant","content":[]}}"#,
+        #"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+        #"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Tim "}}"#,
+        #"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Berners-Lee."}}"#,
+        #"{"type":"content_block_stop","index":0}"#,
+        #"{"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
+        #"{"type":"message_stop"}"#,
+    ]))
+    var streamed = ""
+    var answer: AIClient.Result?
+    var failure: String?
+    Task { @MainActor in
+        do {
+            answer = try await AIClient.stream(provider: .anthropic, base: "http://127.0.0.1:\(server.port)/v1", key: "test",
+                                               model: "claude-haiku-5-5", transcript: [["role": "user", "content": "chi ha inventato il web"]],
+                                               tools: true, web: true, control: false, quick: true,
+                                               onText: { streamed += $0 }, onServerTool: { _, _ in })
+        } catch { failure = error.localizedDescription }
+    }
+    let deadline = Date().addingTimeInterval(10)
+    while answer == nil && failure == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    check(failure == nil, "quick answer: the request goes through", failure ?? "")
+    eq(streamed, "Tim Berners-Lee.", "quick answer: the reply streams in")
+    eq(answer?.stopReason, "end_turn", "quick answer: the reply ends")
+    let sent = server.body().flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    eq(sent["model"] as? String, "claude-haiku-5-5", "quick answer: sent to the fast model")
+    eq(sent["max_tokens"] as? Int, 8000, "quick answer: a smaller output limit")
+    eq((sent["output_config"] as? [String: Any])?["effort"] as? String, "low", "quick answer: low effort")
+    eq((sent["cache_control"] as? [String: Any])?["type"] as? String, "ephemeral", "quick answer: the conversation is cached")
+    let system = sent["system"] as? String ?? ""
+    check(system.contains("command bar") && system.count < 4000, "quick answer: the short prompt is sent", "\(system.count) characters")
+    let tools = (sent["tools"] as? [[String: Any]]) ?? []
+    eq(tools.compactMap { $0["name"] as? String }.sorted(), ["tacet_guide", "web_fetch", "web_search"], "quick answer: only the guide and the web")
+    eq(tools.first { $0["name"] as? String == "web_search" }?["max_uses"] as? Int, 2, "quick answer: at most two searches")
+}
+
+do {
+    let server = fakeServer(reply: sse([
+        #"{"choices":[{"index":0,"delta":{"role":"assistant","content":"Ciao"}}]}"#,
+        #"{"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}"#,
+        "[DONE]",
+    ]))
+    var streamed = ""
+    var done = false
+    var failure: String?
+    Task { @MainActor in
+        do {
+            _ = try await AIClient.stream(provider: .openAI, base: "http://127.0.0.1:\(server.port)/v1", key: "test",
+                                          model: "gpt-5-mini", transcript: [["role": "user", "content": "ciao"]],
+                                          tools: true, web: true, control: false, quick: true,
+                                          onText: { streamed += $0 }, onServerTool: { _, _ in })
+        } catch { failure = error.localizedDescription }
+        done = true
+    }
+    let deadline = Date().addingTimeInterval(10)
+    while !done && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    check(failure == nil, "quick answer (OpenAI): the request goes through", failure ?? "")
+    eq(streamed, "Ciao", "quick answer (OpenAI): the reply streams in")
+    let sent = server.body().flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    eq(sent["reasoning_effort"] as? String, "low", "quick answer (OpenAI): less reasoning")
+    let first = (sent["messages"] as? [[String: Any]])?.first
+    check((first?["content"] as? String ?? "").contains("command bar"), "quick answer (OpenAI): the short prompt is the system message")
 }
 
 print("\(passed) passed, \(failures) failed")

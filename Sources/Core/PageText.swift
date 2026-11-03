@@ -39,6 +39,40 @@ final class PageText: @unchecked Sendable {
         exec("PRAGMA synchronous=NORMAL")
         // unicode61 with diacritics removed: "perche" finds "perché".
         exec("CREATE VIRTUAL TABLE IF NOT EXISTS pages USING fts5(url UNINDEXED, title, body, date UNINDEXED, space UNINDEXED, tokenize = 'unicode61 remove_diacritics 2')")
+        // The full-text table can't index addresses, so finding a page's row by its address would read every row:
+        // this small table points from each address to its row.
+        exec("CREATE TABLE IF NOT EXISTS page_rows (url TEXT PRIMARY KEY, rid INTEGER NOT NULL) WITHOUT ROWID")
+        queue.async { [self] in rebuildRowsIfNeeded() }
+    }
+
+    /// Fills the address table from the pages when they disagree: the first time, or after an older Tacet (which knows
+    /// nothing of it) replaced or added pages. Checked once per launch, in the background.
+    private func rebuildRowsIfNeeded() {
+        var pages = 0, rows = 0, stale = 0, doubled = 0
+        query("SELECT count(*) FROM pages", []) { pages = Int(sqlite3_column_int64($0, 0)) }
+        query("SELECT count(*) FROM page_rows", []) { rows = Int(sqlite3_column_int64($0, 0)) }
+        query("SELECT count(*) FROM page_rows WHERE rid NOT IN (SELECT rowid FROM pages)", []) { stale = Int(sqlite3_column_int64($0, 0)) }
+        query("SELECT count(*) - count(DISTINCT url) FROM pages", []) { doubled = Int(sqlite3_column_int64($0, 0)) }
+        guard pages != rows || stale > 0 || doubled > 0 else { return }
+        transaction {
+            // Keeps the newest row of an address kept twice, and drops the others.
+            run("DELETE FROM pages WHERE rowid NOT IN (SELECT max(rowid) FROM pages GROUP BY url)", [])
+            run("DELETE FROM page_rows", [])
+            run("INSERT INTO page_rows (url, rid) SELECT url, rowid FROM pages", [])
+        }
+    }
+
+    /// The row of an address, if it's kept.
+    private func row(of url: String) -> Int64? {
+        var rid: Int64?
+        query("SELECT rid FROM page_rows WHERE url = ?", [url]) { rid = sqlite3_column_int64($0, 0) }
+        return rid
+    }
+
+    private func delete(url: String) {
+        guard let rid = row(of: url) else { return }
+        run("DELETE FROM pages WHERE rowid = ?", [Int(rid)])
+        run("DELETE FROM page_rows WHERE url = ?", [url])
     }
 
     deinit { sqlite3_close(db) }
@@ -58,15 +92,19 @@ final class PageText: @unchecked Sendable {
         guard body.count >= 80 else { return }
         let date = Date().timeIntervalSince1970
         queue.async { [self] in
+            let address = url.absoluteString
             var spaces = Set<String>()
-            query("SELECT space FROM pages WHERE url = ?", [url.absoluteString]) { s in
-                spaces.formUnion((Self.text(s, 0) ?? "").split(separator: " ").map(String.init))
+            if let rid = row(of: address) {
+                query("SELECT space FROM pages WHERE rowid = ?", [Int(rid)]) { s in
+                    spaces.formUnion((Self.text(s, 0) ?? "").split(separator: " ").map(String.init))
+                }
             }
             if let space { spaces.insert(space.uuidString) }
             transaction {
-                run("DELETE FROM pages WHERE url = ?", [url.absoluteString])
+                delete(url: address)
                 run("INSERT INTO pages (url, title, body, date, space) VALUES (?, ?, ?, ?, ?)",
-                    [url.absoluteString, title, body, date, spaces.sorted().joined(separator: " ")])
+                    [address, title, body, date, spaces.sorted().joined(separator: " ")])
+                run("INSERT OR REPLACE INTO page_rows (url, rid) VALUES (?, ?)", [address, Int(sqlite3_last_insert_rowid(db))])
             }
         }
     }
@@ -108,7 +146,13 @@ final class PageText: @unchecked Sendable {
     /// Everything since the date, or everything when nil.
     func clear(since date: Date? = nil) {
         queue.async { [self] in
-            if let date { run("DELETE FROM pages WHERE date >= ?", [date.timeIntervalSince1970]) } else { run("DELETE FROM pages", []) }
+            if let date {
+                run("DELETE FROM pages WHERE date >= ?", [date.timeIntervalSince1970])
+                run("DELETE FROM page_rows WHERE rid NOT IN (SELECT rowid FROM pages)", [])
+            } else {
+                run("DELETE FROM pages", [])
+                run("DELETE FROM page_rows", [])
+            }
             exec("PRAGMA wal_checkpoint(TRUNCATE)")
         }
     }
@@ -116,12 +160,17 @@ final class PageText: @unchecked Sendable {
     /// Text older than the time it's kept for.
     func prune(keepingDays days: Int) {
         let cutoff = Date().addingTimeInterval(-Double(days) * 86_400).timeIntervalSince1970
-        queue.async { [self] in run("DELETE FROM pages WHERE date < ?", [cutoff]) }
+        queue.async { [self] in
+            transaction {
+                run("DELETE FROM pages WHERE date < ?", [cutoff])
+                run("DELETE FROM page_rows WHERE rid NOT IN (SELECT rowid FROM pages)", [])
+            }
+        }
     }
 
     func forget(urls: [URL]) {
         guard !urls.isEmpty else { return }
-        queue.async { [self] in transaction { for u in urls { run("DELETE FROM pages WHERE url = ?", [u.absoluteString]) } } }
+        queue.async { [self] in transaction { for u in urls { delete(url: u.absoluteString) } } }
     }
 
     /// Everything kept from one site and its subdomains.
@@ -129,12 +178,12 @@ final class PageText: @unchecked Sendable {
         let site = site.lowercased()
         queue.async { [self] in
             var doomed: [String] = []
-            query("SELECT url FROM pages", []) { s in
+            query("SELECT url FROM page_rows", []) { s in
                 if let raw = Self.text(s, 0), let host = URL(string: raw)?.host?.lowercased(), host == site || host.hasSuffix("." + site) {
                     doomed.append(raw)
                 }
             }
-            transaction { for u in doomed { run("DELETE FROM pages WHERE url = ?", [u]) } }
+            transaction { for u in doomed { delete(url: u) } }
         }
     }
 

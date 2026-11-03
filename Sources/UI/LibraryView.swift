@@ -37,7 +37,7 @@ struct LibraryView: View {
             case .bookmarks: BookmarkList(open: open)
             case .readingList: ReadingListView(openOnline: open)
             case .highlights: HighlightsList(open: open)
-            case .downloads: DownloadsList()
+            case .downloads: DownloadsList(searchable: true).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
         }
         .frame(minWidth: 680, minHeight: 420)

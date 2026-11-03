@@ -92,9 +92,29 @@ enum Scripts {
 
       let hovered = null;
       const setHover = (href) => { if (href !== hovered) { hovered = href; post({ type: 'hover', url: href }); } };
+      // Resting on a link to another site opens the connection to it, so the click loads sooner.
+      const warmed = new Set([location.origin]);
+      const adHosts = /(^|\.)(doubleclick\.net|googleadservices\.com|googlesyndication\.com|adservice\.google\.[a-z.]+|adnxs\.com|taboola\.com|outbrain\.com|criteo\.(com|net)|amazon-adsystem\.com|adsrvr\.org|clickserve\.dartsearch\.net|ads\.[a-z0-9-]+\.[a-z]+)$/i;
+      let warmTimer = 0;
+      const warm = (href) => {
+        clearTimeout(warmTimer);
+        if (!href || !/^https?:/.test(href) || warmed.size > 20) return;
+        warmTimer = setTimeout(() => {
+          let u; try { u = new URL(href); } catch (e) { return; }
+          const origin = u.origin;
+          // Never toward ad and tracking networks: pointing at an ad mustn't reach them.
+          if (warmed.has(origin) || adHosts.test(u.hostname)) return;
+          warmed.add(origin);
+          const l = document.createElement('link');
+          l.rel = 'preconnect'; l.href = origin;
+          (document.head || document.documentElement).appendChild(l);
+        }, 80);
+      };
       document.addEventListener('mouseover', (e) => {
         const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
-        setHover(a && a.href && !a.href.startsWith('javascript:') ? a.href : null);
+        const href = a && a.href && !a.href.startsWith('javascript:') ? a.href : null;
+        setHover(href);
+        warm(href);
       }, true);
       document.documentElement.addEventListener('mouseleave', () => setHover(null));
       // ⌥-click a link: it opens in a preview over the page instead of leaving it.

@@ -20,7 +20,7 @@ struct OpeningRulesSettings: View {
                     Text(rule.site).fontWeight(.medium)
                     Text(OpeningRules.describe(rule.action)).foregroundStyle(.secondary).lineLimit(1)
                     Spacer()
-                    Button { s.openingRules.removeAll { $0.id == rule.id } } label: { Image(systemName: "minus.circle.fill") }
+                    Button { s.openingRules.removeAll { $0.id == rule.id } } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                         .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove this rule")
                 }
             }

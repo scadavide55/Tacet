@@ -51,13 +51,14 @@ final class AssistantHistory {
     private func file(_ id: UUID) -> URL { folder.appendingPathComponent(id.uuidString + ".json") }
 
     func save(_ chat: Saved) {
-        var body: [String: Any] = ["transcript": chat.transcript]
-        if let model = chat.model { body["model"] = model }
-        if let data = try? JSONEncoder().encode(chat.messages), let messages = try? JSONSerialization.jsonObject(with: data) {
-            body["messages"] = messages
-        }
         let url = file(chat.summary.id)
+        // Encoding a long chat with its pictures takes a moment, so it happens on the history's own queue.
         queue.async {
+            var body: [String: Any] = ["transcript": chat.transcript]
+            if let model = chat.model { body["model"] = model }
+            if let data = try? JSONEncoder().encode(chat.messages), let messages = try? JSONSerialization.jsonObject(with: data) {
+                body["messages"] = messages
+            }
             guard JSONSerialization.isValidJSONObject(body),
                   let data = try? JSONSerialization.data(withJSONObject: body) else { return }
             try? data.write(to: url, options: [.atomic, .completeFileProtection])
@@ -76,6 +77,9 @@ final class AssistantHistory {
         return Saved(summary: summary, messages: messages, transcript: body["transcript"] as? [[String: Any]] ?? [],
                      model: body["model"] as? String)
     }
+
+    /// Waits for chats still being written, before Tacet quits.
+    func flush() { queue.sync {} }
 
     func delete(_ id: UUID) {
         chats.removeAll { $0.id == id }

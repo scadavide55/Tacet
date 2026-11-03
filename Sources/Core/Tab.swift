@@ -43,11 +43,21 @@ final class Tab: NSObject, Identifiable {
     var passkeyHelp: PasskeyHelp?
     /// Picking elements on the page to hide.
     var pickingElements = false
+    /// Developer Mode: the screen size the page is shown at (Responsive Design Mode), and turned sideways.
+    var device: DevDevice?
+    var deviceLandscape = false
+    /// Developer Mode: a user agent for this tab only, and JavaScript turned off for it.
+    @ObservationIgnored var devUserAgent: String?
+    var javaScriptOff = false
     @ObservationIgnored var lastActive = Date()
     /// What the page looked like when it went to sleep, shown over it while it wakes up so there's no white flash.
     var sleepImage: NSImage?
     /// The page as it looked when you last left the tab, as JPEG, and where it was scrolled to.
-    @ObservationIgnored private var lastLook: (jpeg: Data, scroll: CGPoint)?
+    @ObservationIgnored private var lastLook: (jpeg: Data, scroll: CGPoint)? {
+        // Made once, so the hover preview and the wake-up picture don't decode the JPEG each time they're drawn.
+        didSet { lastLookImage = lastLook.flatMap { NSImage(data: $0.jpeg) } }
+    }
+    @ObservationIgnored private var lastLookImage: NSImage?
     @ObservationIgnored private var waking = false
     /// Page translation: in progress, done (from which language), or why it couldn't be.
     var translating = false
@@ -58,7 +68,7 @@ final class Tab: NSObject, Identifiable {
     var blockedHere: [String: Int] = [:]
 
     /// The picture of the page from when you last left it, for the preview shown when hovering over the tab.
-    var previewImage: NSImage? { isSelected ? nil : lastLook.flatMap { NSImage(data: $0.jpeg) } }
+    var previewImage: NSImage? { isSelected ? nil : lastLookImage }
 
     @ObservationIgnored private var restoreState: Data?
     @ObservationIgnored private var pendingURL: URL?
@@ -77,6 +87,8 @@ final class Tab: NSObject, Identifiable {
     @ObservationIgnored private var mediaPermissions: [String: Bool] = [:]
     @ObservationIgnored private var rememberedUser: (host: String, name: String, at: Date)?
     @ObservationIgnored private var lastCrash: Date?
+    /// The error page shows because the Mac was offline: it loads again by itself once the network is back.
+    @ObservationIgnored private(set) var failedOffline = false
 
     /// Saved accounts shown under a focused sign-in field, in page-view coordinates.
     struct LoginMenu: Equatable {
@@ -140,6 +152,8 @@ final class Tab: NSObject, Identifiable {
         c.preferences.isElementFullscreenEnabled = true
         c.preferences.isFraudulentWebsiteWarningEnabled = true
         c.preferences.javaScriptCanOpenWindowsAutomatically = false
+        // Inspect Element in the right-click menu, and the Web Inspector from the Develop menu.
+        c.preferences.setValue(Settings.shared.developer, forKey: "developerExtrasEnabled")
         c.allowsAirPlayForMediaPlayback = true
         c.mediaTypesRequiringUserActionForPlayback = Settings.shared.blockAutoplay ? .audio : []
         c.defaultWebpagePreferences.allowsContentJavaScript = Settings.shared.javaScript
@@ -173,7 +187,7 @@ final class Tab: NSObject, Identifiable {
         let target = pendingURL
         restoreState = nil
         pendingURL = nil
-        if state != nil, let look = lastLook, let image = NSImage(data: look.jpeg) {
+        if state != nil, lastLook != nil, let image = lastLookImage {
             sleepImage = image
             waking = true
             // A page that never finishes loading isn't hidden for long.
@@ -196,8 +210,8 @@ final class Tab: NSObject, Identifiable {
         wv.uiDelegate = self
         wv.allowsBackForwardNavigationGestures = true
         wv.allowsMagnification = true
-        wv.isInspectable = Settings.shared.developer
-        wv.customUserAgent = UserAgent.custom
+        DevTools.apply(to: wv)
+        applyUserAgent()
         Tab.owners.setObject(self, forKey: wv)
         observers = [
             // Each assignment redraws every view watching the tab, so only real changes are passed on.
@@ -237,11 +251,14 @@ final class Tab: NSObject, Identifiable {
         let config = WKSnapshotConfiguration()
         config.snapshotWidth = NSNumber(value: min(1200, Double(wv.bounds.width)))
         wv.takeSnapshot(with: config) { [weak self] image, _ in
-            guard let image, let tiff = image.tiffRepresentation,
-                  let jpeg = NSBitmapImageRep(data: tiff)?.representation(using: .jpeg, properties: [.compressionFactor: 0.6]) else { return }
+            guard let image, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
             wv.evaluateJavaScript("[window.scrollX, window.scrollY]", in: nil, in: .defaultClient) { result in
                 let xy = (try? result.get()) as? [Double] ?? [0, 0]
-                self?.lastLook = (jpeg, CGPoint(x: xy.first ?? 0, y: xy.last ?? 0))
+                // Compressing the picture takes a moment; it happens off the main thread so switching tabs stays quick.
+                DispatchQueue.global(qos: .utility).async {
+                    guard let jpeg = NSBitmapImageRep(cgImage: cg).representation(using: .jpeg, properties: [.compressionFactor: 0.6]) else { return }
+                    DispatchQueue.main.async { self?.lastLook = (jpeg, CGPoint(x: xy.first ?? 0, y: xy.last ?? 0)) }
+                }
             }
         }
     }
@@ -303,6 +320,12 @@ final class Tab: NSObject, Identifiable {
     // MARK: Actions
 
     func load(_ url: URL) {
+        // WebKit has no view-source: pages; the source opens in a window of its own instead.
+        if url.scheme?.lowercased() == "view-source" {
+            // Typed in the command bar it always works; reached any other way, only in Developer Mode.
+            if DevTools.enabled, let inner = URL(string: String(url.absoluteString.dropFirst("view-source:".count))) { DevTools.viewSource(of: inner) }
+            return
+        }
         guard let wv = webView else {
             pendingURL = url
             self.url = url
@@ -325,6 +348,18 @@ final class Tab: NSObject, Identifiable {
     }
 
     func hardReload() { webView?.reloadFromOrigin() }
+
+    /// The network is back: a page that failed only because the Mac was offline loads again.
+    func retryIfOffline() {
+        guard failedOffline, webView != nil else { return }
+        failedOffline = false
+        reload()
+    }
+
+    /// The user agent from Settings, unless Developer Mode set one for this tab.
+    func applyUserAgent() {
+        webView?.customUserAgent = devUserAgent ?? UserAgent.custom
+    }
     func stop() { webView?.stopLoading() }
     func goBack() { webView?.goBack() }
     func goForward() { webView?.goForward() }
@@ -524,7 +559,7 @@ final class Tab: NSObject, Identifiable {
         tokens.append(nc.addObserver(forName: .settingChanged, object: nil, queue: .main) { [weak self] note in
             guard let self, let wv = self.webView, let key = note.userInfo?["key"] as? String else { return }
             switch key {
-            case "gpc", "cookieBanners", "rejectCookies", "fingerprinting", "plugins", "pluginsQuiet", "youtubeAds", "forceDark", "siteStyles", "adBlock", "allowlist":
+            case "gpc", "cookieBanners", "rejectCookies", "fingerprinting", "plugins", "pluginsQuiet", "youtubeAds", "forceDark", "siteStyles", "adBlock", "allowlist", "recoverDrafts":
                 Scripts.install(on: wv.configuration.userContentController)
                 if key == "siteStyles" {
                     // The page follows style changes as they're made; your JavaScript waits for the next load.
@@ -533,9 +568,9 @@ final class Tab: NSObject, Identifiable {
                     wv.reload()
                 }
             case "developer":
-                wv.isInspectable = Settings.shared.developer
+                DevTools.apply(to: wv)
             case "uaMode", "customUA":
-                wv.customUserAgent = UserAgent.custom
+                self.applyUserAgent()
             default:
                 break
             }
@@ -782,10 +817,16 @@ final class Tab: NSObject, Identifiable {
         }
         let store = PasswordStore.shared
         let existing = store.logins(for: host).first { $0.username == username }
-        if let existing, store.matches(host: existing.host, username: username, password: password) { return }
         let pending = PendingLogin(host: existing?.host ?? host, username: username, password: password, isUpdate: existing != nil)
-        // Wait for the sign-in to navigate, so the banner doesn't flash on the login page.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.pendingSave = pending }
+        let started = Date()
+        // Comparing with the saved password reads the Keychain, which can wait on a macOS prompt: never on the main thread.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let unchanged = existing.map { store.matches(host: $0.host, username: username, password: password) } ?? false
+            guard !unchanged else { return }
+            // Wait for the sign-in to navigate, so the banner doesn't flash on the login page.
+            let wait = max(0, 0.8 - Date().timeIntervalSince(started))
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { self?.pendingSave = pending }
+        }
     }
 
     func savePending() {
@@ -866,6 +907,8 @@ final class Tab: NSObject, Identifiable {
         }
         guard let f = failing else { return }
         failedURL = f
+        failedOffline = e.domain == NSURLErrorDomain && [NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost,
+                                                         NSURLErrorDataNotAllowed, NSURLErrorCannotFindHost].contains(e.code)
         internalLoad = true
         internalNavigation = webView.loadHTMLString(Scripts.errorPage(url: f, error: e), baseURL: f)
     }
@@ -876,7 +919,7 @@ final class Tab: NSObject, Identifiable {
 extension Tab: WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, preferences: WKWebpagePreferences,
                  decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
-        preferences.allowsContentJavaScript = Settings.shared.javaScript
+        preferences.allowsContentJavaScript = Settings.shared.javaScript && !javaScriptOff
         if internalLoad {
             internalLoad = false
             decisionHandler(.allow, preferences)
@@ -976,10 +1019,31 @@ extension Tab: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
         DownloadManager.shared.track(download)
+        closeIfOnlyDownloading(webView)
     }
 
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
         DownloadManager.shared.track(download)
+        closeIfOnlyDownloading(webView)
+    }
+
+    /// A tab opened just for a file (a link with a new tab, an address from another app) has nothing to show once
+    /// the file starts downloading, so it closes, as in Safari.
+    private func closeIfOnlyDownloading(_ webView: WKWebView) {
+        guard webView.backForwardList.currentItem == nil, !isPinned, let browser else { return }
+        DispatchQueue.main.async { [weak self, weak browser] in
+            guard let self, let browser, browser.tabs.contains(where: { $0 === self }) else { return }
+            // Not kept among closed tabs: ⇧⌘T would only download the file again.
+            self.url = nil
+            self.pendingURL = nil
+            if browser.tabs.count > 1 {
+                browser.close(self)
+            } else {
+                // The window's only tab goes back to the start page instead of staying blank.
+                self.title = L("New Tab")
+                self.isLoading = false
+            }
+        }
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -989,6 +1053,7 @@ extension Tab: WKNavigationDelegate {
         if insecureWarning { insecureWarning = false }
         if navigation !== internalNavigation {
             if failedURL != nil { failedURL = nil }
+            failedOffline = false
             if isReader { isReader = false }
         }
     }
@@ -1027,6 +1092,12 @@ extension Tab: WKNavigationDelegate {
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        // macOS ends background pages' processes when memory runs short: such a tab sleeps, and loads again only when
+        // you come back to it, instead of taking the memory straight back.
+        if !isSelected, browser?.preview !== self, webView === self.webView {
+            hibernate()
+            return
+        }
         // A page that keeps crashing its process would otherwise reload forever, using all the CPU.
         if let last = lastCrash, Date().timeIntervalSince(last) < 15, let u = url ?? webView.url {
             lastCrash = nil
@@ -1145,8 +1216,18 @@ final class LumenWebView: WKWebView {
         if tab.pull.track(event) { tab.reload() }
     }
 
+    /// Whether the Web Inspector was already open when the right-click menu opened.
+    private var inspectorWasOpen = true
+
+    override func didCloseMenu(_ menu: NSMenu, with event: NSEvent?) {
+        super.didCloseMenu(menu, with: event)
+        // Inspect Element opens a new inspector inside the page's view, where Tacet's layout hides it.
+        if DevTools.enabled, !inspectorWasOpen, let tab { DevTools.detachIfItOpens(tab) }
+    }
+
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
+        inspectorWasOpen = DevTools.enabled ? DevTools.isInspectorOpen(tab) : true
         let renames = [
             "WKMenuItemIdentifierOpenLinkInNewWindow": L("Open Link in New Tab"),
             "WKMenuItemIdentifierOpenImageInNewWindow": L("Open Image in New Tab"),
@@ -1160,6 +1241,7 @@ final class LumenWebView: WKWebView {
         addHighlightItems(to: menu)
         addCutoutItem(to: menu, at: convert(event.locationInWindow, from: nil))
         addExtensionItems(to: menu)
+        addDeveloperItems(to: menu)
         guard let tab, let browser = tab.browser, let link = tab.hoverURL, let url = URL(string: link) else { return }
         let anchor = menu.items.firstIndex { $0.identifier?.rawValue == "WKMenuItemIdentifierOpenLinkInNewWindow" }
         var index = (anchor ?? -1) + 1
@@ -1183,6 +1265,23 @@ final class LumenWebView: WKWebView {
 }
 
 extension LumenWebView {
+    /// View Page Source and Page Info, next to WebKit's own Inspect Element, in Developer Mode.
+    func addDeveloperItems(to menu: NSMenu) {
+        guard DevTools.enabled, let tab, tab.url != nil else { return }
+        let inspect = menu.items.firstIndex { $0.identifier?.rawValue == "WKMenuItemIdentifierInspectElement" }
+        if inspect == nil { menu.addItem(.separator()) }
+        var index = inspect ?? menu.items.count
+        // WebKit's own item, when there, inspects the element under the pointer; didCloseMenu moves its inspector to a
+        // window of its own.
+        if inspect == nil { menu.insertItem(ActionMenuItem(L("Inspect Element")) { DevTools.pickElement(tab) }, at: index) }
+        index += 1
+        for item in [ActionMenuItem(L("View Page Source")) { DevTools.viewSource(tab) },
+                     ActionMenuItem(L("Page Info")) { DevTools.pageInfo(tab) }] {
+            menu.insertItem(item, at: min(index, menu.items.count))
+            index += 1
+        }
+    }
+
     /// The items extensions add to the page's right-click menu, at the end.
     func addExtensionItems(to menu: NSMenu) {
         guard #available(macOS 15.4, *), let tab, tab.browser?.isPrivate == false else { return }

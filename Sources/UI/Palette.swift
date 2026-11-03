@@ -125,6 +125,12 @@ struct CommandPalette: View {
             fetchHistory(query)
             DispatchQueue.main.async { focused = true }
         }
+        .onDisappear {
+            // The rows' actions hold on to this view's state, which holds the rows: emptying the list lets both go.
+            list = []
+            suggestTask?.cancel()
+            historyTask?.cancel()
+        }
         .animation(.easeOut(duration: 0.22), value: answering)
         .onChange(of: query) { _, q in
             if answering { closeAnswer() }
@@ -132,6 +138,9 @@ struct CommandPalette: View {
             refresh()
             fetchHistory(q)
             fetchSuggestions(q)
+            // Several words that aren't an address may become a question: the assistant's connection opens now.
+            let typed = q.trimmingCharacters(in: .whitespaces)
+            if typed.contains(" "), URL(string: typed)?.scheme == nil, InputResolver.addressURL(typed) == nil { AIClient.warm() }
         }
         .onChange(of: suggestions) { _, _ in refresh() }
         .onChange(of: historyHits.map(\.id)) { _, _ in refresh() }
@@ -143,7 +152,8 @@ struct CommandPalette: View {
             Text(key).font(.system(size: 10, weight: .semibold, design: .rounded))
                 .padding(.horizontal, 4).padding(.vertical, 1)
                 .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 3))
-            Text(label).font(.system(size: 10.5))
+            // A String label isn't looked up by Text, so it's translated here.
+            Text(L(label)).font(.system(size: 10.5))
         }
         .foregroundStyle(.secondary)
     }
@@ -203,6 +213,10 @@ struct CommandPalette: View {
     }
 
     private func navigate(_ url: URL, newTab: Bool) {
+        if url.scheme?.lowercased() == "view-source" {
+            if let inner = URL(string: String(url.absoluteString.dropFirst("view-source:".count))) { DevTools.viewSource(of: inner) }
+            return
+        }
         if OpeningRules.route(url, from: b) { return }
         if newTab || b.current == nil {
             b.newTab(url: url)
@@ -286,9 +300,19 @@ struct CommandPalette: View {
                 run: { navigate(url, newTab: $0) }))
         }
 
+        // A sum is worked out on the spot, just below: ↓ ↩ copies the result, and ↩ alone still searches.
+        if let value = Calculator.evaluate(q) {
+            let result = Calculator.format(value)
+            out.append(PaletteItem(id: "calc", icon: .symbol("equal.circle.fill"), title: "= " + result,
+                                   subtitle: L("Copy the result"), badge: "↩", run: { _ in
+                                       NSPasteboard.general.clearContents()
+                                       NSPasteboard.general.setString(result, forType: .string)
+                                   }))
+        }
+
         if s.aiEnabled, InputResolver.addressURL(q) == nil, URL(string: q)?.scheme == nil {
             out.append(PaletteItem(id: "ask", icon: .symbol("sparkles"), title: String(format: L("Ask Tacet Assistant: %@"), q),
-                                   subtitle: L("A quick answer here, searching the web if needed"), badge: "↩", run: { _ in }))
+                                   subtitle: s.aiWeb ? L("A quick answer here, searching the web if needed") : L("A quick answer here"), badge: "↩", run: { _ in }))
         }
 
         let lower = q.lowercased()
@@ -396,6 +420,23 @@ struct CommandPalette: View {
                 s.tabLayout = s.tabLayout == .vertical ? .horizontal : .vertical
             },
         ]
+        if s.developer {
+            list += [
+                command("Show Web Inspector", "hammer", "⌥⌘I") { DevTools.showInspector(tab) },
+                command("Show JavaScript Console", "terminal", "⌥⌘C") { DevTools.showConsole(tab) },
+                command("Inspect Element", "scope", "⌥⇧⌘C") { DevTools.pickElement(tab) },
+                command("View Page Source", "chevron.left.forwardslash.chevron.right", "⌥⌘U") { DevTools.viewSource(tab) },
+                command("Page Info", "info.circle", "Load times, size and contents of the page") { DevTools.pageInfo(tab) },
+                command(tab?.device == nil ? "Responsive Design Mode" : "Exit Responsive Design Mode", "iphone", "Develop") {
+                    DevTools.setDevice(tab?.device == nil ? DevDevice.all[1] : nil, on: tab)
+                },
+                command(tab?.javaScriptOff == true ? "Enable JavaScript" : "Disable JavaScript", "curlybraces", "Develop") { DevTools.toggleJavaScript(tab) },
+                command("Empty Caches", "trash", "⌥⌘E") { DevTools.emptyCaches(tab) },
+                command("Turn Off Developer Mode", "hammer", "Hides the Develop menu") { s.developer = false },
+            ]
+        } else {
+            list.append(command("Turn On Developer Mode", "hammer", "Web Inspector, page source and more") { s.developer = true })
+        }
         for a in s.automations where !a.steps.isEmpty {
             list.append(PaletteItem(id: "auto" + a.id.uuidString, icon: .symbol("bolt"), title: a.name,
                                     subtitle: a.shortcutLabel ?? a.steps.map(\.label).joined(separator: " · "), badge: "Automation",
@@ -542,7 +583,7 @@ struct QuickAnswer: View {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles").foregroundStyle(.tint)
                 Text("Tacet Assistant").font(.system(size: 12, weight: .semibold))
-                Text(Settings.shared.aiModelName).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                Text(chat.model).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                 Spacer()
                 if chat.busy { ProgressView().controlSize(.small) }
                 Button(action: expand) { Image(systemName: "arrow.up.left.and.arrow.down.right") }

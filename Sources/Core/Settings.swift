@@ -476,6 +476,16 @@ final class Settings: Observable {
         let m = (aiModels[aiProvider.rawValue] ?? "").trimmingCharacters(in: .whitespaces)
         return m.isEmpty ? aiProvider.defaultModel : m
     }
+    /// Answers in the command bar use the provider's faster model.
+    @Pref("aiQuickFast") var aiQuickFast = true
+    /// Tacet Assistant's own character; off, it answers in a neutral voice.
+    @Pref("aiPersonality") var aiPersonality = true
+    /// Longer, more detailed answers instead of short ones.
+    @Pref("aiDetailed") var aiDetailed = false
+
+    var aiQuickModelName: String {
+        aiQuickFast ? (aiProvider.fastModel ?? aiModelName) : aiModelName
+    }
 
     // Advanced
     @Pref("developer") var developer = false
@@ -483,6 +493,8 @@ final class Settings: Observable {
     @Pref("uaMode") var uaMode = UserAgentMode.safari
     @Pref("customUA") var customUA = ""
     @Pref("askDownload") var askDownloadLocation = false
+    /// Days a finished download stays in the list; 0 keeps it until it's cleared by hand.
+    @Pref("downloadsKeepDays") var downloadsKeepDays = 7
 
     var accent: Color { Color(hex: accentHex) }
 

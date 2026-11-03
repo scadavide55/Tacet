@@ -154,7 +154,7 @@ struct PasskeyBanner: View {
                 .padding(.top, 5)
             }
             Spacer(minLength: 8)
-            Button { tab.passkeyHelp = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+            Button { tab.passkeyHelp = nil } label: { Label("Close", systemImage: "xmark").labelStyle(.iconOnly).font(.system(size: 10, weight: .bold)) }
                 .buttonStyle(.plain).foregroundStyle(.secondary).help("Use another way to sign in")
         }
         .controlSize(.small)
@@ -218,7 +218,7 @@ struct DraftBanner: View {
                 .padding(.top, 5)
             }
             Spacer(minLength: 8)
-            Button { tab.draftOffer = [] } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+            Button { tab.draftOffer = [] } label: { Label("Close", systemImage: "xmark").labelStyle(.iconOnly).font(.system(size: 10, weight: .bold)) }
                 .buttonStyle(.plain).foregroundStyle(.secondary).help("Not now")
         }
         .controlSize(.small)
@@ -242,7 +242,7 @@ struct InsecurePasswordBanner: View {
             Text("This page isn't secure. Passwords you type here can be read by others on your network.")
                 .font(.system(size: 12.5)).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
-            Button { tab.insecureWarning = false } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+            Button { tab.insecureWarning = false } label: { Label("Close", systemImage: "xmark").labelStyle(.iconOnly).font(.system(size: 10, weight: .bold)) }
                 .buttonStyle(.plain).foregroundStyle(.secondary)
         }
         .padding(10)
@@ -345,11 +345,11 @@ struct PasswordsPane: View {
                             if let pw = revealed[login.id] {
                                 Text(pw).font(.system(.body, design: .monospaced)).textSelection(.enabled)
                             }
-                            Button { toggleReveal(login) } label: { Image(systemName: revealed[login.id] == nil ? "eye" : "eye.slash") }
+                            Button { toggleReveal(login) } label: { Label(revealed[login.id] == nil ? "Show Password" : "Hide Password", systemImage: revealed[login.id] == nil ? "eye" : "eye.slash").labelStyle(.iconOnly) }
                                 .buttonStyle(.borderless).help(L("Show password"))
-                            Button { copy(login) } label: { Image(systemName: "doc.on.doc") }
+                            Button { copy(login) } label: { Label("Copy", systemImage: "doc.on.doc").labelStyle(.iconOnly) }
                                 .buttonStyle(.borderless).help(L("Copy password"))
-                            Button { store.delete(login) } label: { Image(systemName: "trash") }
+                            Button { store.delete(login) } label: { Label("Delete", systemImage: "trash").labelStyle(.iconOnly) }
                                 .buttonStyle(.borderless).help(L("Delete"))
                         }
                     }
@@ -375,7 +375,7 @@ struct PasswordsPane: View {
                         HStack {
                             Text(host)
                             Spacer()
-                            Button { s.neverSaveHosts.removeAll { $0 == host } } label: { Image(systemName: "minus.circle.fill") }
+                            Button { s.neverSaveHosts.removeAll { $0 == host } } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                                 .buttonStyle(.plain).foregroundStyle(.secondary)
                         }
                     }

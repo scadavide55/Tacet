@@ -130,6 +130,8 @@ enum WebTools {
         if (300..<400).contains(status) { throw Failure.notAllowed("The page redirects to a local or private network address.") }
         guard (200..<300).contains(status) else { throw Failure.http(status) }
         var data = Data()
+        // The size is usually known: the buffer is made once instead of growing as bytes arrive.
+        if response.expectedContentLength > 0 { data.reserveCapacity(Int(min(response.expectedContentLength, Int64(byteLimit)))) }
         for try await b in bytes {
             data.append(b)
             if data.count >= byteLimit { break }

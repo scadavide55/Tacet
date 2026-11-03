@@ -128,7 +128,7 @@ struct WebAppsSection: View {
                     }
                     Spacer()
                     Button("Open") { NSWorkspace.shared.openApplication(at: app.url, configuration: .init()) }
-                    Button { WebApp.remove(app) { apps = WebApp.installed() } } label: { Image(systemName: "trash") }
+                    Button { WebApp.remove(app) { apps = WebApp.installed() } } label: { Label("Delete", systemImage: "trash").labelStyle(.iconOnly) }
                         .buttonStyle(.borderless).help(L("Move to Trash"))
                 }
             }

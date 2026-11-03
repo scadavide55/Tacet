@@ -26,8 +26,8 @@ struct AutomationsPane: View {
                 }
                 Divider()
                 HStack(spacing: 4) {
-                    Button { add(Automation(name: L("New Automation"))) } label: { Image(systemName: "plus") }.help("New automation")
-                    Button { remove() } label: { Image(systemName: "minus") }.disabled(selected == nil).help("Delete automation")
+                    Button { add(Automation(name: L("New Automation"))) } label: { Label("New automation", systemImage: "plus").labelStyle(.iconOnly) }.help("New automation")
+                    Button { remove() } label: { Label("Delete automation", systemImage: "minus").labelStyle(.iconOnly) }.disabled(selected == nil).help("Delete automation")
                     Spacer()
                     Menu("Examples") {
                         ForEach(Automation.examples) { ex in Button(ex.name) { add(Automation(name: ex.name, steps: ex.steps)) } }
@@ -39,8 +39,12 @@ struct AutomationsPane: View {
             }
             .frame(width: 200)
             Divider()
-            if let i = s.automations.firstIndex(where: { $0.id == selected }) {
-                AutomationEditor(automation: $s.automations[i])
+            if let id = selected, s.automations.contains(where: { $0.id == id }) {
+                // Bound by id, not by position: a deleted automation must not leave the editor reading a gone index.
+                AutomationEditor(automation: Binding(
+                    get: { s.automations.first { $0.id == id } ?? Automation(id: id, name: "") },
+                    set: { new in if let j = s.automations.firstIndex(where: { $0.id == id }) { s.automations[j] = new } }))
+                    .id(id)
             } else {
                 Text("Choose an automation, or make one with +.").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -81,9 +85,9 @@ private struct AutomationEditor: View {
                         Text("\(i + 1).").foregroundStyle(.secondary).monospacedDigit()
                         Text(step.label).lineLimit(1)
                         Spacer()
-                        Button { move(i, -1) } label: { Image(systemName: "chevron.up") }.disabled(i == 0)
-                        Button { move(i, 1) } label: { Image(systemName: "chevron.down") }.disabled(i == automation.steps.count - 1)
-                        Button { automation.steps.remove(at: i) } label: { Image(systemName: "minus.circle.fill") }.foregroundStyle(.secondary)
+                        Button { move(i, -1) } label: { Label("Move Up", systemImage: "chevron.up").labelStyle(.iconOnly) }.disabled(i == 0)
+                        Button { move(i, 1) } label: { Label("Move Down", systemImage: "chevron.down").labelStyle(.iconOnly) }.disabled(i == automation.steps.count - 1)
+                        Button { if automation.steps.indices.contains(i) { automation.steps.remove(at: i) } } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }.foregroundStyle(.secondary)
                     }
                     .buttonStyle(.borderless)
                 }
@@ -126,7 +130,7 @@ private struct AutomationEditor: View {
 
     private func move(_ i: Int, _ by: Int) {
         let j = i + by
-        guard automation.steps.indices.contains(j) else { return }
+        guard automation.steps.indices.contains(i), automation.steps.indices.contains(j) else { return }
         automation.steps.swapAt(i, j)
     }
 

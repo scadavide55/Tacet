@@ -130,6 +130,12 @@ private struct ResultView: View {
     let result: ImportResult
     let source: String
 
+    /// App Translocation (a quarantined download opened where it was) or a mounted disk image.
+    static var runningFromTemporaryCopy: Bool {
+        let path = Bundle.main.bundleURL.path
+        return path.contains("/AppTranslocation/") || path.hasPrefix("/Volumes/")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if result.warnings.isEmpty || result.imported > 0 {
@@ -144,6 +150,18 @@ private struct ResultView: View {
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
                 }
                 Text("Turn on Tacet in the list. When you come back to Tacet, the import finishes by itself.").font(.caption).foregroundStyle(.secondary)
+                // A copy macOS runs from a temporary place (a downloaded app it moved aside, or the disk image) never
+                // gets the permission given to the one in Applications.
+                if Self.runningFromTemporaryCopy {
+                    Text("Tacet is running from a temporary copy, so the permission can't reach it. Quit Tacet, drag it into the Applications folder, open it from there, then turn it on in the list.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+                // macOS ties the permission to the copy of Tacet it was given to, so an older copy in the list can be
+                // switched on while this one is still blocked.
+                Text(String(format: L("Already on? macOS may have given it to an older copy of Tacet. Select Tacet in the list, remove it with −, then press + and choose %@."),
+                            Bundle.main.bundleURL.path))
+                    .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                Button("Show This Tacet in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]) }
             }
         }
         .font(.callout)

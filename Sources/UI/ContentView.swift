@@ -255,7 +255,7 @@ struct LinkPreviewPanel: View {
                     Spacer(minLength: 8)
                     Button("Side by Side") { b.splitPreview() }.help("Show it next to this page in split view")
                     Button("Open as Tab") { b.keepPreview() }.buttonStyle(.borderedProminent).help("Keep it as a tab (⌘↩)")
-                    Button { b.closePreview() } label: { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)) }
+                    Button { b.closePreview() } label: { Label("Close", systemImage: "xmark").labelStyle(.iconOnly).font(.system(size: 11, weight: .bold)) }
                         .buttonStyle(.plain).foregroundStyle(.secondary).help("Close (Esc)")
                 }
                 .controlSize(.small)
@@ -286,7 +286,10 @@ struct TabPane: View {
     var body: some View {
         let r: CGFloat = s.insetContent ? s.cornerRadius : 0
         ZStack {
-            if let wv = tab.webView { WebContainer(webView: wv, radius: r) }
+            if let wv = tab.webView {
+                // The same view with or without a device size, so the web view never changes container.
+                DeviceFrame(tab: tab) { WebContainer(webView: wv, radius: tab.device == nil ? r : 10) }
+            }
             if let look = tab.sleepImage {
                 // The page as it was, top-aligned, until it has loaded again.
                 GeometryReader { geo in

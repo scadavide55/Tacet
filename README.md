@@ -30,7 +30,7 @@ A minimal, fast and private macOS browser built on WebKit, with a native ad bloc
 > [!NOTE]
 > **Lumen is now Tacet.** Same browser, new name: there were already other browsers called Lumen, and the name sounded too much like an AI product. Updating keeps all your tabs, passwords and settings.
 >
-> **1.7** brings Spaces, search by what pages said, link previews, highlights and notes, opening rules, unsent text recovery, automations, a Safari route for passkeys and a security pass. **1.6.5** had a new icon, Seal, corona, with sixteen others to pick in Settings › Appearance, plus fixes for the compact layout, Reddit sign-ins and importing from Safari. **1.6.4** brought Tacet Plugins (beta), a verified store with Cutout, Focus Timer, Smart Dark Mode and more, an extensions menu, a Tacet Assistant that knows all of Tacet and runs on Ollama or LM Studio, and better tabs. **1.6.3** brought your Arc sidebar across, a stronger Tacet Shield, tab previews, translation on your Mac and a password check. **1.6.2** has a new icon and a few fixes. **1.6.1** brought web extensions, an offline Reading List, Customize Site, tab organising and a much more capable Tacet Assistant, including Apple's on-device model. Tacet Assistant is still a beta. If something doesn't work, please report it in [Issues](https://github.com/scadavide55/Tacet/issues).
+> **1.7.1** adds Developer Mode (Web Inspector, page source, Responsive Design Mode and more), downloads with speed, pause and resume and a list that lasts, a quicker Tacet Assistant with a voice of its own, Reopen Closed Window, and fixes that make Tacet faster and steadier. **1.7** brings Spaces, search by what pages said, link previews, highlights and notes, opening rules, unsent text recovery, automations, a Safari route for passkeys and a security pass. **1.6.5** had a new icon, Seal, corona, with sixteen others to pick in Settings › Appearance, plus fixes for the compact layout, Reddit sign-ins and importing from Safari. **1.6.4** brought Tacet Plugins (beta), a verified store with Cutout, Focus Timer, Smart Dark Mode and more, an extensions menu, a Tacet Assistant that knows all of Tacet and runs on Ollama or LM Studio, and better tabs. **1.6.3** brought your Arc sidebar across, a stronger Tacet Shield, tab previews, translation on your Mac and a password check. **1.6.2** has a new icon and a few fixes. **1.6.1** brought web extensions, an offline Reading List, Customize Site, tab organising and a much more capable Tacet Assistant, including Apple's on-device model. Tacet Assistant is still a beta. If something doesn't work, please report it in [Issues](https://github.com/scadavide55/Tacet/issues).
 
 ## Features
 
@@ -42,7 +42,8 @@ A minimal, fast and private macOS browser built on WebKit, with a native ad bloc
 - Reads your other tabs without switching to them, searches your history and bookmarks, and takes screenshots of the page when the layout matters
 - Full transcripts of YouTube videos, to summarise or ask about a video
 - Select text and right-click for Tacet Assistant › Explain, Translate, Summarise or Ask About It
-- Ask from the command bar for a quick answer that searches the web, then continue in the full chat if you want
+- Ask from the command bar for a quick answer that searches the web only when it needs to and starts answering almost at once, then continue in the full chat if you want
+- Short, direct answers in a calm voice of its own, or detailed and neutral ones if you prefer (Settings › AI › Answers)
 - **Web access** (on by default): searches the web and reads pages, with the sources listed under each answer
 - Opens pages and searches in new tabs, switches between your tabs and groups them when you ask
 - **Browser use** (off by default): clicks, types, scrolls and drags on the current page for you. It never fills in passwords or card numbers, and asks before sending, buying or deleting anything
@@ -109,13 +110,19 @@ A minimal, fast and private macOS browser built on WebKit, with a native ad bloc
 - Windows and tabs come back when you reopen Tacet
 
 **Getting around**
-- Command bar (⌘L / ⌘K) for addresses, searches, open tabs, bookmarks, history and commands
+- Command bar (⌘L / ⌘K) for addresses, searches, open tabs, bookmarks, history and commands, and sums worked out as you type
 - Search shortcuts, for example `yt lofi` searches YouTube
 - Choice of search engine: DuckDuckGo, Google, Bing, Brave, Startpage, Ecosia, Kagi or your own
 - Reader mode, find on page, per-site zoom
 - Translate pages on your Mac with Apple's translation, have them read aloud, or hide everything but the page with Focus Mode
 - Reading List: save articles in Reader with their images to read later, even offline
-- Bookmarks with HTML import and export, searchable history, downloads
+- Bookmarks with HTML import and export, searchable history
+- Downloads with speed and time left, pause and resume (even after quitting), Download Again, and a list kept in the Library
+
+**For developers**
+- Developer Mode (Settings › Advanced) adds a Develop menu and Inspect Element: the Web Inspector and JavaScript console, page source (or type `view-source:` and an address), page load times and sizes
+- Responsive Design Mode shows the page at iPhone, Pixel, iPad and laptop sizes with their user agents, turned sideways if you like
+- Switch user agent, open the page in another browser, turn off JavaScript or styles, outline every element, edit the page's text, empty caches or clear one site's data
 
 **Make it yours**
 - Light, dark or system appearance and any accent colour
@@ -129,7 +136,7 @@ A minimal, fast and private macOS browser built on WebKit, with a native ad bloc
 | Shortcut | Action |
 | --- | --- |
 | ⌘T / ⌘W | New tab / close tab |
-| ⇧⌘T | Reopen closed tab |
+| ⇧⌘T | Reopen closed tab (or window) |
 | ⌘N / ⇧⌘N | New window / new private window |
 | ⌘L or ⌘K | Command bar |
 | ⌘S | Show or hide the sidebar |
@@ -142,6 +149,7 @@ A minimal, fast and private macOS browser built on WebKit, with a native ad bloc
 | ⌘D | Bookmark the page |
 | ⌘Y | History |
 | ⇧⌘B | Turn the ad blocker on or off |
+| ⌥⌘I / ⌥⌘U | Web Inspector / page source (Developer Mode) |
 
 ## Requirements
 

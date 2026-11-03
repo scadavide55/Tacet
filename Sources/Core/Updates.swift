@@ -277,17 +277,23 @@ final class UpdateInstaller: NSObject, URLSessionDownloadDelegate {
     /// removed once it's safely moved aside, and it's put back if the copy fails.
     static func swapScript(current: String, newApp: String, waitingFor pid: Int32) -> String {
         """
+        cur=\(shellQuoted(current)); new=\(shellQuoted(newApp))
         while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done
-        backup="\(current).old-$$"
-        if mv "\(current)" "$backup"; then
-            if /usr/bin/ditto "\(newApp)" "\(current)"; then
+        backup="$cur.old-$$"
+        if mv "$cur" "$backup"; then
+            if /usr/bin/ditto "$new" "$cur"; then
                 rm -rf "$backup"
-                /usr/bin/xattr -dr com.apple.quarantine "\(current)"
+                /usr/bin/xattr -dr com.apple.quarantine "$cur"
             else
-                rm -rf "\(current)"; mv "$backup" "\(current)"
+                rm -rf "$cur"; mv "$backup" "$cur"
             fi
         fi
         """
+    }
+
+    /// A path as one shell word, whatever characters it has ($, quotes, spaces).
+    static func shellQuoted(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     /// A small script waits for Tacet to quit, swaps the app and opens the new one.
@@ -296,7 +302,7 @@ final class UpdateInstaller: NSObject, URLSessionDownloadDelegate {
         AppRename.skip = true
         Session.shared.saveNow()
         let script = Self.swapScript(current: Bundle.main.bundleURL.path, newApp: newApp.path,
-                                     waitingFor: ProcessInfo.processInfo.processIdentifier) + "\n/usr/bin/open \"\(Bundle.main.bundleURL.path)\""
+                                     waitingFor: ProcessInfo.processInfo.processIdentifier) + "\n/usr/bin/open \"$cur\""
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
         p.arguments = ["-c", script]
@@ -325,8 +331,9 @@ enum AppRename {
               fm.isWritableFile(atPath: folder.path) else { return }
         let lsregister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
         let script = """
+        app=\(UpdateInstaller.shellQuoted(app.path)); target=\(UpdateInstaller.shellQuoted(target.path))
         while kill -0 \(ProcessInfo.processInfo.processIdentifier) 2>/dev/null; do sleep 0.2; done
-        [ -e "\(target.path)" ] || mv "\(app.path)" "\(target.path)" && "\(lsregister)" -f "\(target.path)"
+        [ -e "$target" ] || mv "$app" "$target" && "\(lsregister)" -f "$target"
         """
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")

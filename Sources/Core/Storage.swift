@@ -273,10 +273,14 @@ final class History {
     private init() {
         // History used to be one JSON file rewritten after every visit; it moves into the database once.
         let legacy = StoredFile<[HistoryEntry]>("history.json")
-        if let db, db.isEmpty, let old = legacy.load() {
-            db.save(old)
-            db.flush()
-            legacy.delete()
+        if let db, FileManager.default.fileExists(atPath: legacy.url.path) {
+            // A copy left by an older Tacet: what it has that the database doesn't comes in, newer rows stay. It's
+            // deleted only once that worked (or if it can't be read at all).
+            if let old = legacy.load() {
+                if db.insertMissing(old) { legacy.delete() }
+            } else {
+                legacy.delete()
+            }
         }
         entries = db?.load(limit: Self.memoryLimit) ?? []
         hasOlder = entries.count == Self.memoryLimit && (db?.count() ?? 0) > Self.memoryLimit
@@ -331,9 +335,15 @@ final class History {
             }
             changed.insert(e.url)
         }
-        entries = byURL.values.sorted { $0.date > $1.date }
+        var merged = byURL.values.sorted { $0.date > $1.date }
         // Only the imported rows are written; the rest of the history is already on disk.
         db?.save(changed.compactMap { byURL[$0] })
+        // A big import stays on disk too; memory keeps the newest, as after any visit.
+        if merged.count > Self.memoryLimit {
+            merged.removeLast(merged.count - Self.memoryLimit)
+            hasOlder = true
+        }
+        entries = merged
         return added
     }
 
@@ -357,6 +367,8 @@ final class History {
         if let date { entries.removeAll { $0.date >= date } } else { entries.removeAll() }
         db?.clear(since: date)
         PageText.shared.clear(since: date)
+        // The downloads list goes with it, as in Safari; the files stay.
+        DownloadManager.shared.clearList(since: date)
     }
 
     /// Waits for history writes still in progress, before Tacet quits.
@@ -486,6 +498,9 @@ final class Session {
 
     func takePending() -> WindowSnapshot? { pending.isEmpty ? nil : pending.removeFirst() }
 
+    /// A closed window to open again: the next new window takes it, as it would a saved one at launch.
+    func reopen(_ snap: WindowSnapshot) { pending.insert(snap, at: 0) }
+
     /// Whether saved windows are still waiting to be reopened at launch.
     var hasPendingWindows: Bool { !pending.isEmpty }
 
@@ -532,6 +547,21 @@ final class WindowRegistry {
     var browsers: [BrowserState] { table.allObjects.filter { !$0.isClosed } }
 
     func add(_ b: BrowserState) { table.add(b) }
+
+    /// Windows closed since Tacet opened, newest last, for History › Reopen Closed Window.
+    private(set) var closedWindows: [WindowSnapshot] = []
+
+    func rememberClosed(_ snap: WindowSnapshot) {
+        closedWindows.append(snap)
+        if closedWindows.count > 10 { closedWindows.removeFirst() }
+    }
+
+    /// The last window closed, without its Space when that Space is open in another window now.
+    func takeClosedWindow() -> WindowSnapshot? {
+        guard var snap = closedWindows.popLast() else { return nil }
+        if let space = snap.space, browsers.contains(where: { $0.spaceID == space }) { snap.space = nil }
+        return snap
+    }
 
     func takePendingURLs() -> [URL] {
         defer { pendingURLs = [] }

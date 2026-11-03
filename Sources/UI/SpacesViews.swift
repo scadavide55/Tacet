@@ -156,6 +156,7 @@ struct SpaceMenuButton: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help(b.space.map { $0.note.isEmpty ? $0.name : $0.name + " — " + $0.note } ?? L("Spaces"))
+            .accessibilityLabel(b.space.map { String(format: L("Space: %@"), $0.name) } ?? L("Spaces"))
         }
     }
 }

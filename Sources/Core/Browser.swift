@@ -126,8 +126,10 @@ final class BrowserState {
             }
         }
         // Settings are baked into a web view when it's made, so a change throws the spare away.
-        spareObserver = NotificationCenter.default.addObserver(forName: .settingChanged, object: nil, queue: .main) { [weak self] _ in
+        spareObserver = NotificationCenter.default.addObserver(forName: .settingChanged, object: nil, queue: .main) { [weak self] note in
             guard let self, self.spare != nil else { return }
+            // Settings about Tacet's own window don't change how a page is made.
+            if let key = note.userInfo?["key"] as? String, Self.windowOnlySettings.contains(key) { return }
             self.spare = nil
             self.prepareSpare()
         }
@@ -183,10 +185,16 @@ final class BrowserState {
         ExtensionEvents.closedWindow(self)
         // Its Space keeps the tabs, to open in any window later.
         if !isPrivate { saveSpace() }
+        // It can be opened again from the History menu, with its tabs' histories.
+        if !isPrivate, !WebApp.isActive, tabs.contains(where: { $0.url != nil }) { WindowRegistry.shared.rememberClosed(snapshot()) }
         // Its pages stop now (sound, video, timers), even if something still holds on to the window's state.
         for t in tabs { t.close() }
         closePreview()
+        // The spare web view and its page process aren't needed any more.
+        pendingSpare?.cancel()
+        spare = nil
         if WindowRegistry.shared.lastFocused === self { WindowRegistry.shared.lastFocused = nil }
+        if isPrivate, !WindowRegistry.shared.browsers.contains(where: { $0.isPrivate }) { DownloadManager.shared.forgetPrivate() }
         if !isPrivate { Session.shared.scheduleSave() }
     }
 
@@ -729,7 +737,12 @@ final class BrowserState {
         splitID = c
     }
 
-    func closeSplit() { splitID = nil }
+    /// Ends split view. A new tab opened for it and never used closes with it.
+    func closeSplit() {
+        let side = splitTab
+        splitID = nil
+        if let side, side.isStartPage, !side.isPinned, side.id != selectedID, tabs.count > 1 { close(side) }
+    }
 
     // MARK: Memory
 
@@ -796,9 +809,22 @@ final class BrowserState {
 
     // MARK: Spare web view
 
+    /// Settings that only change Tacet's own window, often while you use it (⌘S, zoom, dragging a panel's edge).
+    private static let windowOnlySettings: Set<String> = [
+        "sidebarVisible", "sidebarWidth", "assistantWidth", "siteZoom", "theme", "accent", "tabLayout", "sidebarSide",
+        "chromeStyle", "compactTabs", "aiModels", "aiProvider", "aiWeb", "aiControl", "welcomedVersion", "aiIntroduced",
+        "mediaPermissions", "neverSave", "automations", "openingRules", "groupExceptions",
+    ]
+
     /// A web view built ahead of time, so the next new tab doesn't wait while one is made and its scripts are set up.
     @ObservationIgnored private var spare: LumenWebView?
     @ObservationIgnored private var spareObserver: NSObjectProtocol?
+
+    /// Lets the spare web view go when memory is short; the next new tab makes its own.
+    func releaseSpare() {
+        pendingSpare?.cancel()
+        spare = nil
+    }
 
     func takeSpareWebView() -> LumenWebView? {
         let wv = spare
@@ -807,13 +833,19 @@ final class BrowserState {
         return wv
     }
 
+    @ObservationIgnored private var pendingSpare: DispatchWorkItem?
+
+    /// Builds the spare a moment from now. Settings changing in a burst (dragging a panel's edge, say) build it once.
     private func prepareSpare() {
         // Low Power Mode skips it: the next tab builds its own when it's needed.
         guard !Power.shared.lowPower, !WebApp.isActive else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self, self.spare == nil, !Power.shared.lowPower else { return }
+        pendingSpare?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.spare == nil, !self.isClosed, !Power.shared.lowPower else { return }
             self.spare = LumenWebView(frame: .zero, configuration: Tab.configuration(store: self.dataStore))
         }
+        pendingSpare = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
     }
 
     // MARK: Overlays

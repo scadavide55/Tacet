@@ -90,6 +90,21 @@ final class HistoryDB: @unchecked Sendable {
         }
     }
 
+    /// Adds entries whose address isn't in the history yet; addresses already there keep their own row. Waits, and
+    /// says whether it worked.
+    func insertMissing(_ entries: [HistoryEntry]) -> Bool {
+        guard !entries.isEmpty else { return true }
+        return queue.sync {
+            transaction {
+                for e in entries {
+                    run("INSERT OR IGNORE INTO visits (id, url, title, date, visits) VALUES (?, ?, ?, ?, ?)",
+                        [e.id.uuidString, e.url.absoluteString, e.title, e.date.timeIntervalSince1970, e.visits])
+                }
+            }
+            return !failed
+        }
+    }
+
     func delete(_ ids: Set<UUID>) {
         guard !ids.isEmpty else { return }
         queue.async { [self] in

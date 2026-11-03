@@ -80,6 +80,7 @@ struct AddressPill: View {
             .disabled(shownURL == nil)
             .popover(isPresented: $showInfo, arrowEdge: .bottom) { SiteInfoPopover(tab: tab) }
             .help("Site information")
+            .accessibilityLabel("Site information")
 
             Text(text)
                 .font(.system(size: 12.5))
@@ -107,6 +108,7 @@ struct AddressPill: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(tab.isReader ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                 .help("Reader (⇧⌘R)")
+                .accessibilityLabel("Reader")
             }
             if tab.url != nil && (hover || bookmarks.contains(tab.url)) {
                 Button { bookmarks.toggle(url: tab.url, title: tab.title) } label: {
@@ -115,6 +117,7 @@ struct AddressPill: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(bookmarks.contains(tab.url) ? AnyShapeStyle(.yellow) : AnyShapeStyle(.secondary))
                 .help("Bookmark (⌘D)")
+                .accessibilityLabel("Bookmark")
             }
         }
         .padding(.horizontal, 9)
@@ -292,9 +295,9 @@ struct SiteInfoPopover: View {
             HStack {
                 Text("Zoom")
                 Spacer()
-                Button { tab.zoom(-1) } label: { Image(systemName: "minus") }
+                Button { tab.zoom(-1) } label: { Label("Zoom Out", systemImage: "minus").labelStyle(.iconOnly) }
                 Text("\(Int((tab.zoom * 100).rounded()))%").monospacedDigit().frame(width: 44)
-                Button { tab.zoom(1) } label: { Image(systemName: "plus") }
+                Button { tab.zoom(1) } label: { Label("Zoom In", systemImage: "plus").labelStyle(.iconOnly) }
                 Button("Reset") { tab.zoom(0) }
             }
             .controlSize(.small)
@@ -342,34 +345,64 @@ struct DownloadsButton: View {
                 }
             }
             .popover(isPresented: $show, arrowEdge: .bottom) {
-                DownloadsList().frame(width: 360, height: 320)
+                DownloadsList().frame(width: 400, height: 340)
             }
         }
     }
 }
 
 struct DownloadsList: View {
+    /// In the Library, the list can be searched.
+    var searchable = false
     private var dm = DownloadManager.shared
+    @State private var search = ""
+
+    init(searchable: Bool = false) { self.searchable = searchable }
+
+    private var shown: [DownloadItem] {
+        let q = search.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return dm.items }
+        return dm.items.filter { $0.filename.localizedCaseInsensitiveContains(q) || ($0.source?.host?.localizedCaseInsensitiveContains(q) ?? false) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 8) {
                 Text("Downloads").font(.headline)
+                if dm.totalSpeed > 0 {
+                    Text(DownloadItem.speedText(dm.totalSpeed)).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                }
                 Spacer()
-                Button("Clear") { dm.clearFinished() }.disabled(dm.items.allSatisfy { $0.state == .active })
+                if !dm.active.isEmpty {
+                    Button("Pause All") { dm.pauseAll() }
+                } else if dm.items.contains(where: { $0.state == .paused }) {
+                    Button("Resume All") { dm.resumeAll() }
+                }
+                Button("Clear") { dm.clearFinished() }.disabled(dm.items.allSatisfy { $0.state == .active || $0.state == .paused })
             }
             .padding(12)
             Divider()
             if dm.items.isEmpty {
-                ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle")
+                ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle").frame(maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(dm.items) { DownloadRow(item: $0) }
+                        ForEach(shown) { DownloadRow(item: $0) }
                     }
                 }
             }
         }
+        // In the Library, searched from the toolbar like History and Bookmarks.
+        .modifier(DownloadSearch(on: searchable, text: $search))
+    }
+}
+
+private struct DownloadSearch: ViewModifier {
+    let on: Bool
+    @Binding var text: String
+
+    func body(content: Content) -> some View {
+        if on { content.searchable(text: $text, placement: .toolbar, prompt: Text("Search Downloads")) } else { content }
     }
 }
 
@@ -380,35 +413,71 @@ struct DownloadRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(nsImage: item.icon).resizable().frame(width: 32, height: 32)
+                .opacity(item.state == .finished || item.state == .active ? 1 : 0.5)
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.filename).lineLimit(1).truncationMode(.middle)
-                if item.state == .active {
+                if item.state == .active || item.state == .paused {
                     ProgressView(value: item.fraction).controlSize(.small)
+                        .tint(item.state == .paused ? .secondary : .accentColor)
                 }
-                Text(item.statusText).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(item.statusText).font(.caption).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
-            if item.state == .active {
-                IconButton(systemName: "xmark.circle.fill", help: "Cancel") { dm.cancel(item) }
-            } else if item.canResume {
-                IconButton(systemName: "arrow.clockwise.circle.fill", help: "Resume") { dm.resume(item) }
-            } else if item.state == .finished {
-                IconButton(systemName: "magnifyingglass", help: "Show in Finder") { dm.reveal(item) }
+            HStack(spacing: 2) {
+                switch item.state {
+                case .active:
+                    IconButton(systemName: "pause.circle.fill", help: "Pause") { dm.pause(item) }
+                    IconButton(systemName: "xmark.circle.fill", help: "Cancel") { dm.cancel(item) }
+                case .paused:
+                    IconButton(systemName: "play.circle.fill", help: "Resume") { dm.resume(item) }
+                    IconButton(systemName: "xmark.circle.fill", help: "Cancel") { dm.cancel(item) }
+                case .finished:
+                    IconButton(systemName: "magnifyingglass", help: "Show in Finder") { dm.reveal(item) }
+                default:
+                    if item.canResume {
+                        IconButton(systemName: "play.circle.fill", help: "Resume") { dm.resume(item) }
+                    } else if item.canRetry {
+                        IconButton(systemName: "arrow.clockwise.circle.fill", help: "Download Again") { dm.retry(item) }
+                    }
+                }
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { dm.open(item) }
+        .onDrag {
+            // Drag a finished file out to Finder or another app.
+            guard item.state == .finished, let url = item.destination else { return NSItemProvider() }
+            return NSItemProvider(contentsOf: url) ?? NSItemProvider()
+        }
         .contextMenu {
             Button("Open") { dm.open(item) }.disabled(item.state != .finished)
-            if item.canResume { Button("Resume") { dm.resume(item) } }
+            if item.state == .finished, let file = item.destination {
+                // The apps are looked up only when this is chosen, not each time the list redraws.
+                Button("Open With…") { dm.openWith(file) }
+                // The file itself, to paste in Finder, Mail or a chat.
+                Button("Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.writeObjects([file as NSURL])
+                }
+            }
             Button("Show in Finder") { dm.reveal(item) }.disabled(item.destination == nil)
+            Divider()
+            if item.state == .active { Button("Pause") { dm.pause(item) } }
+            if item.canResume { Button("Resume") { dm.resume(item) } }
+            if item.state == .active || item.state == .paused { Button("Cancel") { dm.cancel(item) } }
+            if item.canRetry && item.state != .active { Button("Download Again") { dm.retry(item) } }
             if let src = item.source {
                 Button("Copy Address") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(src.absoluteString, forType: .string)
                 }
+            }
+            Divider()
+            Button("Remove from List") { dm.remove(item) }
+            if item.state == .finished, item.destination != nil {
+                Button("Move to Trash") { dm.trash(item) }
             }
         }
     }
@@ -451,6 +520,9 @@ struct PageMenu: View {
             Button("Customize This Site…") { b.customizingSite = true }.disabled(tab.host == nil || tab.isReader)
             Button("Install as App…") { b.showInstallApp = true }.disabled(tab.url == nil || WebApp.isActive)
             Button("Take Screenshot of Page") { tab.screenshot() }.disabled(tab.url == nil)
+            if Settings.shared.developer {
+                Menu("Develop") { DevelopMenuItems(b: b) }
+            }
             Divider()
             Button(b.splitTab == nil ? LocalizedStringKey("Split View with New Tab") : "Close Split View") {
                 b.splitTab == nil ? b.splitWithNewTab() : b.closeSplit()

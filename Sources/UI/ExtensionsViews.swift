@@ -311,7 +311,7 @@ struct InstalledRow: View {
                 }
             }
             Toggle("", isOn: Binding(get: { item.enabled }, set: { ext.setEnabled(item.id, $0) })).labelsHidden()
-            Button { confirmRemove = true } label: { Image(systemName: "minus.circle.fill") }
+            Button { confirmRemove = true } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                 .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove")
         }
         .confirmationDialog(String(format: L("Remove “%@”?"), item.name), isPresented: $confirmRemove) {

@@ -78,7 +78,7 @@ struct PageTextSettings: View {
                 HStack {
                     Text(host)
                     Spacer()
-                    Button { s.pageTextExcluded.removeAll { $0 == host } } label: { Image(systemName: "minus.circle.fill") }
+                    Button { s.pageTextExcluded.removeAll { $0 == host } } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                 }
             }

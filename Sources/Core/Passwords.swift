@@ -140,8 +140,16 @@ final class PasswordStore {
         return stride(from: 0, to: 18, by: 6).map { String(chars[$0..<$0 + 6]) }.joined(separator: "-")
     }
 
+    /// After Touch ID, the password is read off the main thread (the Keychain can wait on a macOS prompt) and handed
+    /// back on the main thread.
     func password(for login: SavedLogin, reason: String, done: @escaping (String?) -> Void) {
-        authenticate(reason: reason) { ok in done(ok ? self.readPassword(login) : nil) }
+        authenticate(reason: reason) { ok in
+            guard ok else { done(nil); return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let password = self.readPassword(login)
+                DispatchQueue.main.async { done(password) }
+            }
+        }
     }
 
     // MARK: Password check
@@ -159,8 +167,10 @@ final class PasswordStore {
     func checkup(done: @escaping ([SavedLogin.ID: Set<Issue>]?) -> Void) {
         authenticate(reason: L("check your saved passwords")) { ok in
             guard ok else { done(nil); return }
-            let all = self.logins.compactMap { login in self.readPassword(login).map { (login, $0) } }
+            let logins = self.logins
             Task.detached(priority: .userInitiated) {
+                // Read here, off the main thread: the Keychain can wait on a macOS prompt.
+                let all = logins.compactMap { login in self.readPassword(login).map { (login, $0) } }
                 var issues: [SavedLogin.ID: Set<Issue>] = [:]
                 var sites: [String: Set<String>] = [:]
                 for (login, pw) in all { sites[pw, default: []].insert(Self.site(login.host)) }
@@ -193,6 +203,8 @@ final class PasswordStore {
             byPrefix[String(hash.prefix(5)), default: []].append((String(hash.dropFirst(5)), pw))
         }
         let session = URLSession(configuration: .ephemeral)
+        // A session is kept by the system until it's let go of.
+        defer { session.finishTasksAndInvalidate() }
         var found = Set<String>(), unchecked = Set<String>()
         for (prefix, entries) in byPrefix {
             guard let url = URL(string: "https://api.pwnedpasswords.com/range/" + prefix) else { continue }

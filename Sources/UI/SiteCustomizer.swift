@@ -58,7 +58,7 @@ struct SiteCustomizer: View {
                             Text(selector).font(.system(size: 11, design: .monospaced)).lineLimit(1).truncationMode(.middle)
                                 .help(selector)
                             Spacer()
-                            Button { style.hidden.removeAll { $0 == selector } } label: { Image(systemName: "minus.circle.fill") }
+                            Button { style.hidden.removeAll { $0 == selector } } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                                 .buttonStyle(.borderless).foregroundStyle(.secondary)
                                 .help("Show it again")
                         }

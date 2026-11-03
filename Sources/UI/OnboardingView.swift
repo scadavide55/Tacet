@@ -882,8 +882,11 @@ private struct AssistantStep: View {
                 }
             }
         }
-        .onAppear { key = AIKeys.get(s.aiProvider) ?? "" }
-        .onChange(of: s.aiProvider) { _, p in key = AIKeys.get(p) ?? "" }
+        .task(id: s.aiProvider) {
+            // Off the main thread, so the setup doesn't freeze if macOS asks for Keychain access.
+            let p = s.aiProvider
+            key = await Task.detached(priority: .userInitiated) { AIKeys.get(p) }.value ?? ""
+        }
     }
 }
 
@@ -957,7 +960,7 @@ private struct TourStep: View {
 struct ShortcutList: View {
     static let groups: [(LocalizedStringKey, [(String, LocalizedStringKey)])] = [
         ("Tabs and windows", [
-            ("⌘T", "New tab"), ("⌘W", "Close tab"), ("⇧⌘T", "Reopen closed tab"), ("⌘N", "New window"),
+            ("⌘T", "New tab"), ("⌘W", "Close tab"), ("⇧⌘T", "Reopen closed tab or window"), ("⌘N", "New window"),
             ("⇧⌘N", "New private window"), ("⌃⇥", "Next tab"), ("⌃⇧⇥", "Previous tab"), ("⌘1…⌘9", "Go to tab"),
             ("⇧⌘M", "Mute tab"), ("⌥⌘S", "Split view"),
         ]),
@@ -968,7 +971,8 @@ struct ShortcutList: View {
         ]),
         ("Tacet", [
             ("⌘S", "Show or hide the sidebar"), ("⇧⌘B", "Ad blocker on or off"), ("⌘Y", "History"),
-            ("⌥⌘B", "Bookmarks"), ("⌥⌘L", "Downloads"), ("⌘P", "Print"), ("⌘,", "Settings"),
+            ("⌥⌘B", "Bookmarks"), ("⌥⌘L", "Downloads"), ("⇧⌘A", "Tacet Assistant"), ("⇧⌘P", "Tacet Plugins"),
+            ("⌥⌘I", "Web Inspector (Developer Mode)"), ("⌥⌘U", "Page source (Developer Mode)"), ("⌘P", "Print"), ("⌘,", "Settings"),
         ]),
     ]
 

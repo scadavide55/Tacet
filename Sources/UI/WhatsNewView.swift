@@ -15,7 +15,7 @@ enum WhatsNew {
         let demo: Demo
     }
 
-    enum Demo { case icons, store, cutout, extMenu, localAI, pinned, arc, shield, preview, wake, translate, passwords, keychain, rename, groups, picking, assistant, apple, reading, customize, extensions, fixes }
+    enum Demo { case developer, downloads, quickAnswer, icons, store, cutout, extMenu, localAI, pinned, arc, shield, preview, wake, translate, passwords, keychain, rename, groups, picking, assistant, apple, reading, customize, extensions, fixes }
 
     /// What's new for someone who last saw the welcome of `seen` (empty when they never did).
     static func pages(since seen: String) -> [Page] {
@@ -23,6 +23,21 @@ enum WhatsNew {
     }
 
     static let all: [Page] = [
+        Page(version: "1.7.1", symbol: "hammer", title: "Developer Mode",
+             text: "The Web Inspector and JavaScript console, Inspect Element, the page's source, Responsive Design Mode for phones and tablets, other browsers' user agents, page load times, and switches for JavaScript, styles and caches.",
+             how: ["Settings › Advanced › Developer Mode, then the Develop menu", "⌥⌘I Web Inspector · ⌥⌘U page source · ⌥⌘C console"],
+             demo: .developer),
+        Page(version: "1.7.1", symbol: "arrow.down.circle", title: "Better downloads",
+             text: "Each download shows its speed and how long is left. Pause and resume it, download it again, and find past downloads in the Library, even after Tacet restarts. A tab opened only for a file closes by itself.",
+             how: ["The downloads button, or Library › Downloads (⌥⌘L)", "Right-click a download for every option"],
+             demo: .downloads),
+        Page(version: "1.7.1", symbol: "sparkles", title: "A quicker, sharper assistant",
+             text: "Tacet Assistant now gets to the point, with a calm voice of its own. Questions from the command bar start answering much sooner: a short prompt, a warm connection, and a faster model where your provider has one. And a sum typed there is worked out at once, with no AI at all.",
+             how: ["Type a question in the command bar (⌘K), then ↓ and Return", "Settings › AI › Answers: length, personality, faster answers"],
+             demo: .quickAnswer),
+        Page(version: "1.7.1", symbol: "speedometer", title: "Faster and steadier",
+             text: "Links to other sites start connecting as you point at them. Switching tabs does less work, memory is given back when the Mac runs short, a window closed by mistake comes back with ⇧⌘T, and many small fixes make Tacet more reliable.",
+             how: ["Nothing to set: it's all on"], demo: .fixes),
         Page(version: "1.7", symbol: "square.stack", title: "Spaces",
              text: "A Space keeps a whole set of tabs, groups and pinned tabs with a note to yourself. Leave School, open Coding, and come back to School exactly as it was.",
              how: ["The icons at the bottom of the sidebar, or the Space button at the top", "⌃⌘← and ⌃⌘→ go to the previous and next Space"],
@@ -149,10 +164,19 @@ enum WhatsNew {
 struct WhatsNewView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var index = 0
-    private let pages = WhatsNew.pages(since: Settings.shared.welcomedVersion)
+    /// Kept from when the sheet opened: once it's dismissed the version counts as seen, and a sheet drawn again while
+    /// it closes would otherwise find no pages.
+    @State private var pages = WhatsNew.pages(since: Settings.shared.welcomedVersion)
 
     var body: some View {
-        let page = pages[index]
+        if pages.isEmpty {
+            Color.clear.frame(width: 1, height: 1)
+        } else {
+            pageView(pages[min(index, pages.count - 1)])
+        }
+    }
+
+    private func pageView(_ page: WhatsNew.Page) -> some View {
         VStack(spacing: 0) {
             VStack(spacing: 4) {
                 Text(String(format: L("Welcome to Tacet %@"), UpdateChecker.currentVersion))
@@ -212,6 +236,9 @@ private struct DemoView: View {
             // A 4-second loop, eased so each step settles before the next.
             let t = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 4) / 4
             switch demo {
+            case .developer: DeveloperDemo(t: t)
+            case .downloads: DownloadsDemo(t: t)
+            case .quickAnswer: QuickAnswerDemo(t: t)
             case .icons: IconsDemo(t: t)
             case .store: StoreDemo(t: t)
             case .cutout: CutoutDemo(t: t)
@@ -256,6 +283,89 @@ private struct Chip: View {
         }
         .frame(width: width, height: 26)
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.08)))
+    }
+}
+
+/// An element on a page gets outlined, then the inspector slides up below the page.
+private struct DeveloperDemo: View {
+    let t: Double
+    var body: some View {
+        let pick = step(t, 0.15, 0.3)
+        let open = step(t, 0.4, 0.6)
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.4)).frame(width: 120, height: 8)
+                RoundedRectangle(cornerRadius: 4).fill(Color.teal.opacity(0.45)).frame(width: 200, height: 30)
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.accentColor, lineWidth: 2).opacity(pick))
+                RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.2)).frame(width: 180, height: 5)
+            }
+            .padding(12)
+            .frame(width: 260, alignment: .leading)
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(0..<4) { i in
+                        RoundedRectangle(cornerRadius: 2).fill((i == 1 ? Color.accentColor : Color.primary).opacity(i == 1 ? 0.6 : 0.25))
+                            .frame(width: [90, 120, 80, 100][i], height: 5).padding(.leading, CGFloat(i % 2) * 10)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.left.forwardslash.chevron.right").font(.system(size: 14)).foregroundStyle(.tint)
+            }
+            .padding(10)
+            .frame(width: 260, height: 70 * open, alignment: .top)
+            .clipped()
+            .background(Color.primary.opacity(0.08))
+        }
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+/// A download fills with its speed and time left, pauses, then finishes.
+private struct DownloadsDemo: View {
+    let t: Double
+    var body: some View {
+        let paused = t > 0.45 && t < 0.6
+        let progress = min(1, t < 0.45 ? t / 0.45 * 0.55 : t < 0.6 ? 0.55 : 0.55 + (t - 0.6) / 0.3 * 0.45)
+        HStack(spacing: 12) {
+            Image(systemName: progress >= 1 ? "doc.fill" : "doc").font(.system(size: 30)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.45)).frame(width: 110, height: 7)
+                ProgressView(value: progress).tint(paused ? .secondary : .accentColor).frame(width: 190)
+                Text(progress >= 1 ? "48 MB" : paused ? "Paused" : "\(Int(progress * 48)) MB · 12 MB/s · \(max(1, Int((1 - progress) * 4))) s")
+                    .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
+            }
+            Image(systemName: progress >= 1 ? "magnifyingglass" : paused ? "play.circle.fill" : "pause.circle.fill")
+                .font(.system(size: 18)).foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.06)))
+    }
+}
+
+/// A question in the command bar, and the answer starting almost at once.
+private struct QuickAnswerDemo: View {
+    let t: Double
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+                RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.5)).frame(width: 150 * step(t, 0.0, 0.2), height: 7)
+                Spacer()
+            }
+            .frame(width: 280)
+            Divider().frame(width: 280)
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles").font(.system(size: 11)).foregroundStyle(.tint)
+                RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.3)).frame(width: 70, height: 5)
+            }
+            .opacity(step(t, 0.25, 0.3))
+            ForEach(0..<2) { i in
+                RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.35)).frame(width: [250, 170][i] * step(t, 0.3 + Double(i) * 0.12, 0.42 + Double(i) * 0.12), height: 6)
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.06)))
     }
 }
 

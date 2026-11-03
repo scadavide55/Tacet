@@ -144,7 +144,7 @@ final class ContentBlocker {
         status = L("Downloading filter lists…")
 
         let group = DispatchGroup()
-        var texts = [String?](repeating: nil, count: enabled.count)
+        var texts = [Data?](repeating: nil, count: enabled.count)
         for (i, src) in enabled.enumerated() {
             group.enter()
             var request = URLRequest(url: src.url)
@@ -152,7 +152,7 @@ final class ContentBlocker {
             URLSession.shared.dataTask(with: request) { data, response, _ in
                 DispatchQueue.main.async {
                     if let data, (response as? HTTPURLResponse)?.statusCode == 200 {
-                        texts[i] = String(decoding: data, as: UTF8.self)
+                        texts[i] = data
                     }
                     group.leave()
                 }
@@ -169,7 +169,11 @@ final class ContentBlocker {
             }
             self.status = L("Converting rules…")
             DispatchQueue.global(qos: .utility).async {
-                let prepared = zip(keys, downloaded).map { key, text in key == "cnameTrackers" ? Self.trimCNAMEList(text) : text }
+                // Decoding several megabytes of text happens here too, off the main thread.
+                let prepared = zip(keys, downloaded).map { key, data in
+                    let text = String(decoding: data, as: UTF8.self)
+                    return key == "cnameTrackers" ? Self.trimCNAMEList(text) : text
+                }
                 let out = FilterConverter.convert(prepared.joined(separator: "\n"))
                 let chunks = Self.chunks(out)
                 DispatchQueue.main.async { self.compileFilters(chunks, total: out.block.count + out.hide.count, for: keys) }

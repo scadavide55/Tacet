@@ -140,6 +140,17 @@ struct FavoriteTile: View {
 struct StartBackgroundView: View {
     let style: StartBackground
     let isPrivate: Bool
+
+    /// The chosen picture, read from disk once rather than for every new tab.
+    private static var cachedImage: (path: String, date: Date?, image: NSImage)?
+
+    private static func image(at path: String) -> NSImage? {
+        let date = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+        if let c = cachedImage, c.path == path, c.date == date { return c.image }
+        guard let img = NSImage(contentsOfFile: path) else { return nil }
+        cachedImage = (path, date, img)
+        return img
+    }
     @Bindable private var s = Settings.shared
     private var power = Power.shared
 
@@ -152,7 +163,7 @@ struct StartBackgroundView: View {
         } else {
             switch style {
             case .image:
-                if let img = NSImage(contentsOfFile: s.startImagePath) {
+                if let img = Self.image(at: s.startImagePath) {
                     GeometryReader { g in
                         Image(nsImage: img).resizable().scaledToFill().frame(width: g.size.width, height: g.size.height).clipped()
                             .overlay(Color.black.opacity(0.25))

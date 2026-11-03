@@ -104,8 +104,9 @@ enum Backup {
 
     // MARK: The data folder
 
-    /// Folders that come back by themselves (icons, downloaded plugins) or belong to apps installed from sites.
-    static let skipped: Set<String> = ["Favicons", "Plugins", "WebApps", "Backup before 1.5.2", "public_suffix_list.txt"]
+    /// Folders that come back by themselves (icons, downloaded plugins) or belong to apps installed from sites, and the
+    /// downloads list, whose files and half-finished downloads only exist on this Mac.
+    static let skipped: Set<String> = ["Favicons", "Plugins", "WebApps", "Backup before 1.5.2", "public_suffix_list.txt", "downloads.plist"]
 
     static func readFolder(_ root: URL) -> [String: Data] {
         var out: [String: Data] = [:]
@@ -164,7 +165,9 @@ enum Backup {
                 StoredFiles.flushAll()
                 var contents = Contents()
                 contents.settings = SettingsTransfer.make()
-                contents.passwords = PasswordStore.shared.logins.isEmpty ? nil : PasswordStore.shared.exportCSV()
+                // Read off the main thread: the Keychain can wait on a macOS prompt.
+                let store = PasswordStore.shared
+                contents.passwords = store.logins.isEmpty ? nil : await Task.detached(priority: .userInitiated) { store.exportCSV() }.value
                 for p in AIProvider.allCases { if let k = AIKeys.get(p) { contents.aiKeys[p.rawValue] = k } }
                 contents.cookies["main"] = await cookies(of: .default())
                 for profile in Settings.shared.profiles {

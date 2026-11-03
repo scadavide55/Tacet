@@ -141,6 +141,12 @@ struct GeneralPane: View {
             }
             Section("Downloads") {
                 Toggle("Ask where to save each download", isOn: $s.askDownloadLocation)
+                Picker("Remove from the downloads list", selection: $s.downloadsKeepDays) {
+                    Text("After One Day").tag(1)
+                    Text("After One Week").tag(7)
+                    Text("After One Month").tag(30)
+                    Text("Manually").tag(0)
+                }
             }
         }
         .formStyle(.grouped)
@@ -171,7 +177,7 @@ struct ProfilesSection: View {
                         .textFieldStyle(.plain)
                     Spacer()
                     Button("Open Window") { openWindow(id: "profile", value: p.id) }
-                    Button { delete(p) } label: { Image(systemName: "minus.circle.fill") }
+                    Button { delete(p) } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                         .help("Delete Profile")
                 }
@@ -427,7 +433,7 @@ struct ShieldPane: View {
                     HStack {
                         Text(host)
                         Spacer()
-                        Button { s.setAllowlisted(host, false) } label: { Image(systemName: "minus.circle.fill") }
+                        Button { s.setAllowlisted(host, false) } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                             .buttonStyle(.plain).foregroundStyle(.secondary)
                     }
                 }
@@ -516,7 +522,7 @@ struct SearchPane: View {
                         Text(sc.name).lineLimit(1).frame(width: 110, alignment: .leading)
                         Text(sc.template).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        Button { s.shortcuts.removeAll { $0.id == sc.id } } label: { Image(systemName: "minus.circle.fill") }
+                        Button { s.shortcuts.removeAll { $0.id == sc.id } } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                             .buttonStyle(.plain).foregroundStyle(.secondary)
                     }
                 }
@@ -590,7 +596,7 @@ struct SitesPane: View {
                         }
                         Spacer()
                         Button("Edit…") { editing = EditTarget(host: style.host) }
-                        Button { s.siteStyles.removeAll { $0.id == style.id } } label: { Image(systemName: "minus.circle.fill") }
+                        Button { s.siteStyles.removeAll { $0.id == style.id } } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                             .buttonStyle(.plain).foregroundStyle(.secondary)
                             .help("Remove")
                     }
@@ -617,7 +623,7 @@ struct SitesPane: View {
                             }
                             .labelsHidden()
                             .fixedSize()
-                            Button { s.mediaPermissions[key] = nil } label: { Image(systemName: "minus.circle.fill") }
+                            Button { s.mediaPermissions[key] = nil } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                                 .buttonStyle(.plain).foregroundStyle(.secondary)
                                 .help("Forget")
                         }
@@ -633,7 +639,7 @@ struct SitesPane: View {
                         Text(host)
                         Spacer()
                         Text("\(Int((zoom * 100).rounded()))%").monospacedDigit().foregroundStyle(.secondary)
-                        Button { s.siteZoom[host] = nil } label: { Image(systemName: "minus.circle.fill") }
+                        Button { s.siteZoom[host] = nil } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                             .buttonStyle(.plain).foregroundStyle(.secondary)
                     }
                 }
@@ -664,9 +670,13 @@ struct AdvancedPane: View {
                 Text("Tacet identifies as Safari \(UserAgent.safariVersion) so sites serve their full experience.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Developer") {
-                Toggle("Enable Web Inspector", isOn: $s.developer)
-                Text("Right-click a page and choose Inspect Element.").font(.caption).foregroundStyle(.secondary)
+            Section {
+                Toggle("Developer Mode", isOn: $s.developer)
+            } header: {
+                Text("Developer")
+            } footer: {
+                Text("Adds the Develop menu and Inspect Element to the page's right-click menu: the Web Inspector and JavaScript console, page source, Responsive Design Mode, user agents, page info, and switches for JavaScript, styles and caches.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Data") {
                 LabeledContent("Data folder") {
@@ -698,7 +708,7 @@ struct GroupExceptionsRow: View {
                         Button {
                             s.setGroupException(site, false)
                             BrowserState.groupingChanged()
-                        } label: { Image(systemName: "minus.circle.fill") }
+                        } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                             .buttonStyle(.borderless)
                             .help("Remove")
                     }

@@ -38,18 +38,24 @@ struct LumenApp: App {
         Window("Library", id: "library") {
             LibraryView()
         }
+        // Opened from their own menu items, so the Window menu doesn't list them a second time.
+        .commandsRemoved()
         .handlesExternalEvents(matching: [])
         .defaultSize(width: 820, height: 560)
 
         Window("Keyboard Shortcuts", id: "shortcuts") {
             ShortcutList().padding(24).frame(width: 760)
         }
+        // Opened from their own menu items, so the Window menu doesn't list them a second time.
+        .commandsRemoved()
         .handlesExternalEvents(matching: [])
         .windowResizability(.contentSize)
 
         Window("About Tacet", id: "about") {
             AboutView()
         }
+        // Opened from their own menu items, so the Window menu doesn't list them a second time.
+        .commandsRemoved()
         .handlesExternalEvents(matching: [])
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
@@ -57,17 +63,23 @@ struct LumenApp: App {
         Window("Software Update", id: "update") {
             UpdateView()
         }
+        // Opened from their own menu items, so the Window menu doesn't list them a second time.
+        .commandsRemoved()
         .handlesExternalEvents(matching: [])
         .windowResizability(.contentSize)
 
         Window("Tacet Plugins", id: "plugins") {
             PluginsView()
         }
+        // Opened from their own menu items, so the Window menu doesn't list them a second time.
+        .commandsRemoved()
         .handlesExternalEvents(matching: [])
 
         Window("Import", id: "import") {
             ImportView()
         }
+        // Opened from their own menu items, so the Window menu doesn't list them a second time.
+        .commandsRemoved()
         .handlesExternalEvents(matching: [])
         .windowResizability(.contentSize)
 
@@ -86,6 +98,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Settings.shared.applyTheme()
         ContentBlocker.shared.start()
         Power.shared.start()
+        // Reading the Public Suffix List takes a moment; it's done in the background before tabs and groups need it.
+        DispatchQueue.global(qos: .userInitiated).async { _ = PublicSuffix.registrable("www.example.com") }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -144,12 +158,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let downloads = DownloadManager.shared.active.count
+        guard downloads > 0 else { return saveForQuit(sender) }
+        // Installing an update quits by itself; otherwise you decide.
+        if !AppRename.skip {
+            let alert = NSAlert()
+            alert.messageText = downloads == 1 ? L("A download is still in progress") : String(format: L("%d downloads are still in progress"), downloads)
+            alert.informativeText = L("If you quit now, Tacet pauses what's downloading, so you can resume it when you open Tacet again.")
+            alert.addButton(withTitle: L("Quit"))
+            alert.addButton(withTitle: L("Cancel"))
+            guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
+        }
+        DownloadManager.shared.pauseForQuit {
+            if self.saveForQuit(sender) == .terminateNow { sender.reply(toApplicationShouldTerminate: true) }
+        }
+        return .terminateLater
+    }
+
+    /// Writes everything still waiting, then clears browsing data if the user asked for that on quit.
+    private func saveForQuit(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Session.shared.saveNow()
         for b in WindowRegistry.shared.browsers { b.saveSpace() }
         Spaces.shared.saveNow()
         AppRename.afterQuit()
         History.shared.flush()
         PageText.shared.flush()
+        AssistantHistory.shared.flush()
         StoredFiles.flushAll()
         guard Settings.shared.clearOnQuit else { return .terminateNow }
         DataCleaner.clear(range: .all, history: true, cookies: true, cache: true) {
@@ -221,7 +255,11 @@ struct LumenCommands: Commands {
             }
             Divider()
             Button("Open Location…") { b?.togglePalette() }.keyboardShortcut("l").disabled(b == nil)
-            Button("Reopen Closed Tab") { b?.reopenLastClosed() }.keyboardShortcut("t", modifiers: [.command, .shift]).disabled(b == nil)
+            // With no closed tab to bring back here, ⇧⌘T brings back the last closed window, as in Safari.
+            Button("Reopen Closed Tab") {
+                if let b, b.canReopen { b.reopenLastClosed() } else { reopenClosedWindow() }
+            }
+            .keyboardShortcut("t", modifiers: [.command, .shift])
             Divider()
             Button("Close Tab") {
                 if let b { b.closeCurrent() } else { NSApp.keyWindow?.performClose(nil) }
@@ -295,6 +333,7 @@ struct LumenCommands: Commands {
             Button("Forward") { b?.current?.goForward() }.keyboardShortcut("]").disabled(b == nil)
             Divider()
             Button("Show All History") { library(.history) }.keyboardShortcut("y")
+            Button("Reopen Closed Window") { reopenClosedWindow() }.disabled(WindowRegistry.shared.closedWindows.isEmpty)
             if let b, !b.closedTabs.isEmpty {
                 Divider()
                 Text("Recently Closed")
@@ -388,6 +427,14 @@ struct LumenCommands: Commands {
             }
         }
 
+        // Only in Developer Mode, as in Safari; the command bar and Settings › Advanced turn it on.
+        if s.developer {
+            CommandMenu("Develop") {
+                // With the Web Inspector's own window in front, the menu still works on the window it inspects.
+                DevelopMenuItems(b: b ?? WindowRegistry.shared.lastFocused, shortcuts: true)
+            }
+        }
+
         CommandMenu("Shield") {
             Toggle("Block Ads and Trackers", isOn: $s.adBlock).keyboardShortcut("b", modifiers: [.command, .shift])
             Button("Toggle Shield for This Site") {
@@ -400,6 +447,10 @@ struct LumenCommands: Commands {
             Toggle("Skip YouTube Ads", isOn: $s.youtubeAds).disabled(!s.adBlock)
             Toggle("Block Third-Party Cookies", isOn: $s.blockThirdPartyCookies)
             Toggle("Remove Tracking from Links", isOn: $s.stripTracking)
+        }
+
+        // Downloads and Tacet Plugins open windows of their own, so they're in the Window menu, as in Safari.
+        CommandGroup(after: .windowArrangement) {
             Divider()
             Button("Downloads") { library(.downloads) }.keyboardShortcut("l", modifiers: [.command, .option])
             Button("Tacet Plugins") { openWindow(id: "plugins") }.keyboardShortcut("p", modifiers: [.command, .shift])
@@ -419,6 +470,12 @@ struct LumenCommands: Commands {
             Button("Tacet Website") { NSWorkspace.shared.open(URL(string: "https://scadavide55.github.io/Tacet/")!) }
             Button("Report a Bug") { NSWorkspace.shared.open(URL(string: "https://github.com/scadavide55/Tacet/issues")!) }
         }
+    }
+
+    private func reopenClosedWindow() {
+        guard let snap = WindowRegistry.shared.takeClosedWindow() else { return }
+        Session.shared.reopen(snap)
+        openWindow(id: "main")
     }
 
     private func library(_ section: LibraryView.Section) {

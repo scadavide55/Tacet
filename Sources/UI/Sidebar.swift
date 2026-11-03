@@ -208,7 +208,7 @@ struct TabFilterField: View {
                     b.tabFilterVisible = false
                 }
             if !b.tabFilter.isEmpty {
-                Button { b.tabFilter = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 11)) }
+                Button { b.tabFilter = "" } label: { Label("Clear", systemImage: "xmark.circle.fill").labelStyle(.iconOnly).font(.system(size: 11)) }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
@@ -325,6 +325,7 @@ struct TabRow: View, Equatable {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help(tab.isMuted ? LocalizedStringKey("Unmute tab") : "Mute tab")
+                .accessibilityLabel(tab.isMuted ? LocalizedStringKey("Unmute tab") : "Mute tab")
             }
             if inSplit {
                 Image(systemName: "rectangle.split.2x1").font(.system(size: 10)).foregroundStyle(.secondary)
@@ -726,8 +727,11 @@ struct SidebarFooter: View {
             if showsDownloads { AssistantButton() }
             Spacer()
             if s.adBlock {
-                Label("\(blocker.ruleCount.formatted())", systemImage: "shield.lefthalf.filled")
+                // Short ("256k"), so it never wraps when the footer is crowded; the full number is in the tooltip.
+                Label(Self.short(blocker.ruleCount), systemImage: "shield.lefthalf.filled")
                     .font(.system(size: 10.5, weight: .medium))
+                    .lineLimit(1)
+                    .fixedSize()
                     .foregroundStyle(.secondary)
                     .help("Tacet Shield is on with \(blocker.ruleCount.formatted()) rules")
             }
@@ -749,6 +753,12 @@ struct SidebarFooter: View {
             .help("Settings (⌘,)")
             .accessibilityLabel("Settings")
         }
+    }
+}
+
+extension SidebarFooter {
+    static func short(_ n: Int) -> String {
+        n >= 10_000 ? "\(n / 1000)k" : n.formatted()
     }
 }
 

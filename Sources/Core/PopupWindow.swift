@@ -78,10 +78,39 @@ final class PopupWindow: NSObject, WKUIDelegate, WKNavigationDelegate, NSWindowD
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
         DownloadManager.shared.track(download)
+        closeIfOnlyDownloading(webView)
     }
 
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
         DownloadManager.shared.track(download)
+        closeIfOnlyDownloading(webView)
+    }
+
+    /// A pop-up opened just for a file would stay an empty window; it closes once the download has started.
+    private func closeIfOnlyDownloading(_ webView: WKWebView) {
+        guard webView.backForwardList.currentItem == nil else { return }
+        DispatchQueue.main.async { [weak self] in self?.window.close() }
+    }
+
+    /// A site's own sign-in box (HTTP Basic or Digest), as in a tab.
+    func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge,
+                 completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let method = challenge.protectionSpace.authenticationMethod
+        guard method == NSURLAuthenticationMethodHTTPBasic || method == NSURLAuthenticationMethodHTTPDigest else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        guard challenge.previousFailureCount < 3 else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        Dialogs.credentials(window, host: challenge.protectionSpace.host, realm: challenge.protectionSpace.realm) { result in
+            if let (user, pass) = result {
+                completionHandler(.useCredential, URLCredential(user: user, password: pass, persistence: .forSession))
+            } else {
+                completionHandler(.cancelAuthenticationChallenge, nil)
+            }
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -109,5 +138,20 @@ final class PopupWindow: NSObject, WKUIDelegate, WKNavigationDelegate, NSWindowD
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         Dialogs.confirm(window, title: frame.securityOrigin.host, message: message, done: completionHandler)
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
+        Dialogs.prompt(window, title: frame.securityOrigin.host, message: prompt, defaultText: defaultText ?? "", done: completionHandler)
+    }
+
+    /// File fields in a pop-up (an upload or a document check during a payment, say) work as they do in a tab.
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.canChooseDirectories = parameters.allowsDirectories
+        panel.canChooseFiles = true
+        panel.beginSheetModal(for: window) { completionHandler($0 == .OK ? panel.urls : nil) }
     }
 }

@@ -110,7 +110,9 @@ struct AssistantMessages: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     if chat.messages.isEmpty { AssistantSuggestions(chat: chat) }
                     ForEach(chat.messages) { m in
+                        // Only the message that changed is drawn again (and its Markdown read again) as a reply streams in.
                         AssistantBubble(message: m, thinking: chat.busy && m.id == chat.messages.last?.id)
+                            .equatable()
                             .id(m.id)
                     }
                     Color.clear.frame(height: 1).id("end")
@@ -237,6 +239,16 @@ struct AssistantBubble: View {
     }
 }
 
+extension AssistantBubble: Equatable {
+    /// What the bubble shows; images and links are only ever added, so their counts are enough.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        let l = lhs.message, r = rhs.message
+        return lhs.thinking == rhs.thinking && l.id == r.id && l.text == r.text && l.activity == r.activity
+            && l.error == r.error && l.links.count == r.links.count && l.sources.count == r.sources.count
+            && l.images.count == r.images.count && l.pageTitle == r.pageTitle && l.quote == r.quote
+    }
+}
+
 // MARK: - Composer
 
 struct AssistantComposer: View {
@@ -263,6 +275,7 @@ struct AssistantComposer: View {
                                     Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(.white, .black.opacity(0.6))
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("Remove")
                                 .offset(x: 4, y: -4)
                             }
                         }
@@ -626,6 +639,24 @@ struct AIPane: View {
                 }
             }
             Section {
+                Picker("Length", selection: $s.aiDetailed) {
+                    Text("Short and to the point").tag(false)
+                    Text("Detailed").tag(true)
+                }
+                Toggle("Personality", isOn: $s.aiPersonality)
+                if let fast = s.aiProvider.fastModel {
+                    Toggle(isOn: $s.aiQuickFast) {
+                        Text("Faster answers in the command bar")
+                        Text(String(format: L("Uses %@, a smaller model that starts answering sooner."), fast))
+                    }
+                }
+            } header: {
+                Text("Answers")
+            } footer: {
+                Text("With Personality on, Tacet Assistant is calm and direct, with a dry sense of humour now and then. Off, it answers in a neutral voice.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
                 Toggle("Web access: search the web and read pages", isOn: $s.aiWeb)
             } footer: {
                 Text(s.aiProvider == .anthropic
@@ -656,9 +687,15 @@ struct AIPane: View {
         .onChange(of: key) { _, _ in saved = false }
     }
 
+    /// Read off the main thread, so Settings doesn't freeze if macOS asks for Keychain access.
     private func loadKey() {
-        key = AIKeys.get(s.aiProvider) ?? ""
-        saved = true
+        let p = s.aiProvider
+        Task { @MainActor in
+            let found = await Task.detached(priority: .userInitiated) { AIKeys.get(p) }.value
+            guard s.aiProvider == p else { return }
+            key = found ?? ""
+            saved = true
+        }
     }
 
     private func saveKey() {
@@ -719,7 +756,7 @@ struct ModelPicker: View {
                 .labelsHidden()
                 .frame(minWidth: 200)
             }
-            Button { models.refresh(provider, force: true) } label: { Image(systemName: "arrow.clockwise") }
+            Button { models.refresh(provider, force: true) } label: { Label("Refresh", systemImage: "arrow.clockwise").labelStyle(.iconOnly) }
                 .buttonStyle(.borderless)
                 .help("Refresh List")
                 .disabled(models.loading.contains(provider))
