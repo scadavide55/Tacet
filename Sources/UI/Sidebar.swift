@@ -822,6 +822,7 @@ struct TabStrip: View {
                 // compact layout this row is most of the window's top.
                 .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .leading)
                 .background(WindowDragArea())
+                .background(WheelScrollsSideways())
             }
         }
         .frame(height: 34)

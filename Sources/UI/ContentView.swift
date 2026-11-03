@@ -441,6 +441,59 @@ struct WindowDragArea: NSViewRepresentable {
     }
 }
 
+/// Lets a mouse wheel scroll a horizontal strip (the tabs along the top). A wheel only scrolls up and down, which a
+/// horizontal scroll view ignores, so tabs that ran off the right were out of reach without a trackpad.
+struct WheelScrollsSideways: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { WheelView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    final class WheelView: NSView {
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self, let scroll = self.enclosingScrollView else { return event }
+                return self.scrollSideways(scroll, event) ? nil : event
+            }
+        }
+
+        deinit {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+        }
+
+        /// Turns an up-and-down wheel over the strip into left-and-right. Sideways scrolling (a trackpad, a tilting
+        /// wheel, Shift) is left to the scroll view, which already handles it.
+        private func scrollSideways(_ scroll: NSScrollView, _ event: NSEvent) -> Bool {
+            guard event.window === window, event.scrollingDeltaY != 0,
+                  abs(event.scrollingDeltaX) < abs(event.scrollingDeltaY),
+                  scroll.bounds.contains(scroll.convert(event.locationInWindow, from: nil)) else { return false }
+            return Self.scroll(scroll, deltaY: event.scrollingDeltaY, precise: event.hasPreciseScrollingDeltas)
+        }
+
+        /// Moves the strip sideways by a wheel's up-and-down turn: down (a negative delta) goes right. False when
+        /// everything already fits.
+        static func scroll(_ scroll: NSScrollView, deltaY: CGFloat, precise: Bool) -> Bool {
+            guard let document = scroll.documentView else { return false }
+            let clip = scroll.contentView
+            let overflow = document.frame.width - clip.bounds.width
+            guard overflow > 0 else { return false }
+            // A mouse wheel counts in lines; a trackpad or Magic Mouse already in points.
+            let step = precise ? deltaY : deltaY * 16
+            var origin = clip.bounds.origin
+            origin.x = min(max(0, origin.x - step), overflow)
+            clip.scroll(to: origin)
+            scroll.reflectScrolledClipView(clip)
+            return true
+        }
+    }
+}
+
 // MARK: - Chrome
 
 struct ChromeBackground: View {

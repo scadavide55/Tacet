@@ -1056,5 +1056,24 @@ do {
     check((first?["content"] as? String ?? "").contains("command bar"), "quick answer (OpenAI): the short prompt is the system message")
 }
 
+// MARK: A mouse wheel scrolls the tabs along the top
+
+do {
+    let strip = NSScrollView(frame: NSRect(x: 0, y: 0, width: 300, height: 34))
+    strip.hasHorizontalScroller = false
+    strip.documentView = NSView(frame: NSRect(x: 0, y: 0, width: 1000, height: 34))
+    let x = { strip.contentView.bounds.origin.x }
+    check(WheelScrollsSideways.WheelView.scroll(strip, deltaY: -3, precise: false) && x() == 48, "tab strip: wheel down goes right", "\(x())")
+    _ = WheelScrollsSideways.WheelView.scroll(strip, deltaY: -1000, precise: false)
+    eq(x(), 700, "tab strip: stops at the last tab")
+    _ = WheelScrollsSideways.WheelView.scroll(strip, deltaY: 20, precise: true)
+    eq(x(), 680, "tab strip: trackpad deltas are points")
+    _ = WheelScrollsSideways.WheelView.scroll(strip, deltaY: 1000, precise: false)
+    eq(x(), 0, "tab strip: stops at the first tab")
+    let fits = NSScrollView(frame: NSRect(x: 0, y: 0, width: 300, height: 34))
+    fits.documentView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 34))
+    check(!WheelScrollsSideways.WheelView.scroll(fits, deltaY: -3, precise: false), "tab strip: a wheel passes through when the tabs fit")
+}
+
 print("\(passed) passed, \(failures) failed")
 exit(failures == 0 ? 0 : 1)
