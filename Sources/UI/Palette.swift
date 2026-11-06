@@ -33,6 +33,10 @@ struct CommandPalette: View {
     @State private var list: [PaletteItem] = []
     /// A quick answer from Tacet Assistant is showing in place of the list.
     @State private var answering = false
+    /// The address the typed text completes to, shown in grey after it; Tab or → accepts it.
+    @State private var completion: String?
+    @State private var completionSites: [String: Int] = [:]
+    @State private var typedCount = 0
     @FocusState private var focused: Bool
 
     private static let suggestSession: URLSession = {
@@ -55,10 +59,21 @@ struct CommandPalette: View {
                         .textFieldStyle(.plain)
                         .font(.system(size: 18))
                         .focused($focused)
+                        .overlay(alignment: .leading) { completionGhost }
                         .onKeyPress(.downArrow) { move(1, list.count); return .handled }
                         .onKeyPress(.upArrow) { move(-1, list.count); return .handled }
-                        .onKeyPress(.escape) { answering ? closeAnswer() : close(); return .handled }
+                        .onKeyPress(.tab) { acceptCompletion() ? .handled : .ignored }
+                        .onKeyPress(.rightArrow) { acceptCompletion() ? .handled : .ignored }
+                        .onKeyPress(.escape) {
+                            if completion != nil { completion = nil } else if answering { closeAnswer() } else { close() }
+                            return .handled
+                        }
                         .onKeyPress(keys: [.return]) { press in
+                            if let done = completion, selection == 0, let url = URL(string: "https://" + done) {
+                                close()
+                                navigate(url, newTab: press.modifiers.contains(.command))
+                                return .handled
+                            }
                             run(list, newTab: press.modifiers.contains(.command))
                             return .handled
                         }
@@ -120,6 +135,8 @@ struct CommandPalette: View {
         }
         .onAppear {
             query = b.palettePrefill
+            typedCount = query.count
+            loadCompletionSites()
             selection = 0
             refresh()
             fetchHistory(query)
@@ -134,6 +151,11 @@ struct CommandPalette: View {
         .animation(.easeOut(duration: 0.22), value: answering)
         .onChange(of: query) { _, q in
             if answering { closeAnswer() }
+            // Only while typing forward: deleting removes the completion instead of bringing it back.
+            let grew = q.count > typedCount
+            typedCount = q.count
+            let next = grew ? InlineCompletion.complete(q.trimmingCharacters(in: .whitespaces), candidates: completionSites) : nil
+            if completion != next { completion = next }
             selection = 0
             refresh()
             fetchHistory(q)
@@ -145,6 +167,38 @@ struct CommandPalette: View {
         .onChange(of: suggestions) { _, _ in refresh() }
         .onChange(of: historyHits.map(\.id)) { _, _ in refresh() }
         .onChange(of: pageHits.map(\.id)) { _, _ in refresh() }
+    }
+
+    /// The rest of the completed address, in grey right after what was typed.
+    @ViewBuilder private var completionGhost: some View {
+        if let done = completion, let rest = InlineCompletion.suffix(of: done, typed: query) {
+            HStack(spacing: 0) {
+                Text(query).hidden()
+                Text(rest).foregroundStyle(.secondary)
+            }
+            .font(.system(size: 18))
+            .lineLimit(1)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func acceptCompletion() -> Bool {
+        guard let done = completion, InlineCompletion.suffix(of: done, typed: query) != nil else { return false }
+        completion = nil
+        typedCount = done.count
+        query = done
+        return true
+    }
+
+    /// Sites to complete from, worked out once per opening from the history in memory. Never in private windows.
+    private func loadCompletionSites() {
+        guard !b.isPrivate, Settings.shared.inlineCompletion else { completionSites = [:]; return }
+        let entries = History.shared.entries
+        Task {
+            let sites = await Task.detached(priority: .userInitiated) { InlineCompletion.candidates(entries) }.value
+            completionSites = sites
+        }
     }
 
     private func hint(_ key: String, _ label: String) -> some View {
@@ -219,8 +273,9 @@ struct CommandPalette: View {
         }
         if OpeningRules.route(url, from: b) { return }
         if newTab || b.current == nil {
-            b.newTab(url: url)
+            b.newTab(url: url).typedLoad = true
         } else {
+            b.current?.typedLoad = true
             b.current?.load(url)
         }
     }
@@ -298,12 +353,25 @@ struct CommandPalette: View {
                 subtitle: isAddress ? L("Open address") : String(format: L("Search %@"), shortcut?.name ?? s.engine.name),
                 badge: "↩",
                 run: { navigate(url, newTab: $0) }))
+            // The address is already open in another tab: going there comes first.
+            if isAddress, let open = b.tabs.first(where: { $0.id != b.selectedID && InlineCompletion.sameAddress($0.url, url) }) {
+                out.insert(tabItem(open), at: 0)
+            }
         }
 
         // A sum is worked out on the spot, just below: ↓ ↩ copies the result, and ↩ alone still searches.
         if let value = Calculator.evaluate(q) {
             let result = Calculator.format(value)
             out.append(PaletteItem(id: "calc", icon: .symbol("equal.circle.fill"), title: "= " + result,
+                                   subtitle: L("Copy the result"), badge: "↩", run: { _ in
+                                       NSPasteboard.general.clearContents()
+                                       NSPasteboard.general.setString(result, forType: .string)
+                                   }))
+        }
+
+        if let converted = UnitConversion.convert(q) {
+            let result = UnitConversion.format(converted)
+            out.append(PaletteItem(id: "units", icon: .symbol("arrow.left.arrow.right.circle.fill"), title: "= " + result,
                                    subtitle: L("Copy the result"), badge: "↩", run: { _ in
                                        NSPasteboard.general.clearContents()
                                        NSPasteboard.general.setString(result, forType: .string)
@@ -455,6 +523,7 @@ struct CommandPalette: View {
                 command(tab.isReader ? "Exit Reader" : "Reader", "doc.plaintext", "⇧⌘R") { tab.toggleReader() },
                 command("Find on Page", "text.magnifyingglass", "⌘F") { b.showFind() },
                 command("Save for Offline", "arrow.down.circle", "Reading List") { tab.saveForOffline() },
+                command("Site Information", "lock", "Certificate, permissions, zoom, pop-ups, Tacet Shield") { b.showSiteInfo = true },
                 command("Customize This Site", "paintbrush", "Colours, fonts, hidden elements, CSS and JavaScript") { b.customizingSite = true },
                 command("Pick Elements to Hide", "cursorarrow.rays", "Click parts of the page to hide them on this site") { tab.startPickingElements() },
                 command(Bookmarks.shared.contains(tab.url) ? "Remove Bookmark" : "Bookmark This Page", "star", "⌘D") {
@@ -480,6 +549,8 @@ struct CommandPalette: View {
                 command("Export as PDF", "doc.richtext", "⇧⌘E") { tab.exportPDF() },
                 command("Install as App", "app.badge.checkmark", "Its own window and Dock icon") { b.showInstallApp = true },
                 command("Take Screenshot of Page", "camera.viewfinder", "⇧⌘S") { tab.screenshot() },
+                command("Take Screenshot of Whole Page", "camera.viewfinder", "⌥⇧⌘S") { tab.screenshotFullPage() },
+                command("Take Screenshot of Element", "viewfinder", "") { tab.startPickingScreenshot() },
             ], at: 1)
         }
         list += groupCommands

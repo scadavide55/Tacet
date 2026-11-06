@@ -105,7 +105,7 @@ struct OnboardingView: View {
         case .tabs: TabsStep()
         case .search: SearchStep()
         case .shield: ShieldStep()
-        case .assistant: AssistantStep()
+        case .assistant: AssistantSetupStep()
         case .tour: TourStep()
         case .shortcuts: ShortcutsStep()
         case .done: DoneStep(finish: finish)
@@ -848,12 +848,12 @@ private struct ShieldStep: View {
     }
 }
 
-private struct AssistantStep: View {
+private struct AssistantSetupStep: View {
     @Bindable private var s = Settings.shared
     @State private var key = ""
 
     var body: some View {
-        StepPage(symbol: "sparkles", title: "Tacet Assistant (beta)",
+        StepPage(symbol: "sparkles", title: "Tacet Assistant",
                  subtitle: "Ask questions about the page you're reading, get summaries and explanations, in a panel beside the page. It uses your own API key, and it stays off unless you turn it on.") {
             VStack(spacing: 16) {
                 HStack(spacing: 14) {

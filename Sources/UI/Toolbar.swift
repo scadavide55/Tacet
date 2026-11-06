@@ -87,6 +87,9 @@ struct AddressPill: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .foregroundStyle(shownURL == nil ? .secondary : .primary)
+                .contextMenu {
+                    if shownURL != nil { Button("Site Information…") { showInfo = true } }
+                }
             Spacer(minLength: 4)
 
             if tab.url != nil && abs(tab.zoom - 1) > 0.01 {
@@ -129,6 +132,12 @@ struct AddressPill: View {
         .contentShape(Rectangle())
         .onTapGesture { b.showPalette(shownURL?.absoluteString) }
         .onHover { hover = $0 }
+        .onChange(of: b.showSiteInfo) { _, show in
+            guard show, tab === b.current else { return }
+            b.showSiteInfo = false
+            // After the command bar has closed, or the popover has nothing to hang from.
+            if shownURL != nil { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { showInfo = true } }
+        }
         .help(shownURL?.absoluteString ?? L("Search or enter address (⌘L)"))
     }
 }
@@ -173,6 +182,7 @@ struct ShieldPopover: View {
     var tab: Tab
     @Bindable private var s = Settings.shared
     private var blocker = ContentBlocker.shared
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -189,9 +199,20 @@ struct ShieldPopover: View {
             if tab.shieldsUp && tab.url != nil { BlockedOnPage(tab: tab) }
             if let host = tab.host {
                 Toggle("Protection on this site", isOn: Binding(
-                    get: { !s.isAllowlisted(host) },
-                    set: { s.setAllowlisted(host, !$0) }))
+                    get: { !s.isShieldOff(host) },
+                    set: { s.setShield(host, on: $0) }))
                     .disabled(!s.adBlock)
+                if tab.shieldsUp && tab.url != nil {
+                    // Off only until Tacet quits; the banner on the page then asks whether to keep it off.
+                    Button("Site not working?") {
+                        tab.askKeepShieldOff = true
+                        ShieldTrial.shared.start(host)
+                        dismiss()
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                    .help("Turns Tacet Shield off on this site for now and reloads the page")
+                }
             }
             Divider()
             Toggle("Block ads and trackers", isOn: $s.adBlock)
@@ -302,7 +323,9 @@ struct SiteInfoPopover: View {
             }
             .controlSize(.small)
             if let host = tab.host {
-                Button(cleared ? LocalizedStringKey("Site data cleared") : "Clear Cookies and Site Data…") {
+                SitePermissions(tab: tab, host: host)
+                Divider()
+                Button(cleared ? LocalizedStringKey("Site data cleared") : "Clear Data for This Site…") {
                     Dialogs.confirm(b.window, title: String(format: L("Clear data for %@?"), InputResolver.displayHost(url)),
                                     message: L("You'll be signed out of this site and its saved preferences will be removed."),
                                     ok: L("Clear")) { ok in
@@ -319,6 +342,71 @@ struct SiteInfoPopover: View {
         }
         .padding(16)
         .frame(width: 300)
+    }
+}
+
+/// What the site may do, from the same settings as Settings › Sites and Tacet Shield: changing something here
+/// changes it there.
+struct SitePermissions: View {
+    var tab: Tab
+    let host: String
+    @Bindable private var s = Settings.shared
+    /// A private tab's choices aren't observed: this redraws after one changes.
+    @State private var revision = 0
+
+    /// Camera and microphone choices for this site; a private window's stay in the tab.
+    private var media: [(key: String, kind: MediaPermission.Kind, allowed: Bool)] {
+        let stored = tab.isPrivate ? tab.mediaPermissions : s.mediaPermissions
+        return stored.compactMap { key, allowed in
+            guard let p = MediaPermission.parse(key), p.host == host.lowercased() else { return nil }
+            return (key, p.kind, allowed)
+        }
+        .sorted { $0.key < $1.key }
+    }
+
+    private func setMedia(_ key: String, _ allowed: Bool?) {
+        if tab.isPrivate { tab.mediaPermissions[key] = allowed } else { s.mediaPermissions[key] = allowed }
+        revision += 1
+    }
+
+    var body: some View {
+        let site = PasswordStore.site(host)
+        let _ = revision
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Permissions").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            ForEach(media, id: \.key) { item in
+                HStack {
+                    Text(item.kind.label.prefix(1).uppercased() + item.kind.label.dropFirst())
+                    Spacer()
+                    Picker("", selection: Binding(get: { item.allowed }, set: { setMedia(item.key, $0) })) {
+                        Text("Allow").tag(true)
+                        Text("Block").tag(false)
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    Button { setMedia(item.key, nil) } label: { Label("Forget", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
+                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                        .help("Forget")
+                }
+            }
+            if media.isEmpty {
+                Text("This site hasn't asked for your camera or microphone.").font(.caption).foregroundStyle(.secondary)
+            }
+            Toggle("Pop-ups without a click", isOn: Binding(
+                get: { s.popupSites.contains(site) },
+                set: { on in
+                    if on { if !s.popupSites.contains(site) { s.popupSites.append(site) } } else { s.popupSites.removeAll { $0 == site } }
+                }))
+                .help("Pop-ups a click opens are always allowed")
+            Toggle("Tacet Shield on this site", isOn: Binding(get: { !s.isShieldOff(host) }, set: { s.setShield(host, on: $0) }))
+                .disabled(!s.adBlock)
+            Text(s.adBlock && tab.shieldsUp
+                 ? String(format: L("%d ads and trackers blocked on this page"), tab.blockedCount)
+                 : L(s.adBlock ? "Nothing is blocked on this site" : "Blocking is off"))
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .toggleStyle(.switch)
+        .controlSize(.small)
     }
 }
 
@@ -356,8 +444,24 @@ struct DownloadsList: View {
     var searchable = false
     private var dm = DownloadManager.shared
     @State private var search = ""
+    /// The row the arrow keys move and the space bar previews.
+    @State private var selection: UUID?
+    @FocusState private var focused: Bool
 
     init(searchable: Bool = false) { self.searchable = searchable }
+
+    private func move(_ step: Int) {
+        let list = shown
+        guard !list.isEmpty else { return }
+        let i = list.firstIndex { $0.id == selection }.map { $0 + step } ?? (step > 0 ? 0 : list.count - 1)
+        selection = list[min(max(i, 0), list.count - 1)].id
+        QuickLook.shared.follow(selectedFile)
+    }
+
+    private var selectedFile: URL? {
+        guard let item = shown.first(where: { $0.id == selection }), item.state == .finished else { return nil }
+        return item.destination
+    }
 
     private var shown: [DownloadItem] {
         let q = search.trimmingCharacters(in: .whitespaces)
@@ -385,11 +489,38 @@ struct DownloadsList: View {
             if dm.items.isEmpty {
                 ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle").frame(maxHeight: .infinity)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(shown) { DownloadRow(item: $0) }
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(shown) { item in
+                                DownloadRow(item: item, selected: item.id == selection) {
+                                    selection = item.id
+                                    focused = true
+                                    QuickLook.shared.follow(selectedFile)
+                                }
+                                .id(item.id)
+                            }
+                        }
                     }
+                    .onChange(of: selection) { _, id in if let id { proxy.scrollTo(id) } }
                 }
+                // ↑ and ↓ choose a download, the space bar shows it in Quick Look, Return opens it.
+                .focusable()
+                .focused($focused)
+                .focusEffectDisabled()
+                .onKeyPress(.upArrow) { move(-1); return .handled }
+                .onKeyPress(.downArrow) { move(1); return .handled }
+                .onKeyPress(.space) {
+                    guard let file = selectedFile else { return .ignored }
+                    QuickLook.shared.toggle(file)
+                    return .handled
+                }
+                .onKeyPress(.return) {
+                    guard let item = shown.first(where: { $0.id == selection }), item.state == .finished else { return .ignored }
+                    dm.open(item)
+                    return .handled
+                }
+                .onAppear { focused = true }
             }
         }
         // In the Library, searched from the toolbar like History and Bookmarks.
@@ -408,6 +539,8 @@ private struct DownloadSearch: ViewModifier {
 
 struct DownloadRow: View {
     var item: DownloadItem
+    var selected = false
+    var select: (() -> Void)?
     private var dm: DownloadManager { .shared }
 
     var body: some View {
@@ -444,8 +577,10 @@ struct DownloadRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .background(selected ? Color.accentColor.opacity(0.16) : .clear)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { dm.open(item) }
+        .simultaneousGesture(TapGesture().onEnded { select?() })
         .onDrag {
             // Drag a finished file out to Finder or another app.
             guard item.state == .finished, let url = item.destination else { return NSItemProvider() }
@@ -463,6 +598,9 @@ struct DownloadRow: View {
                 }
             }
             Button("Show in Finder") { dm.reveal(item) }.disabled(item.destination == nil)
+            if item.state == .finished, let file = item.destination {
+                Button("Quick Look") { QuickLook.shared.toggle(file) }
+            }
             Divider()
             if item.state == .active { Button("Pause") { dm.pause(item) } }
             if item.canResume { Button("Resume") { dm.resume(item) } }
@@ -519,7 +657,12 @@ struct PageMenu: View {
             Button("Export as PDF…") { tab.exportPDF() }.disabled(tab.url == nil)
             Button("Customize This Site…") { b.customizingSite = true }.disabled(tab.host == nil || tab.isReader)
             Button("Install as App…") { b.showInstallApp = true }.disabled(tab.url == nil || WebApp.isActive)
-            Button("Take Screenshot of Page") { tab.screenshot() }.disabled(tab.url == nil)
+            Menu("Take Screenshot") {
+                Button("Visible Part of Page") { tab.screenshot() }
+                Button("Whole Page") { tab.screenshotFullPage() }
+                Button("Element…") { tab.startPickingScreenshot() }.disabled(tab.isReader)
+            }
+            .disabled(tab.url == nil)
             if Settings.shared.developer {
                 Menu("Develop") { DevelopMenuItems(b: b) }
             }

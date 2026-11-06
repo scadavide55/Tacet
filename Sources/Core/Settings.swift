@@ -112,6 +112,8 @@ struct Profile: Codable, Identifiable, Hashable {
     var id = UUID()
     var name: String
     var color = 0
+    /// Optional, so profiles saved before proxies existed read as before.
+    var proxy: ProfileProxy?
     var tint: Color { TabGroup.colors[color % TabGroup.colors.count] }
 }
 
@@ -383,6 +385,10 @@ final class Settings: Observable {
     @Pref("engine") var engine = SearchEngine.duckduckgo
     @Pref("customSearch") var customSearch = "https://duckduckgo.com/?q=%s"
     @Pref("suggestions") var suggestions = false
+    /// Completing addresses of often-visited sites as you type in the command bar.
+    @Pref("inlineCompletion") var inlineCompletion = true
+    /// Sites allowed to open pop-up windows without a click, by site name.
+    @Pref("popupSites") var popupSites: [String] = []
     @Pref("shortcuts") var shortcuts: [SearchShortcut] = [
         SearchShortcut(keyword: "yt", name: "YouTube", template: "https://www.youtube.com/results?search_query=%s"),
         SearchShortcut(keyword: "w", name: "Wikipedia", template: "https://en.wikipedia.org/wiki/Special:Search?search=%s"),
@@ -465,6 +471,13 @@ final class Settings: Observable {
     @Pref("aiVision") var aiVision: [String: Bool] = [:]
     /// Lets the assistant search the web and read pages by itself.
     @Pref("aiWeb") var aiWeb = true
+    /// How far a deep research goes.
+    @Pref("aiResearchDepth") var aiResearchDepth: ResearchDepth = .standard
+    /// The order web searches try the engines in, by `SearchEngineKind.rawValue`. Engines that aren't set up are
+    /// skipped, so with nothing set up searches go to DuckDuckGo.
+    @Pref("aiSearchOrder") var aiSearchOrder = SearchEngineKind.defaultOrder
+    /// The address of a SearXNG server the user chose, perhaps their own; empty, SearXNG isn't used.
+    @Pref("aiSearXNGURL") var aiSearXNGURL = ""
     /// The assistant panel's width, set by dragging its edge.
     @Pref("assistantWidth") var assistantWidth = 380.0
     /// Lets the assistant click, type, scroll and drag on the current page. Off by default.
@@ -482,9 +495,34 @@ final class Settings: Observable {
     @Pref("aiPersonality") var aiPersonality = true
     /// Longer, more detailed answers instead of short ones.
     @Pref("aiDetailed") var aiDetailed = false
+    /// What the user wants Tacet Assistant to know about them, in their own words; sent with every question.
+    @Pref("aiAboutMe") var aiAboutMe = ""
+    /// How the user wants it to answer, in their own words.
+    @Pref("aiAnswerStyle") var aiAnswerStyle = ""
+    /// Whether the two personal instructions also go with questions asked in private windows. Off by default, so a
+    /// private window says nothing about who's browsing.
+    @Pref("aiInstructionsInPrivate") var aiInstructionsInPrivate = false
+    /// Lets the assistant remember short facts between chats, each one only after the user agrees. Off by default.
+    @Pref("aiMemory") var aiMemory = false
 
     var aiQuickModelName: String {
         aiQuickFast ? (aiProvider.fastModel ?? aiModelName) : aiModelName
+    }
+
+    /// A model for small jobs behind the scenes, such as titles and notes, for each provider. None chosen means the
+    /// default model does them, so nothing changes for people who never set it.
+    @Pref("aiSmallModels") var aiSmallModels: [String: String] = [:]
+
+    /// The model small jobs use: the one chosen for them, else the default model.
+    var aiSmallModelName: String { Self.smallModel(chosen: aiSmallModels[aiProvider.rawValue], main: aiModelName) }
+
+    /// Whether the user picked a model for small jobs. Extra requests that only make things nicer, such as naming a
+    /// chat, are made only then, so nobody pays for them without asking.
+    var aiHasSmallModel: Bool { !(aiSmallModels[aiProvider.rawValue] ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+
+    static func smallModel(chosen: String?, main: String) -> String {
+        let m = (chosen ?? "").trimmingCharacters(in: .whitespaces)
+        return m.isEmpty ? main : m
     }
 
     // Advanced
@@ -504,8 +542,23 @@ final class Settings: Observable {
     }
 
     func isAllowlisted(_ host: String?) -> Bool {
-        guard let host = host?.lowercased() else { return false }
-        return allowlist.contains { host == $0 || host.hasSuffix("." + $0) }
+        ShieldExceptions.covers(allowlist, host)
+    }
+
+    /// Shield is off on `host`: kept off in the allowlist, or for now from "Site not working?".
+    func isShieldOff(_ host: String?) -> Bool {
+        isAllowlisted(host) || ShieldTrial.shared.isOff(host)
+    }
+
+    /// The Shield switches for a site. Either way a "for now" exception gives way to your choice.
+    func setShield(_ host: String, on: Bool) {
+        if on {
+            ShieldTrial.shared.turnBackOn(host)
+            setAllowlisted(host, false)
+        } else {
+            setAllowlisted(host, true)
+            ShieldTrial.shared.keepOff(host)
+        }
     }
 
     func isGroupException(_ host: String?) -> Bool {
@@ -521,7 +574,7 @@ final class Settings: Observable {
     }
 
     func setAllowlisted(_ host: String, _ allowed: Bool) {
-        let h = host.lowercased().replacingOccurrences(of: "www.", with: "", options: .anchored)
+        let h = ShieldExceptions.site(host)
         var list = allowlist.filter { $0 != h }
         if allowed { list.append(h) }
         allowlist = list.sorted()
@@ -533,6 +586,7 @@ final class Settings: Observable {
         if key == "rememberPageText" && !rememberPageText { PageText.shared.clear() }
         if key == "pageTextDays" { PageText.shared.prune(keepingDays: pageTextDays) }
         if key == "recoverDrafts" && !recoverDrafts { Drafts.shared.clear() }
+        if key == "profiles" { ProfileProxies.refresh() }
         NotificationCenter.default.post(name: .settingChanged, object: self, userInfo: ["key": key])
     }
 

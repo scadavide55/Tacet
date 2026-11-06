@@ -15,7 +15,7 @@ enum WhatsNew {
         let demo: Demo
     }
 
-    enum Demo { case developer, downloads, quickAnswer, icons, store, cutout, extMenu, localAI, pinned, arc, shield, preview, wake, translate, passwords, keychain, rename, groups, picking, assistant, apple, reading, customize, extensions, fixes }
+    enum Demo { case research, activity, developer, downloads, quickAnswer, icons, store, cutout, extMenu, localAI, pinned, arc, shield, preview, wake, translate, passwords, keychain, rename, groups, picking, assistant, apple, reading, customize, extensions, fixes }
 
     /// What's new for someone who last saw the welcome of `seen` (empty when they never did).
     static func pages(since seen: String) -> [Page] {
@@ -23,6 +23,54 @@ enum WhatsNew {
     }
 
     static let all: [Page] = [
+        Page(version: "1.8", symbol: "binoculars", title: "Deep research",
+             text: "Turn on Deep research and Tacet plans the question, searches from several angles at once, reads the best pages, keeps notes only with the exact words that back them, counts a fact as confirmed when two sites agree, and writes a report with its sources linked and what's still uncertain. Choose Quick, Standard or Thorough, stop at any time, export it as Markdown or PDF.",
+             how: ["Deep research, below the chat box, and its menu for how far it goes", "Export Report, below a finished research"],
+             demo: .research),
+        Page(version: "1.8", symbol: "checkmark.circle", title: "Answers you can check",
+             text: "A link to a page the assistant never read is dimmed and marked. It reads PDFs page by page and pages built with JavaScript. Searches can use SearXNG or Brave Search, and move on when one engine fails. Models on your Mac get the context they need, so the instructions are never cut off.",
+             how: ["Settings › AI › Web access, for search engines", "Settings › AI, for a local model's context"],
+             demo: .localAI),
+        Page(version: "1.8", symbol: "person.text.rectangle", title: "An assistant that knows you",
+             text: "Tell it about yourself and how to answer. Turn on memory and it offers to remember a fact, saved only when you click Save. Type @ to send open tabs with a question, search every saved chat by what was said, pin chats and export them, and see the tokens each answer used.",
+             how: ["Settings › AI › Personal instructions and Memory", "Type @ in the message box"],
+             demo: .assistant),
+        Page(version: "1.8", symbol: "list.bullet.rectangle", title: "See what the assistant is doing",
+             text: "One tidy line says what's happening now, Searching the web, Reading 3 pages, Thinking, with the time on the right. Click it to see every search and page, how each went and how long it took; a click on a page opens it.",
+             how: ["Click the line above a reply to open or close the steps"],
+             demo: .activity),
+        Page(version: "1.8", symbol: "sparkles", title: "Better answers",
+             text: "Tacet Assistant is no longer a beta (Deep research and Browser use still are). Replies are laid out with headings, lists, tables and code you can copy, sources sit below as small chips, and Ask Again tries once more. Searches and pages are read at the same time, and a busy service is retried by itself.",
+             how: ["The buttons below a reply: Copy and Ask Again"],
+             demo: .assistant),
+        Page(version: "1.8", symbol: "command", title: "A smarter command bar and Find",
+             text: "Type the start of a site you visit often and the command bar completes it; Tab or → accepts. It converts units (10 km, 21 °C to F) and switches to a tab that already has the address. Find on Page counts and highlights every match, narrows as you type, and ⌘E finds the selected text.",
+             how: ["⌘K, then type gi… and press Tab", "⌘F, then the options button for Match Case and Whole Words"],
+             demo: .quickAnswer),
+        Page(version: "1.8", symbol: "exclamationmark.bubble", title: "Pages can't take over",
+             text: "A page's alerts wait their turn on its own window instead of stopping Tacet, and from the second one you can silence them. A red mark shows a tab using the camera or microphone, which never goes to sleep; a click pauses them. Sound in embedded players shows on the tab and mutes with it, and a blocked pop-up says so.",
+             how: ["Click the red camera or microphone mark on a tab to pause"],
+             demo: .fixes),
+        Page(version: "1.8", symbol: "lock.shield", title: "Privacy and sign-ins",
+             text: "Anti-fingerprinting can no longer be spotted by the sites it protects you from. Saved passwords fill sign-in boxes embedded in pages, on the same site only, and a site's own sign-in window uses your saved login. If Tacet ever quits unexpectedly, it asks before reopening your windows.",
+             how: ["Nothing to set: it's all on"],
+             demo: .keychain),
+        Page(version: "1.8", symbol: "clock.arrow.circlepath", title: "Your whole history, best first",
+             text: "Searching history now looks through every page you ever visited, at once and without slowing your typing. The pages you open often and recently come first, those you typed come before links, and the site you start typing comes before pages that only mention it.",
+             how: ["Type in the command bar (⌘K) or in History (⌘Y)"],
+             demo: .reading),
+        Page(version: "1.8", symbol: "camera.viewfinder", title: "Screenshots and site information",
+             text: "Take a screenshot of the whole page, however long, or of just the part you click. The lock now shows everything about the site in one place: its certificate, camera and microphone, zoom, pop-ups and Tacet Shield, with Clear Data for This Site.",
+             how: ["File › Take Screenshot of Whole Page (⌥⇧⌘S) or of Element…", "Click the lock next to the address"],
+             demo: .customize),
+        Page(version: "1.8", symbol: "shield.lefthalf.filled", title: "When a site doesn't work",
+             text: "Site not working? in Tacet Shield turns it off on that site for now and reloads the page, then asks whether to keep it off. Nothing is sent anywhere. A profile can go through its own proxy, and its windows say so; private windows never do.",
+             how: ["The shield button › Site not working?", "Settings › General › Profiles, the network button of a profile"],
+             demo: .shield),
+        Page(version: "1.8", symbol: "keyboard", title: "Small things that add up",
+             text: "Close several tabs and Undo brings them back. The space bar shows a download in Quick Look. Settings has a search field, the tab list works with the arrow keys, file fields offer only the files they take, and Help › Copy Diagnostic Log shows you what it would copy.",
+             how: ["⌥⌘↓ moves to the tab list: ↑ ↓, Return opens, ⌘⌫ closes", "The search field at the top of Settings (⌘,)"],
+             demo: .fixes),
         Page(version: "1.7.1", symbol: "hammer", title: "Developer Mode",
              text: "The Web Inspector and JavaScript console, Inspect Element, the page's source, Responsive Design Mode for phones and tablets, other browsers' user agents, page load times, and switches for JavaScript, styles and caches.",
              how: ["Settings › Advanced › Developer Mode, then the Develop menu", "⌥⌘I Web Inspector · ⌥⌘U page source · ⌥⌘C console"],
@@ -236,6 +284,8 @@ private struct DemoView: View {
             // A 4-second loop, eased so each step settles before the next.
             let t = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 4) / 4
             switch demo {
+            case .research: ResearchDemo(t: t)
+            case .activity: ActivityDemo(t: t)
             case .developer: DeveloperDemo(t: t)
             case .downloads: DownloadsDemo(t: t)
             case .quickAnswer: QuickAnswerDemo(t: t)
@@ -283,6 +333,75 @@ private struct Chip: View {
         }
         .frame(width: width, height: 26)
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.08)))
+    }
+}
+
+/// The activity line pulses through the research stages, then the report's lines and source chips appear.
+private struct ResearchDemo: View {
+    let t: Double
+    var body: some View {
+        let stage = min(3, Int(t / 0.15))
+        let report = step(t, 0.62, 0.8)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                ActivityDots(active: report < 1, tick: Int(t * 16))
+                Image(systemName: "binoculars").font(.system(size: 10)).foregroundStyle(.secondary)
+                RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.45)).frame(width: [90, 120, 80, 110][stage], height: 6)
+                Text("\(Int(t * 95))s").font(.system(size: 10)).monospacedDigit().foregroundStyle(.tertiary)
+                Spacer()
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.55)).frame(width: 110, height: 7)
+                ForEach(0..<3) { i in
+                    RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.28)).frame(width: [240, 210, 170][i], height: 5)
+                }
+                HStack(spacing: 5) {
+                    ForEach(0..<4) { _ in Capsule().fill(Color.primary.opacity(0.12)).frame(width: 46, height: 14) }
+                }
+                .padding(.top, 3)
+            }
+            .opacity(report)
+        }
+        .frame(width: 280, alignment: .leading)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.06)))
+    }
+}
+
+/// The activity line opens into its steps, one row each, then closes again.
+private struct ActivityDemo: View {
+    let t: Double
+    var body: some View {
+        let open = step(t, 0.2, 0.32) * (1 - step(t, 0.85, 0.95))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
+                ActivityDots(active: true, tick: Int(t * 16))
+                RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.45)).frame(width: 130, height: 6)
+                Text("\(Int(t * 24))s").font(.system(size: 10)).monospacedDigit().foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").font(.system(size: 8, weight: .bold)).foregroundStyle(.tertiary)
+                    .rotationEffect(.degrees(90 * open))
+                Spacer()
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(0..<4) { i in
+                    HStack(spacing: 8) {
+                        Image(systemName: ["magnifyingglass", "doc.text", "doc.text", "ellipsis.bubble"][i]).font(.system(size: 10)).foregroundStyle(.secondary)
+                        RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.3)).frame(width: [150, 120, 135, 90][i], height: 5)
+                        Spacer()
+                        RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.15)).frame(width: 16, height: 5)
+                    }
+                    .padding(.horizontal, 10).frame(height: 24)
+                    .opacity(step(t, 0.3 + Double(i) * 0.08, 0.38 + Double(i) * 0.08))
+                    if i < 3 { Divider() }
+                }
+            }
+            .frame(height: 100 * open, alignment: .top)
+            .clipped()
+            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.primary.opacity(0.1)).opacity(open))
+        }
+        .frame(width: 280, alignment: .leading)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.06)))
     }
 }
 

@@ -66,12 +66,13 @@ struct AssistantPanel: View {
         HStack(spacing: 6) {
             Image(systemName: "sparkles").foregroundStyle(.tint)
             Text("Tacet Assistant").font(.system(size: 13, weight: .semibold)).lineLimit(1).fixedSize()
-            BetaBadge()
             Spacer(minLength: 4)
             IconButton(systemName: "clock.arrow.circlepath", help: "Chat History") { showHistory.toggle() }
                 .popover(isPresented: $showHistory, arrowEdge: .bottom) {
                     AssistantHistoryList(chat: chat) { showHistory = false }
                 }
+            IconButton(systemName: "square.and.arrow.up", help: "Export as Markdown…") { AssistantExport.save(chat) }
+                .disabled(chat.messages.isEmpty || chat.busy)
             IconButton(systemName: "square.and.pencil", help: "New Chat") { chat.newChat() }
                 .disabled(chat.messages.isEmpty && chat.draft.isEmpty)
             IconButton(systemName: "arrow.up.left.and.arrow.down.right", help: "Full Screen Chat") { b.assistantExpanded = true }
@@ -111,7 +112,9 @@ struct AssistantMessages: View {
                     if chat.messages.isEmpty { AssistantSuggestions(chat: chat) }
                     ForEach(chat.messages) { m in
                         // Only the message that changed is drawn again (and its Markdown read again) as a reply streams in.
-                        AssistantBubble(message: m, thinking: chat.busy && m.id == chat.messages.last?.id)
+                        let last = m.id == chat.messages.last?.id
+                        AssistantBubble(message: m, thinking: chat.busy && last, retry: last && chat.canRetry ? { chat.retry() } : nil,
+                                        question: m.research ? chat.question(before: m.id) : nil)
                             .equatable()
                             .id(m.id)
                     }
@@ -162,7 +165,12 @@ struct AssistantSuggestions: View {
 struct AssistantBubble: View {
     let message: AssistantChat.Message
     let thinking: Bool
+    /// Asks for this reply again; only the last one can be.
+    var retry: (() -> Void)? = nil
+    /// What was asked, for the title of an exported research report.
+    var question: String? = nil
     @Environment(BrowserState.self) var b
+    @State private var copied = false
 
     var body: some View {
         if message.role == .user {
@@ -171,6 +179,9 @@ struct AssistantBubble: View {
                 VStack(alignment: .trailing, spacing: 6) {
                     if let page = message.pageTitle {
                         Label(page, systemImage: "doc.text").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    ForEach(Array(message.tabTitles.enumerated()), id: \.offset) { _, title in
+                        Label(title, systemImage: "at").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
                     if let quote = message.quote {
                         Text("“\(quote)”").font(.caption).italic().foregroundStyle(.secondary).lineLimit(3)
@@ -192,14 +203,16 @@ struct AssistantBubble: View {
                 }
             }
         } else {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(message.activity.enumerated()), id: \.offset) { _, note in
-                    Label(note, systemImage: "wand.and.stars").font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                if AssistantActivity.shows(message.steps) {
+                    AssistantActivityView(steps: message.steps, research: message.research, started: message.started,
+                                          finished: message.finished, running: thinking && message.error == nil,
+                                          writing: !message.text.isEmpty)
+                } else if thinking && message.text.isEmpty && message.error == nil {
+                    ProgressView().controlSize(.small)
                 }
                 if !message.text.isEmpty {
-                    Text(Self.markdown(message.text)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                } else if thinking && message.error == nil {
-                    ProgressView().controlSize(.small)
+                    AssistantMarkdown(text: message.text, unverified: message.unverified)
                 }
                 ForEach(Array(message.links.enumerated()), id: \.offset) { _, link in
                     Button { b.newTab(url: link.url) } label: {
@@ -207,30 +220,61 @@ struct AssistantBubble: View {
                     }
                     .help(link.url.absoluteString)
                 }
-                if !message.sources.isEmpty {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Sources").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        ForEach(Array(message.sources.enumerated()), id: \.offset) { _, source in
-                            Button { b.newTab(url: source.url) } label: {
-                                Text(source.title).font(.caption).lineLimit(1).truncationMode(.tail)
-                            }
-                            .buttonStyle(.link)
-                            .help(source.url.absoluteString)
-                        }
-                    }
-                    .padding(.top, 2)
+                if !message.sources.isEmpty, !thinking {
+                    AssistantSourceChips(sources: message.sources)
+                }
+                ForEach(Array(message.activity.enumerated()), id: \.offset) { _, note in
+                    Label(note, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
                 }
                 if let error = message.error {
                     Label(error, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
                 }
+                if !thinking, !message.text.isEmpty || retry != nil || message.usage != nil {
+                    actions
+                }
             }
+            // Links in a reply open in a new tab here, not in another browser.
+            .environment(\.openURL, OpenURLAction { url in
+                b.newTab(url: url)
+                return .handled
+            })
             .contextMenu {
-                Button("Copy") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(message.text, forType: .string)
+                Button("Copy") { copy() }
+                if message.research, !thinking, !message.text.isEmpty {
+                    Menu("Export Report") { ResearchExportMenu(message: message, question: question).items }
                 }
             }
         }
+    }
+
+    private var actions: some View {
+        HStack(spacing: 2) {
+            if !message.text.isEmpty {
+                IconButton(systemName: copied ? "checkmark" : "doc.on.doc", help: "Copy", size: 11) { copy() }
+            }
+            if let retry {
+                IconButton(systemName: "arrow.clockwise", help: "Ask Again", size: 11) { retry() }
+            }
+            if message.research, !message.text.isEmpty {
+                ResearchExportMenu(message: message, question: question)
+            }
+            Spacer(minLength: 8)
+            // Only what the provider reported; nothing is estimated, and no price, which isn't reliably known.
+            if let usage = message.usage {
+                Text(usage.summary())
+                    .font(.system(size: 10)).monospacedDigit().foregroundStyle(.tertiary)
+                    .lineLimit(1).truncationMode(.tail)
+                    .help("Tokens this answer used, as your provider reported them: read by the model (in), written by it (out), and read from the provider's cache, which costs less (cached).")
+            }
+        }
+        .foregroundStyle(.secondary)
+    }
+
+    private func copy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message.text, forType: .string)
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
     }
 
     /// Inline Markdown (bold, italics, code, links), keeping the model's line breaks.
@@ -243,9 +287,12 @@ extension AssistantBubble: Equatable {
     /// What the bubble shows; images and links are only ever added, so their counts are enough.
     static func == (lhs: Self, rhs: Self) -> Bool {
         let l = lhs.message, r = rhs.message
-        return lhs.thinking == rhs.thinking && l.id == r.id && l.text == r.text && l.activity == r.activity
+        return lhs.thinking == rhs.thinking && (lhs.retry == nil) == (rhs.retry == nil) && l.id == r.id && l.text == r.text
+            && l.activity == r.activity && l.steps == r.steps && l.finished == r.finished
             && l.error == r.error && l.links.count == r.links.count && l.sources.count == r.sources.count
             && l.images.count == r.images.count && l.pageTitle == r.pageTitle && l.quote == r.quote
+            && l.unverified == r.unverified
+            && l.tabTitles == r.tabTitles && l.usage == r.usage
     }
 }
 
@@ -254,10 +301,33 @@ extension AssistantBubble: Equatable {
 struct AssistantComposer: View {
     @Bindable var chat: AssistantChat
     @FocusState private var focused: Bool
+    /// The tab highlighted in the `@` list, chosen with Return.
+    @State private var mentionIndex = 0
+    /// The draft as it was when Escape closed the `@` list, so it stays closed until the user types again.
+    @State private var dismissedMention: String?
+
+    /// The `@` list: what's typed after the `@`, and the open tabs that match it; nil when no tab is being picked.
+    private var mention: (query: String, tabs: [Tab])? {
+        guard let query = AssistantChat.mentionQuery(in: chat.draft), chat.draft != dismissedMention else { return nil }
+        let tabs = chat.mentionableTabs
+        guard !tabs.isEmpty || !chat.mentionedTabIDs.isEmpty else { return nil }
+        guard chat.mentionedTabIDs.count < AssistantChat.maxMentionedTabs else { return (query, []) }
+        let found = AssistantChat.mentionMatches(tabs.map { ($0.title, $0.url) }, query: query).map { tabs[$0] }
+        return (query, Array(found.prefix(8)))
+    }
+
+    private func choose(_ tab: Tab) {
+        chat.mention(tab)
+        mentionIndex = 0
+        focused = true
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if chat.pageToAttach != nil || !chat.images.isEmpty || chat.selection != nil {
+            if let mention {
+                mentionList(mention.tabs, query: mention.query)
+            }
+            if chat.pageToAttach != nil || !chat.images.isEmpty || chat.selection != nil || !chat.mentionedTabs.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         if let selection = chat.selection {
@@ -266,6 +336,11 @@ struct AssistantComposer: View {
                         }
                         if let page = chat.pageToAttach {
                             chip(title: page.title, icon: page.favicon) { chat.removePageAttachment() }
+                        }
+                        ForEach(chat.mentionedTabs) { tab in
+                            chip(title: tab.title, icon: tab.favicon, symbol: "at", help: "This tab is read and sent with your next message") {
+                                chat.mentionedTabIDs.removeAll { $0 == tab.id }
+                            }
                         }
                         ForEach(chat.images) { img in
                             ZStack(alignment: .topTrailing) {
@@ -287,29 +362,55 @@ struct AssistantComposer: View {
                 if chat.canAttachImages {
                     IconButton(systemName: "photo.badge.plus", help: "Attach Image") { pickImages() }
                 }
-                TextField(L("Ask Tacet Assistant…"), text: $chat.draft, axis: .vertical)
+                TextField(chat.deepResearch ? L("What should Tacet research?") : L("Ask Tacet Assistant…"), text: $chat.draft, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...8)
                     .focused($focused)
                     .onKeyPress(.return, phases: .down) { press in
                         if press.modifiers.contains(.shift) { return .ignored }
+                        // With the @ list open, Return picks the highlighted tab instead of sending.
+                        if let tabs = mention?.tabs, !tabs.isEmpty {
+                            let tab = tabs[min(mentionIndex, tabs.count - 1)]
+                            DispatchQueue.main.async { choose(tab) }
+                            return .handled
+                        }
                         // After the key is handled, so the field shows the emptied draft.
                         DispatchQueue.main.async { chat.send() }
                         return .handled
                     }
+                    .onKeyPress(.downArrow) {
+                        guard let tabs = mention?.tabs, !tabs.isEmpty else { return .ignored }
+                        mentionIndex = min(mentionIndex + 1, tabs.count - 1)
+                        return .handled
+                    }
+                    .onKeyPress(.upArrow) {
+                        guard let tabs = mention?.tabs, !tabs.isEmpty else { return .ignored }
+                        mentionIndex = max(mentionIndex - 1, 0)
+                        return .handled
+                    }
+                    .onKeyPress(.escape) {
+                        guard mention != nil else { return .ignored }
+                        dismissedMention = chat.draft
+                        return .handled
+                    }
+                    .onChange(of: chat.draft) { _, _ in mentionIndex = 0 }
                     .padding(.vertical, 5)
                 if chat.busy {
                     IconButton(systemName: "stop.circle.fill", help: "Stop", tint: .accentColor, size: 16) { chat.stop() }
                 } else {
                     IconButton(systemName: "arrow.up.circle.fill", help: "Send", tint: .accentColor, size: 16) { chat.send() }
-                        .disabled(chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chat.images.isEmpty)
+                        .disabled(chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chat.images.isEmpty
+                                  && chat.mentionedTabs.isEmpty)
                 }
             }
             .padding(.horizontal, 8).padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.06)))
             HStack(spacing: 6) {
-                WebAccessButton()
-                BrowserUseButton()
+                // Labels when there's room, icons alone in a narrow panel.
+                ViewThatFits(in: .horizontal) {
+                    switches(compact: false)
+                    switches(compact: true)
+                }
                 Spacer(minLength: 4)
                 ChatModelMenu(chat: chat)
             }
@@ -318,6 +419,53 @@ struct AssistantComposer: View {
         }
         .padding(10)
         .onAppear { focused = true }
+    }
+
+    private func switches(compact: Bool) -> some View {
+        HStack(spacing: 6) {
+            WebAccessButton(compact: compact)
+            BrowserUseButton(compact: compact)
+            if Settings.shared.aiProvider != .apple { DeepResearchButton(chat: chat, compact: compact) }
+        }
+        .fixedSize()
+    }
+
+    /// The open tabs that match what's typed after `@`, to attach one to the next message.
+    private func mentionList(_ tabs: [Tab], query: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if chat.mentionedTabIDs.count >= AssistantChat.maxMentionedTabs {
+                Text(String(format: L("Up to %d tabs can go with one message."), AssistantChat.maxMentionedTabs))
+                    .font(.caption).foregroundStyle(.secondary).padding(6)
+            } else if tabs.isEmpty {
+                Text(String(format: L("No open tab matches “%@”."), query))
+                    .font(.caption).foregroundStyle(.secondary).padding(6)
+            } else {
+                Text("Attach a tab").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 6).padding(.vertical, 3)
+                ForEach(Array(tabs.enumerated()), id: \.element.id) { n, tab in
+                    Button { choose(tab) } label: {
+                        HStack(spacing: 6) {
+                            if let icon = tab.favicon {
+                                Image(nsImage: icon).resizable().frame(width: 14, height: 14)
+                            } else {
+                                Image(systemName: "globe").font(.caption).frame(width: 14)
+                            }
+                            Text(tab.title.isEmpty ? (tab.url.map(InputResolver.displayHost) ?? "") : tab.title)
+                                .font(.callout).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 6).padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(n == min(mentionIndex, tabs.count - 1) ? Color.accentColor.opacity(0.18) : .clear))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(tab.url?.absoluteString ?? "")
+                }
+            }
+        }
+        .padding(4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.06)))
     }
 
     private func chip(title: String, icon: NSImage?, symbol: String = "doc.text",
@@ -363,6 +511,8 @@ struct AssistantHistoryList: View {
     @Environment(BrowserState.self) var b
     private var history = AssistantHistory.shared
     @State private var query = ""
+    /// Chats the full-text index found for the query, with the passage that matched.
+    @State private var found: [UUID: String] = [:]
     @State private var confirmClear = false
 
     init(chat: AssistantChat, close: @escaping () -> Void) {
@@ -371,8 +521,7 @@ struct AssistantHistoryList: View {
     }
 
     private var shown: [AssistantHistory.Summary] {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        return q.isEmpty ? history.chats : history.chats.filter { $0.title.localizedCaseInsensitiveContains(q) }
+        AssistantHistory.matching(history.chats, query: query, found: found)
     }
 
     var body: some View {
@@ -384,8 +533,11 @@ struct AssistantHistoryList: View {
                     Button("Delete All…") { confirmClear = true }.buttonStyle(.link).font(.caption)
                 }
             }
-            if history.chats.count > 6 {
+            // Shown with any saved chat, not only with many: it finds words inside the chats, and one long chat is
+            // already worth searching.
+            if !history.chats.isEmpty {
                 TextField("Search chats", text: $query).textFieldStyle(.roundedBorder)
+                    .modifier(ChatTextSearch(query: query, found: $found))
             }
             if b.isPrivate {
                 Text("Chats in private windows aren't saved.").font(.caption).foregroundStyle(.secondary)
@@ -395,7 +547,10 @@ struct AssistantHistoryList: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
-                        ForEach(shown) { c in AssistantHistoryRow(summary: c, chat: chat, opened: close) }
+                        if shown.isEmpty {
+                            Text("No chats found.").font(.callout).foregroundStyle(.secondary).padding(.top, 8)
+                        }
+                        ForEach(shown) { c in AssistantHistoryRow(summary: c, chat: chat, snippet: found[c.id], opened: close) }
                     }
                 }
                 .frame(maxHeight: 360)
@@ -416,11 +571,15 @@ struct ChatSwitch: View {
     let title: LocalizedStringKey
     let symbol: String
     let on: Bool
+    var compact = false
+    /// Marked as a beta with a small tag after its name.
+    var beta = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
+                .labelStyle(SwitchLabelStyle(compact: compact, beta: beta))
                 .font(.system(size: 10.5, weight: .medium))
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Capsule().fill(on ? Color.accentColor.opacity(0.2) : Color.primary.opacity(0.06)))
@@ -431,12 +590,30 @@ struct ChatSwitch: View {
     }
 }
 
+/// A switch's label: its icon and name, or only the icon when there's little room.
+struct SwitchLabelStyle: LabelStyle {
+    let compact: Bool
+    var beta = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon
+            if !compact { configuration.title }
+            if beta && !compact {
+                Text("Beta").font(.system(size: 7.5, weight: .bold)).textCase(.uppercase).opacity(0.75)
+            }
+        }
+    }
+}
+
 /// Turns the assistant's web search and fetch on and off from the chat.
 struct WebAccessButton: View {
     @Bindable private var s = Settings.shared
+    var compact = false
 
     var body: some View {
-        ChatSwitch(title: "Web access", symbol: "globe", on: s.aiWeb) { s.aiWeb.toggle() }
+        ChatSwitch(title: "Web access", symbol: "globe", on: s.aiWeb, compact: compact) { s.aiWeb.toggle() }
+            .accessibilityLabel("Web access")
             .help(s.aiWeb ? "The assistant can search the web and read pages. Click to turn off." : "Let the assistant search the web and read pages")
     }
 }
@@ -444,13 +621,15 @@ struct WebAccessButton: View {
 /// Turns page control on and off from the chat. The first time, it explains what that means.
 struct BrowserUseButton: View {
     @Bindable private var s = Settings.shared
+    var compact = false
     @State private var explaining = false
 
     var body: some View {
-        ChatSwitch(title: "Browser use", symbol: "cursorarrow.click.2", on: s.aiControl) {
+        ChatSwitch(title: "Browser use", symbol: "cursorarrow.click.2", on: s.aiControl, compact: compact, beta: true) {
             if s.aiControl { s.aiControl = false } else if s.aiControlExplained { s.aiControl = true } else { explaining = true }
         }
-        .help(s.aiControl ? "The assistant can click, type and scroll on the current page. Click to turn off." : "Let the assistant click, type and scroll on the current page")
+        .help(s.aiControl ? "Browser use (beta): the assistant can click, type and scroll on the current page. Click to turn off."
+                          : "Browser use (beta): let the assistant click, type and scroll on the current page")
         .alert("Turn on browser use?", isPresented: $explaining) {
             Button("Turn On") {
                 s.aiControlExplained = true
@@ -460,6 +639,54 @@ struct BrowserUseButton: View {
         } message: {
             Text("When you ask, the assistant can use the page in the current tab for you, where you're signed in. It asks before sending, buying or deleting anything, and never fills in passwords or card numbers. A page can try to trick it, so watch what it does and press Stop if needed.")
         }
+    }
+}
+
+/// Turns Deep research on and off for this chat's next messages. It needs the web, so it turns Web access on.
+struct DeepResearchButton: View {
+    @Bindable var chat: AssistantChat
+    var compact = false
+    @Bindable private var s = Settings.shared
+
+    var body: some View {
+        let on = chat.deepResearch && s.aiWeb
+        let depth = String(format: L("Depth: %@. %@"), s.aiResearchDepth.title, s.aiResearchDepth.summary)
+        HStack(spacing: 1) {
+            ChatSwitch(title: "Deep research", symbol: "binoculars", on: on, compact: compact, beta: true) {
+                if on { chat.deepResearch = false } else { turnOn() }
+            }
+            .accessibilityLabel("Deep research")
+            .accessibilityValue(on ? s.aiResearchDepth.title : "")
+            .help((on ? L("Deep research (beta) is on: the assistant searches widely, reads many pages, checks the facts and writes a report with its sources. Click to turn off.")
+                      : L("Deep research (beta): many searches, pages read in full, facts checked, and a report with its sources. Takes a few minutes."))
+                  + "\n" + depth)
+            depthMenu
+        }
+    }
+
+    /// Quick, Standard or Thorough, remembered for every chat. Choosing one turns Deep research on.
+    private var depthMenu: some View {
+        Menu {
+            ForEach(ResearchDepth.allCases) { d in
+                Toggle(isOn: Binding(get: { s.aiResearchDepth == d }, set: { _ in s.aiResearchDepth = d; turnOn() })) {
+                    Text(d.title)
+                    Text(d.summary)
+                }
+            }
+        } label: {
+            Image(systemName: "chevron.down").font(.system(size: 7.5, weight: .bold))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .foregroundStyle(.secondary)
+        .help("Research depth")
+        .accessibilityLabel("Research depth")
+    }
+
+    private func turnOn() {
+        chat.deepResearch = true
+        s.aiWeb = true
     }
 }
 
@@ -536,7 +763,6 @@ struct AssistantIntro: View {
             VStack(spacing: 6) {
                 HStack(spacing: 8) {
                     Text("New: Tacet Assistant").font(.system(size: 22, weight: .bold))
-                    BetaBadge()
                 }
                 Text("An AI assistant in a panel beside the page, for questions about what you're reading.")
                     .foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -585,6 +811,12 @@ struct AIPane: View {
                 set: { var m = s.aiModels; m[s.aiProvider.rawValue] = $0; s.aiModels = m })
     }
 
+    /// Empty means none chosen: the default model does small jobs.
+    private var smallModelBinding: Binding<String> {
+        Binding(get: { s.aiSmallModels[s.aiProvider.rawValue] ?? "" },
+                set: { var m = s.aiSmallModels; m[s.aiProvider.rawValue] = $0; s.aiSmallModels = m })
+    }
+
     private var visionBinding: Binding<Bool> {
         Binding(get: { s.aiProvider.supportsImages(s.aiModelName) },
                 set: { var v = s.aiVision; v[s.aiProvider.visionKey(s.aiModelName)] = $0; s.aiVision = v })
@@ -594,7 +826,7 @@ struct AIPane: View {
         Form {
             Section {
                 Toggle(isOn: $s.aiEnabled) {
-                    HStack(spacing: 6) { Text("Turn on Tacet Assistant"); BetaBadge() }
+                    Text("Turn on Tacet Assistant")
                 }
                 Text("Tacet Assistant answers questions about the page you're reading in a panel on the right (⇧⌘A). It is off unless you turn it on, and nothing is sent until you ask something.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -632,10 +864,18 @@ struct AIPane: View {
                 LabeledContent("Default model") {
                     ModelPicker(provider: s.aiProvider, selection: modelBinding)
                 }
+                if s.aiProvider.isLocal {
+                    LocalContextNote(provider: s.aiProvider, model: s.aiModelName)
+                }
                 if let error = AIModels.shared.errors[s.aiProvider] {
                     Text(String(format: L("Couldn't load the models: %@"), error)).font(.caption).foregroundStyle(.orange)
                 }
                 Toggle("This model can read images", isOn: visionBinding)
+                LabeledContent("Model for small jobs") {
+                    SmallModelPicker(provider: s.aiProvider, selection: smallModelBinding)
+                }
+                Text("A smaller, cheaper model for jobs done behind the scenes, such as naming chats. With none, chats are named after your first question and the default model does the rest.")
+                    .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section {
@@ -656,16 +896,23 @@ struct AIPane: View {
                 Text("With Personality on, Tacet Assistant is calm and direct, with a dry sense of humour now and then. Off, it answers in a neutral voice.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            PersonalInstructionsSettings()
+            MemorySettings()
             Section {
                 Toggle("Web access: search the web and read pages", isOn: $s.aiWeb)
+                if s.aiWeb {
+                    SearchEngineSettings()
+                }
             } footer: {
                 Text(s.aiProvider == .anthropic
-                     ? "The assistant can look things up and open pages that appear in the chat. With Anthropic, searches and pages are handled on Anthropic's servers."
-                     : "The assistant can look things up and open pages that appear in the chat. Searches go to DuckDuckGo, and pages are downloaded by your Mac without cookies or logins.")
+                     ? "The assistant can look things up and open pages that appear in the chat. With Anthropic, searches and pages are handled on Anthropic's servers; the search engines above are used with the other providers."
+                     : "The assistant can look things up and open pages that appear in the chat. Searches try the engines above in order, skipping those not set up, and move to the next one if a search fails. DuckDuckGo needs no setup. Pages are downloaded by your Mac without cookies or logins.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
-                Toggle("Browser use: let the assistant click, type and scroll on pages", isOn: $s.aiControl)
+                Toggle(isOn: $s.aiControl) {
+                    HStack(spacing: 6) { Text("Browser use: let the assistant click, type and scroll on pages"); BetaBadge() }
+                }
             } footer: {
                 Text("When you ask, the assistant can use the page in the current tab for you, where you're signed in. It asks before sending, buying or deleting anything, and never fills in passwords or card numbers. A page can try to trick it, so watch what it does and press Stop if needed.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -702,6 +949,81 @@ struct AIPane: View {
         AIKeys.set(key, for: s.aiProvider)
         saved = true
         AIModels.shared.refresh(s.aiProvider, force: true)
+    }
+}
+
+/// The search engines the assistant tries, in order, with what each needs: SearXNG an address, Brave a key.
+struct SearchEngineSettings: View {
+    @Bindable private var s = Settings.shared
+    @State private var braveKey = ""
+    /// The key as it is in the Keychain, nil until it has been read; the button says "Saved" while the field matches it.
+    @State private var savedKey: String?
+
+    private var braveSaved: Bool { savedKey == braveKey.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        let order = SearchEngineKind.ordered(s.aiSearchOrder)
+        LabeledContent("Search engines") {
+            VStack(alignment: .trailing, spacing: 4) {
+                ForEach(Array(order.enumerated()), id: \.element) { n, kind in
+                    HStack(spacing: 6) {
+                        Text(verbatim: "\(n + 1). \(kind.name)")
+                        if !ready(kind) {
+                            Text("Not set up").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Button { move(n, by: -1) } label: { Label("Move Up", systemImage: "chevron.up").labelStyle(.iconOnly) }
+                            .buttonStyle(.borderless).disabled(n == 0)
+                            .help("Move Up")
+                        Button { move(n, by: 1) } label: { Label("Move Down", systemImage: "chevron.down").labelStyle(.iconOnly) }
+                            .buttonStyle(.borderless).disabled(n == order.count - 1)
+                            .help("Move Down")
+                    }
+                }
+            }
+        }
+        LabeledContent("SearXNG address") {
+            TextField("", text: $s.aiSearXNGURL, prompt: Text(verbatim: "https://searx.example.org"))
+                .textFieldStyle(.roundedBorder).frame(minWidth: 260)
+        }
+        LabeledContent("Brave Search API key") {
+            HStack {
+                SecureField("", text: $braveKey, prompt: Text("Paste your key here"))
+                    .textFieldStyle(.roundedBorder).frame(minWidth: 240)
+                    .onSubmit(saveBraveKey)
+                Button(braveSaved ? "Saved" : "Save", action: saveBraveKey).disabled(braveSaved || savedKey == nil)
+            }
+        }
+        .onAppear(perform: loadBraveKey)
+    }
+
+    private func ready(_ kind: SearchEngineKind) -> Bool {
+        switch kind {
+        case .searxng: SearXNG(address: s.aiSearXNGURL) != nil
+        case .brave: !(savedKey ?? "").isEmpty
+        case .duckDuckGo: true
+        }
+    }
+
+    private func move(_ n: Int, by delta: Int) {
+        var order = SearchEngineKind.ordered(s.aiSearchOrder)
+        let to = n + delta
+        guard order.indices.contains(to) else { return }
+        order.swapAt(n, to)
+        s.aiSearchOrder = order.map(\.rawValue)
+    }
+
+    /// Read off the main thread, so Settings doesn't freeze if macOS asks for Keychain access.
+    private func loadBraveKey() {
+        Task { @MainActor in
+            let found = await Task.detached(priority: .userInitiated) { BraveKey.get() }.value ?? ""
+            braveKey = found
+            savedKey = found
+        }
+    }
+
+    private func saveBraveKey() {
+        BraveKey.set(braveKey)
+        savedKey = braveKey.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -760,6 +1082,34 @@ struct ModelPicker: View {
                 .buttonStyle(.borderless)
                 .help("Refresh List")
                 .disabled(models.loading.contains(provider))
+        }
+    }
+}
+
+/// The model for small jobs: the provider's models, with "Same as Default Model" first for none.
+struct SmallModelPicker: View {
+    let provider: AIProvider
+    @Binding var selection: String
+    private var models = AIModels.shared
+
+    init(provider: AIProvider, selection: Binding<String>) {
+        self.provider = provider
+        _selection = selection
+    }
+
+    var body: some View {
+        let list = models.models(for: provider)
+        if list.isEmpty {
+            TextField("", text: $selection, prompt: Text("Same as Default Model"))
+                .textFieldStyle(.roundedBorder).frame(minWidth: 200)
+        } else {
+            Picker("", selection: $selection) {
+                Text("Same as Default Model").tag("")
+                if !selection.isEmpty, !list.contains(where: { $0.id == selection }) { Text(selection).tag(selection) }
+                ForEach(list) { m in Text(m.name).tag(m.id) }
+            }
+            .labelsHidden()
+            .frame(minWidth: 200)
         }
     }
 }

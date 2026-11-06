@@ -226,6 +226,7 @@ final class DownloadManager: NSObject, WKDownloadDelegate {
     func track(_ download: WKDownload) {
         removeOld()
         download.delegate = self
+        Diagnostics.log(.downloads, "started", site: download.originalRequest?.url)
         items.insert(DownloadItem(download), at: 0)
         if items.count > Self.limit { items.removeLast(items.count - Self.limit) }
         unseen = true
@@ -361,6 +362,7 @@ final class DownloadManager: NSObject, WKDownloadDelegate {
             // Bounces the Downloads stack in the Dock, like Safari.
             DistributedNotificationCenter.default().post(name: .init("com.apple.DownloadFileFinished"), object: path)
         }
+        Diagnostics.log(.downloads, "finished", site: item.source, Diagnostics.file(item.filename, size: item.received))
         persist()
     }
 
@@ -373,6 +375,7 @@ final class DownloadManager: NSObject, WKDownloadDelegate {
         // A pause stops the download the same way; it keeps its own state.
         if item.state == .active {
             item.state = e.code == NSURLErrorCancelled ? .cancelled : .failed(e.localizedDescription)
+            Diagnostics.log(.downloads, e.code == NSURLErrorCancelled ? "cancelled" : "failed", site: item.source, Diagnostics.code(e), level: .error)
         }
         persist()
     }
@@ -382,6 +385,7 @@ final class DownloadManager: NSObject, WKDownloadDelegate {
     /// Stops a download for good and deletes the part already saved; Pause is for going on later.
     func cancel(_ item: DownloadItem) {
         let wasRunning = item.state == .active
+        Diagnostics.log(.downloads, "cancelled", site: item.source)
         item.state = .cancelled
         item.stopSampling()
         item.resumeData = nil
@@ -407,6 +411,7 @@ final class DownloadManager: NSObject, WKDownloadDelegate {
     /// Stops a download where it is, to go on later.
     func pause(_ item: DownloadItem) {
         guard item.state == .active, let download = item.download else { return }
+        Diagnostics.log(.downloads, "paused", site: item.source)
         item.state = .paused
         item.stopSampling()
         download.cancel { data in
@@ -415,6 +420,7 @@ final class DownloadManager: NSObject, WKDownloadDelegate {
                     item.resumeData = data
                 } else {
                     // The server can't continue a download, so it will start over.
+                    Diagnostics.log(.downloads, "can't be paused", site: item.source)
                     item.state = .failed(L("The site doesn't allow pausing. Download it again."))
                 }
                 self.persist()
@@ -426,6 +432,7 @@ final class DownloadManager: NSObject, WKDownloadDelegate {
     func resume(_ item: DownloadItem) {
         guard let data = item.resumeData else { retry(item); return }
         let webView = item.download?.webView ?? Self.resumer
+        Diagnostics.log(.downloads, "resumed", site: item.source)
         item.resumeData = nil
         item.state = .active
         startTimer()

@@ -4,6 +4,21 @@ import WebKit
 
 // MARK: - Files
 
+/// Tells whether Tacet quit properly last time: a mark is left while it runs and removed when it quits.
+enum CrashMarker {
+    private static let url = Paths.file("running")
+
+    /// True when the mark from the last run was still there. Read once; reading it leaves the mark for this run.
+    static let previousRunCrashed: Bool = {
+        let existed = FileManager.default.fileExists(atPath: url.path)
+        try? Data().write(to: url)
+        return existed
+    }()
+
+    /// Called as Tacet quits normally.
+    static func clear() { try? FileManager.default.removeItem(at: url) }
+}
+
 enum Paths {
     static let support: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -286,7 +301,8 @@ final class History {
         hasOlder = entries.count == Self.memoryLimit && (db?.count() ?? 0) > Self.memoryLimit
     }
 
-    func record(url: URL, title: String) {
+    /// `typed`: the visit was asked for in Tacet (the command bar, a bookmark) rather than reached by a link.
+    func record(url: URL, title: String, typed: Bool = false) {
         guard ["http", "https"].contains(url.scheme ?? "") else { return }
         var entry = HistoryEntry(url: url, title: title, date: Date())
         if let i = entries.firstIndex(where: { $0.url == url }) {
@@ -301,7 +317,7 @@ final class History {
         entry.visits += 1
         if !title.isEmpty { entry.title = title }
         entries.insert(entry, at: 0)
-        db?.save([entry])
+        db?.save([entry], typed: typed)
         // Memory keeps the newest; the rest is on disk.
         if entries.count > Self.memoryLimit + 500 {
             entries.removeLast(entries.count - Self.memoryLimit)
@@ -377,31 +393,24 @@ final class History {
         db?.checkpoint()
     }
 
-    /// `search` on a background thread, so typing never waits for a large history.
+    /// The best matches from the whole history, ranked by frecency in the database's full-text index. Never runs on
+    /// the main thread, so typing never waits for a large history.
     @MainActor
     func searchInBackground(_ query: String, limit: Int = 8) async -> [HistoryEntry] {
-        let recent = await inBackground { entries, hay in History.search(query, entries: entries, haystacks: hay, limit: limit) }
-        return recent.count >= limit ? recent : recent + (await older(query, limit: limit - recent.count, excluding: recent))
-    }
-
-    /// Matches among the entries kept only on disk.
-    @MainActor
-    private func older(_ query: String, limit: Int, excluding shown: [HistoryEntry]) async -> [HistoryEntry] {
-        guard hasOlder, limit > 0, let db, let oldest = entries.last?.date else { return [] }
-        let words = query.lowercased().split(separator: " ").map(String.init)
-        let seen = Set(shown.map(\.url))
-        let found = await Task.detached(priority: .userInitiated) { db.search(words, before: oldest, limit: limit) }.value
-        return found.filter { !seen.contains($0.url) }
+        guard let db else { return await inBackground { entries, hay in History.search(query, entries: entries, haystacks: hay, limit: limit) } }
+        return await db.searchInBackground(query, limit: limit)
     }
 
     /// Entries containing every word of `query`, newest first, found on a background thread.
     @MainActor
     func filterInBackground(_ query: String, limit: Int = 500) async -> [HistoryEntry] {
-        let recent = await inBackground { entries, hay in
-            let words = query.lowercased().split(separator: " ").map(String.init)
-            return Array(entries.indices.lazy.filter { i in words.allSatisfy { hay[i].contains($0) } }.prefix(limit).map { entries[$0] })
+        guard let db else {
+            return await inBackground { entries, hay in
+                let words = query.lowercased().split(separator: " ").map(String.init)
+                return Array(entries.indices.lazy.filter { i in words.allSatisfy { hay[i].contains($0) } }.prefix(limit).map { entries[$0] })
+            }
         }
-        return recent.count >= limit ? recent : recent + (await older(query, limit: limit - recent.count, excluding: recent))
+        return await db.searchInBackground(query, limit: limit, newestFirst: true)
     }
 
     /// Runs `work` off the main thread with the history and its lowercase index, building the index if needed.
@@ -430,7 +439,6 @@ final class History {
         return entries.indices.lazy
             .filter { i in words.allSatisfy { haystacks[i].contains($0) } }
             .map { entries[$0] }
-            .prefix(200)
             .map { e -> (HistoryEntry, Double) in
                 let age = now.timeIntervalSince(e.date) / 86_400
                 var score = Double(e.visits) / (1 + age)
@@ -484,6 +492,9 @@ final class Session {
     static let shared = Session()
     private let file = StoredFile<[WindowSnapshot]>("session.plist", format: .binaryPlist)
     private var pending: [WindowSnapshot] = []
+    /// The windows from before, when Tacet didn't quit properly last time: they wait for the user to choose, in case
+    /// a page made it quit. Kept in the saved session meanwhile, so nothing is lost if the question is ignored.
+    private(set) var afterCrash: [WindowSnapshot] = []
     private var pendingSave: DispatchWorkItem?
 
     private init() {
@@ -493,7 +504,21 @@ final class Session {
             file.saveNow(old)
             legacy.delete()
         }
-        if Settings.shared.restoreSession && !WebApp.isActive { pending = file.load() ?? [] }
+        if Settings.shared.restoreSession && !WebApp.isActive {
+            if CrashMarker.previousRunCrashed { afterCrash = file.load() ?? [] } else { pending = file.load() ?? [] }
+        }
+    }
+
+    /// Reopens the windows from before a crash; the first new window takes the first of them.
+    func reopenAfterCrash() {
+        pending = afterCrash + pending
+        afterCrash = []
+    }
+
+    /// Starts afresh after a crash: the windows from before are let go.
+    func discardAfterCrash() {
+        afterCrash = []
+        scheduleSave()
     }
 
     func takePending() -> WindowSnapshot? { pending.isEmpty ? nil : pending.removeFirst() }
@@ -506,7 +531,7 @@ final class Session {
 
     /// The windows to save: the open ones, and saved ones that haven't reopened yet, which would be lost otherwise.
     private func snapshots() -> [WindowSnapshot] {
-        WindowRegistry.shared.browsers.filter { !$0.isPrivate && !$0.isClosed }.map { $0.snapshot() } + pending
+        WindowRegistry.shared.browsers.filter { !$0.isPrivate && !$0.isClosed }.map { $0.snapshot() } + pending + afterCrash
     }
 
     /// Waits for things to settle before taking snapshots: reading every tab's back/forward

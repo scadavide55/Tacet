@@ -55,6 +55,13 @@ final class PasswordStore {
     /// Sites on a shared domain stay apart: "alice.github.io" ≠ "evil.github.io".
     static func site(_ host: String) -> String { PublicSuffix.registrable(host) }
 
+    /// Whether a frame embedded in a page (a sign-in widget, a single sign-on box) may be offered and filled with a
+    /// login saved for `savedHost`: only a frame on HTTPS, on the same site as the login, whatever page it's in.
+    static func frameMayFill(scheme: String, frameHost: String, savedHost: String) -> Bool {
+        let h = frameHost.lowercased()
+        return scheme.lowercased() == "https" && !h.isEmpty && site(h) == site(savedHost.lowercased())
+    }
+
     private func baseQuery(_ host: String, _ username: String) -> [String: Any] {
         [kSecClass as String: kSecClassInternetPassword,
          kSecAttrServer as String: host,

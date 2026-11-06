@@ -19,6 +19,27 @@ struct ContentView: View {
     private var settings = Settings.shared
     @Environment(\.openWindow) private var openWindow
     static var onboardingShown = false
+    static var crashAsked = false
+
+    /// Offers the windows from before Tacet quit unexpectedly. Reopening closes this empty window if nothing was
+    /// opened in it meanwhile.
+    private func askAfterCrash() {
+        let count = Session.shared.afterCrash.reduce(0) { $0 + $1.tabs.count }
+        let alert = NSAlert()
+        alert.messageText = L("Tacet didn't quit properly")
+        alert.informativeText = String(format: L("Reopen the windows from before, with %d tabs? If a page made Tacet quit, start with a new window instead."), count)
+        alert.addButton(withTitle: L("Reopen Windows"))
+        alert.addButton(withTitle: L("Start Fresh"))
+        let window = browser.window
+        let answer = { (response: NSApplication.ModalResponse) in
+            guard response == .alertFirstButtonReturn else { Session.shared.discardAfterCrash(); return }
+            Session.shared.reopenAfterCrash()
+            openWindow(id: "main")
+            if !browser.tabs.contains(where: { $0.url != nil }) { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { window?.close() } }
+        }
+        if let window { alert.beginSheetModal(for: window, completionHandler: answer) } else { answer(alert.runModal()) }
+    }
+
     static var updateChecked = false
     static var profileAsked = false
 
@@ -49,6 +70,11 @@ struct ContentView: View {
                        browser.profileID == nil, !browser.tabs.contains(where: { $0.url != nil }) {
                         browser.showProfilePicker = true
                     }
+                }
+                // After a crash the windows from before aren't reopened by themselves, in case a page caused it.
+                if !ContentView.crashAsked, !Session.shared.afterCrash.isEmpty {
+                    ContentView.crashAsked = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { askAfterCrash() }
                 }
                 // Saved windows reopen one at a time: each one opens the next, since macOS can drop
                 // windows asked for all at once.
@@ -231,6 +257,33 @@ struct PageArea: View {
             if let preview = b.preview { LinkPreviewPanel(tab: preview).id(preview.id).transition(.opacity) }
         }
         .animation(.easeOut(duration: 0.15), value: b.preview?.id)
+        .overlay(alignment: .bottom) {
+            if let toast = b.closedToast { ClosedTabsToast(count: toast.count).transition(.move(edge: .bottom).combined(with: .opacity)) }
+        }
+        .animation(.easeOut(duration: 0.2), value: b.closedToast?.batch)
+    }
+}
+
+/// "3 tabs closed · Undo" after several tabs close at once; ⇧⌘T does the same later.
+struct ClosedTabsToast: View {
+    let count: Int
+    @Environment(BrowserState.self) var b
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(String(format: L("%d tabs closed"), count)).font(.system(size: 12.5, weight: .medium))
+            Button("Undo") { b.undoClosedTabs() }
+                .help("Reopen them (⇧⌘T)")
+            Button { b.dismissClosedToast() } label: { Label("Close", systemImage: "xmark").labelStyle(.iconOnly).font(.system(size: 10, weight: .bold)) }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .background(.regularMaterial, in: Capsule())
+        .overlay(Capsule().stroke(Color.primary.opacity(0.1)))
+        .shadow(color: .black.opacity(0.18), radius: 14, y: 4)
+        .padding(.bottom, 14)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -326,7 +379,11 @@ struct TabPane: View {
                 if let help = tab.passkeyHelp { PasskeyBanner(tab: tab, help: help) }
                 if !tab.draftOffer.isEmpty { DraftBanner(tab: tab, drafts: tab.draftOffer) }
                 if let pending = tab.pendingSave { SavePasswordBanner(tab: tab, pending: pending) }
+                if let popup = tab.blockedPopup { PopupBlockedBanner(tab: tab, target: popup) }
+                if tab.askKeepShieldOff, let host = tab.host, ShieldTrial.shared.isOff(host) { ShieldTrialBanner(tab: tab, host: host) }
             }
+            .animation(.easeOut(duration: 0.2), value: tab.blockedPopup)
+            .animation(.easeOut(duration: 0.2), value: tab.askKeepShieldOff)
             .animation(.easeOut(duration: 0.2), value: tab.pendingSave)
             .animation(.easeOut(duration: 0.2), value: tab.passkeyHelp)
             .animation(.easeOut(duration: 0.2), value: tab.draftOffer)
@@ -782,5 +839,70 @@ struct ProfilePicker: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// After "Site not working?": Shield is off on the site until Tacet quits, unless you keep it off.
+struct ShieldTrialBanner: View {
+    let tab: Tab
+    let host: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "shield.slash").foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Tacet Shield is off on this site for now").font(.system(size: 12.5, weight: .semibold))
+                Text("Is it working now?").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button("Keep Off") {
+                tab.askKeepShieldOff = false
+                ShieldTrial.shared.keepOff(host)
+            }
+            Button("Turn Shield Back On") {
+                tab.askKeepShieldOff = false
+                ShieldTrial.shared.turnBackOn(host)
+            }
+            // Closing only stops asking; Shield stays off on the site until Tacet quits.
+            Button { tab.askKeepShieldOff = false } label: { Label("Close", systemImage: "xmark").labelStyle(.iconOnly).font(.system(size: 10, weight: .bold)) }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .frame(maxWidth: 560)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.primary.opacity(0.1)))
+        .shadow(color: .black.opacity(0.18), radius: 14, y: 4)
+        .padding(.top, 8)
+    }
+}
+
+/// A pop-up the page tried to open on its own, blocked, with the choice to open it or allow the site's pop-ups.
+struct PopupBlockedBanner: View {
+    let tab: Tab
+    let target: URL
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "macwindow.badge.plus").foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Pop-up blocked").font(.system(size: 12.5, weight: .semibold))
+                if target.scheme != "about" {
+                    Text(InputResolver.displayHost(target)).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            if target.scheme != "about" { Button("Open") { tab.openBlockedPopup() } }
+            Button("Always Allow on This Site") { tab.allowPopups() }
+            Button { tab.blockedPopup = nil } label: { Label("Close", systemImage: "xmark").labelStyle(.iconOnly).font(.system(size: 10, weight: .bold)) }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .frame(maxWidth: 560)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.primary.opacity(0.1)))
+        .shadow(color: .black.opacity(0.18), radius: 14, y: 4)
+        .padding(.top, 8)
     }
 }

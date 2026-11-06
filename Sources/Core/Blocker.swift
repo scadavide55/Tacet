@@ -118,7 +118,7 @@ final class ContentBlocker {
     /// Rule lists a page on `host` should load with.
     func lists(for host: String?) -> [WKContentRuleList] {
         let s = Settings.shared
-        guard !s.isAllowlisted(host) else { return [] }
+        guard !s.isShieldOff(host) else { return [] }
         var out: [WKContentRuleList] = []
         if s.adBlock {
             if let builtIn { out.append(builtIn) }
@@ -164,6 +164,7 @@ final class ContentBlocker {
             let downloaded = texts.compactMap { $0 }
             guard downloaded.count == texts.count else {
                 self.updating = false
+                Diagnostics.log(.blocking, "filter lists download failed", "\(texts.count - downloaded.count) of \(texts.count)", level: .error)
                 self.status = L("Couldn't download the filter lists. Check your connection.")
                 return
             }
@@ -189,6 +190,7 @@ final class ContentBlocker {
 
         func next(_ i: Int) {
             guard i < chunks.count else {
+                Diagnostics.log(.blocking, "filter lists compiled", "\(compiled) rules in \(lists.count) lists")
                 finish(lists, count: compiled, for: keys)
                 return
             }
@@ -285,7 +287,7 @@ final class ContentBlocker {
         store.lookUpContentRuleList(forIdentifier: id) { list, _ in
             if let list { done(list); return }
             self.store.compileContentRuleList(forIdentifier: id, encodedContentRuleList: json) { list, error in
-                if let error { NSLog("Tacet: rule list \(id) failed: \(error)") }
+                if let error { Diagnostics.log(.blocking, "rule list \(id) failed to compile", Diagnostics.code(error), level: .error) }
                 done(list)
             }
             self.store.getAvailableContentRuleListIdentifiers { ids in

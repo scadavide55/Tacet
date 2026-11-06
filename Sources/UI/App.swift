@@ -60,6 +60,14 @@ struct LumenApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
+        Window("Diagnostic Log", id: "diagnostics") {
+            DiagnosticLogView()
+        }
+        // Opened from their own menu items, so the Window menu doesn't list them a second time.
+        .commandsRemoved()
+        .handlesExternalEvents(matching: [])
+        .defaultSize(width: 680, height: 480)
+
         Window("Software Update", id: "update") {
             UpdateView()
         }
@@ -129,9 +137,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if #available(macOS 15.4, *) { Extensions.shared.start() }
         AppIcon.applyChosen()
         PageText.shared.prune(keepingDays: Settings.shared.pageTextDays)
+        // Leaves this run's mark, even when no window restored anything.
+        _ = CrashMarker.previousRunCrashed
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        CrashMarker.clear()
+    }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { true }
 
@@ -241,6 +255,8 @@ struct LumenCommands: Commands {
     private var bookmarks = Bookmarks.shared
 
     var body: some Commands {
+        // Spelling and Grammar, Substitutions, Transformations and Speech in the Edit menu, as in every Mac app.
+        TextEditingCommands()
         CommandGroup(replacing: .newItem) {
             Button("New Tab") {
                 if let b { b.newTabWithPalette() } else { openWindow(id: "main") }
@@ -272,6 +288,8 @@ struct LumenCommands: Commands {
             Button("Install Site as App…") { b?.showInstallApp = true }.disabled(b?.current?.url == nil || WebApp.isActive)
             Button("Export as PDF…") { b?.current?.exportPDF() }.keyboardShortcut("e", modifiers: [.command, .shift]).disabled(b == nil)
             Button("Take Screenshot of Page") { b?.current?.screenshot() }.keyboardShortcut("s", modifiers: [.command, .shift]).disabled(b == nil)
+            Button("Take Screenshot of Whole Page") { b?.current?.screenshotFullPage() }.keyboardShortcut("s", modifiers: [.command, .shift, .option]).disabled(b == nil)
+            Button("Take Screenshot of Element…") { b?.current?.startPickingScreenshot() }.disabled(b?.current?.url == nil || b?.current?.isReader == true)
             Divider()
             Button("Lock Window with Touch ID") { b?.lock() }.keyboardShortcut("l", modifiers: [.command, .control]).disabled(b == nil || b?.locked == true)
         }
@@ -289,10 +307,17 @@ struct LumenCommands: Commands {
             Button("Find…") { b?.showFind() }.keyboardShortcut("f").disabled(b == nil)
             Button("Find Next") { findAgain(backwards: false) }.keyboardShortcut("g").disabled(b == nil)
             Button("Find Previous") { findAgain(backwards: true) }.keyboardShortcut("g", modifiers: [.command, .shift]).disabled(b == nil)
+            Button("Use Selection for Find") { useSelectionForFind() }.keyboardShortcut("e").disabled(b == nil)
         }
 
         CommandGroup(replacing: .sidebar) {
             Button("Toggle Sidebar") { b?.sidebarVisible.toggle() }.keyboardShortcut("s").disabled(b == nil)
+            Button("Move to Tab List") {
+                b?.sidebarVisible = true
+                b?.focusTabList = true
+            }
+            .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+            .disabled(b == nil)
             Button("Command Bar") { b?.togglePalette("") }.keyboardShortcut("k").disabled(b == nil)
             if s.aiEnabled {
                 Button("Tacet Assistant") { b?.assistantVisible.toggle() }.keyboardShortcut("a", modifiers: [.command, .shift]).disabled(b == nil)
@@ -439,7 +464,7 @@ struct LumenCommands: Commands {
             Toggle("Block Ads and Trackers", isOn: $s.adBlock).keyboardShortcut("b", modifiers: [.command, .shift])
             Button("Toggle Shield for This Site") {
                 guard let host = b?.current?.host else { return }
-                s.setAllowlisted(host, !s.isAllowlisted(host))
+                s.setShield(host, on: s.isShieldOff(host))
             }
             .disabled(b == nil || !s.adBlock)
             Divider()
@@ -467,6 +492,7 @@ struct LumenCommands: Commands {
             }
             Button("Keyboard Shortcuts") { openWindow(id: "shortcuts") }
             Divider()
+            Button("Copy Diagnostic Log…") { openWindow(id: "diagnostics") }
             Button("Tacet Website") { NSWorkspace.shared.open(URL(string: "https://scadavide55.github.io/Tacet/")!) }
             Button("Report a Bug") { NSWorkspace.shared.open(URL(string: "https://github.com/scadavide55/Tacet/issues")!) }
         }
@@ -481,6 +507,17 @@ struct LumenCommands: Commands {
     private func library(_ section: LibraryView.Section) {
         LibraryView.requestedSection = section
         openWindow(id: "library")
+    }
+
+    /// ⌘E, as in every Mac app: the selected text becomes what the find bar looks for.
+    private func useSelectionForFind() {
+        guard let b, let tab = b.current else { return }
+        tab.selectedText { text in
+            guard let text else { NSSound.beep(); return }
+            FindBar.lastQuery = text
+            NotificationCenter.default.post(name: .findUseSelection, object: nil)
+            if !b.findVisible { b.showFind() }
+        }
     }
 
     private func findAgain(backwards: Bool) {

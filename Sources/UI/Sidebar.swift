@@ -4,6 +4,9 @@ struct Sidebar: View {
     let showsControls: Bool
     @Environment(BrowserState.self) var b
     @Bindable var s = Settings.shared
+    /// With the tab list focused, ↑ and ↓ move this ring, Return opens its tab and ⌘⌫ closes it.
+    @FocusState private var listFocused: Bool
+    @State private var cursor: UUID?
 
     var body: some View {
         VStack(spacing: 8) {
@@ -28,26 +31,56 @@ struct Sidebar: View {
 
             if b.tabFilterVisible || b.tabs.count >= 12 { TabFilterField() }
 
-            ScrollView {
-                LazyVStack(spacing: 2) {
-                    NewTabRow()
-                    if b.duplicateCount > 0 { DuplicatesRow(count: b.duplicateCount) }
-                    ForEach(entries) { entry in
-                        switch entry {
-                        case .header(let g): GroupHeader(group: g)
-                        case .tab(let t, let grouped):
-                            TabRow(tab: t, browser: b, grouped: grouped, selected: b.selectedID == t.id,
-                                   inSplit: b.splitID == t.id, groupTint: grouped ? b.groups.first { $0.id == t.groupID }?.tint : nil,
-                                   compact: s.compactTabs, marked: b.marked.contains(t.id))
-                                .equatable()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        NewTabRow()
+                        if b.duplicateCount > 0 { DuplicatesRow(count: b.duplicateCount) }
+                        ForEach(entries) { entry in
+                            switch entry {
+                            case .header(let g): GroupHeader(group: g)
+                            case .tab(let t, let grouped):
+                                TabRow(tab: t, browser: b, grouped: grouped, selected: b.selectedID == t.id,
+                                       inSplit: b.splitID == t.id, groupTint: grouped ? b.groups.first { $0.id == t.groupID }?.tint : nil,
+                                       compact: s.compactTabs, marked: b.marked.contains(t.id), cursor: listFocused && cursor == t.id)
+                                    .equatable()
+                                    .id(t.id)
+                            }
                         }
+                        if !b.isPrivate { SavedGroupsSection() }
                     }
-                    if !b.isPrivate { SavedGroupsSection() }
+                    .padding(.vertical, 2)
                 }
-                .padding(.vertical, 2)
+                .onChange(of: cursor) { _, id in if let id { withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo(id) } } }
             }
             .scrollIndicators(.never)
             .dropDestination(for: String.self) { items, _ in b.handleDrop(items, before: nil, pinned: false) }
+            .focusable()
+            .focused($listFocused)
+            .focusEffectDisabled()
+            .onChange(of: listFocused) { _, focused in cursor = focused ? b.selectedID : nil }
+            .onChange(of: b.focusTabList) { _, ask in
+                guard ask else { return }
+                b.focusTabList = false
+                listFocused = true
+            }
+            .onKeyPress(.upArrow) { moveCursor(-1) }
+            .onKeyPress(.downArrow) { moveCursor(1) }
+            .onKeyPress(.return) {
+                guard let t = cursorTab else { return .ignored }
+                b.select(t)
+                return .handled
+            }
+            .onKeyPress(keys: [.delete]) { press in
+                guard press.modifiers.contains(.command), let t = cursorTab else { return .ignored }
+                // The ring stays in place: on the next tab, or the one before when the last closes.
+                let list = keyboardTabs
+                let i = list.firstIndex { $0 === t } ?? 0
+                b.close(t)
+                let rest = keyboardTabs
+                cursor = rest.isEmpty ? nil : rest[min(i, rest.count - 1)].id
+                return .handled
+            }
 
             if !b.isPrivate { SpaceBar() }
             SidebarFooter(showsDownloads: showsControls)
@@ -109,12 +142,21 @@ struct ProfileBadge: View {
             Image(systemName: "person.crop.circle.fill")
             Text(profile.name).font(.system(size: 11.5, weight: .medium)).lineLimit(1)
             if !compact { Spacer() }
+            // Shown in the window too, so it's never a surprise that pages go through someone else's server.
+            if let address = profile.proxy?.address {
+                Image(systemName: "network").font(.system(size: 10.5, weight: .semibold))
+                if !compact {
+                    Text(address).font(.system(size: 10.5)).lineLimit(1).truncationMode(.middle).opacity(0.8)
+                }
+            }
         }
         .foregroundStyle(profile.tint)
         .padding(.horizontal, compact ? 8 : 10)
         .frame(height: compact ? 24 : 26)
         .background(profile.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .help("This window uses the cookies, sign-ins and site data of this profile.")
+        .help(profile.proxy?.address.map {
+            String(format: L("This window uses the cookies, sign-ins and site data of this profile. Its pages connect through the proxy %@."), $0)
+        } ?? L("This window uses the cookies, sign-ins and site data of this profile."))
     }
 }
 
@@ -154,6 +196,21 @@ enum SidebarEntry: Identifiable {
 }
 
 extension Sidebar {
+    /// The tabs the arrow keys go through, in the order the list shows them.
+    var keyboardTabs: [Tab] {
+        entries.compactMap { if case .tab(let t, _) = $0 { return t } else { return nil } }
+    }
+
+    var cursorTab: Tab? { keyboardTabs.first { $0.id == cursor } }
+
+    func moveCursor(_ step: Int) -> KeyPress.Result {
+        let list = keyboardTabs
+        guard !list.isEmpty else { return .ignored }
+        let i = list.firstIndex { $0.id == cursor }.map { $0 + step } ?? (step > 0 ? 0 : list.count - 1)
+        cursor = list[min(max(i, 0), list.count - 1)].id
+        return .handled
+    }
+
     var entries: [SidebarEntry] {
         var out: [SidebarEntry] = []
         var seen = Set<UUID>()
@@ -300,6 +357,8 @@ struct TabRow: View, Equatable {
     let groupTint: Color?
     let compact: Bool
     var marked = false
+    /// The keyboard's place in the tab list.
+    var cursor = false
     @Environment(\.colorScheme) private var scheme
     @State private var hover = false
 
@@ -308,6 +367,7 @@ struct TabRow: View, Equatable {
     static func == (l: TabRow, r: TabRow) -> Bool {
         l.tab === r.tab && l.browser === r.browser && l.grouped == r.grouped && l.selected == r.selected
             && l.inSplit == r.inSplit && l.groupTint == r.groupTint && l.compact == r.compact && l.marked == r.marked
+            && l.cursor == r.cursor
     }
 
     var body: some View {
@@ -318,6 +378,7 @@ struct TabRow: View, Equatable {
                 .lineLimit(1)
                 .foregroundStyle(tab.isHibernated && !selected ? .secondary : .primary)
             Spacer(minLength: 0)
+            TabBadges(tab: tab, size: 10)
             if tab.isPlayingAudio || tab.isMuted {
                 Button { tab.setMuted(!tab.isMuted) } label: {
                     Image(systemName: tab.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill").font(.system(size: 10))
@@ -353,6 +414,9 @@ struct TabRow: View, Equatable {
                     .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.accentColor.opacity(0.5), lineWidth: 1))
                     .allowsHitTesting(false)
             }
+            if cursor {
+                RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.accentColor, lineWidth: 2).allowsHitTesting(false)
+            }
         }
         .contentShape(Rectangle())
         .onTapGesture { b.click(tab) }
@@ -368,6 +432,25 @@ struct TabRow: View, Equatable {
         }
         .tabPreview(tab, edge: Settings.shared.sidebarSide == .left ? .trailing : .leading)
         .overlay(MiddleClick { b.close(tab) })
+        // VoiceOver hears one row: the title, what the tab is doing, and actions to close or pin it.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(TabRow.spokenLabel(tab, group: tab.groupID.flatMap { id in b.groups.first { $0.id == id }?.name }))
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { b.click(tab) }
+        .accessibilityAction(named: Text("Close Tab")) { b.close(tab) }
+        .accessibilityAction(named: Text(tab.isMuted ? "Unmute tab" : "Mute tab")) { tab.setMuted(!tab.isMuted) }
+    }
+
+    /// The title and the tab's state, as VoiceOver reads them.
+    static func spokenLabel(_ tab: Tab, group: String?) -> String {
+        var parts = [tab.title]
+        if tab.isCapturing { parts.append(L("Using the camera or microphone")) }
+        if tab.dialogWaiting { parts.append(L("This page is waiting for you to answer a dialog")) }
+        if tab.isMuted { parts.append(L("muted")) } else if tab.isPlayingAudio { parts.append(L("playing sound")) }
+        if tab.isHibernated { parts.append(L("asleep")) }
+        if tab.isPinned { parts.append(L("pinned")) }
+        if let group { parts.append(String(format: L("in the group %@"), group)) }
+        return parts.joined(separator: ", ")
     }
 }
 
@@ -401,7 +484,9 @@ struct PinnedTile: View, Equatable {
             .frame(height: 40)
             .overlay(FaviconView(tab: tab, size: 18))
             .overlay(alignment: .topTrailing) {
-                if tab.isPlayingAudio || tab.isMuted {
+                if tab.isCapturing || tab.dialogWaiting {
+                    TabBadges(tab: tab, size: 8).padding(3)
+                } else if tab.isPlayingAudio || tab.isMuted {
                     Image(systemName: tab.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         .font(.system(size: 8)).foregroundStyle(.secondary).padding(4)
                 }
@@ -988,6 +1073,7 @@ struct TabChip: View, Equatable {
                     .font(.system(size: 12, weight: showsAddress ? .medium : .regular)).lineLimit(1)
                     .foregroundStyle(tab.isHibernated && !selected ? .secondary : .primary)
                 Spacer(minLength: 0)
+                TabBadges(tab: tab, size: 9)
                 if tab.isPlayingAudio || tab.isMuted {
                     Image(systemName: tab.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         .font(.system(size: 9)).foregroundStyle(.secondary)
@@ -1084,4 +1170,35 @@ struct MiddleClick: NSViewRepresentable {
     }
 
     func updateNSView(_ v: Catcher, context: Context) { v.action = action }
+}
+
+/// Marks on a tab for what needs your attention: the camera or microphone in use (red; a click pauses or resumes them),
+/// and a dialog from the page waiting for you to open the tab.
+struct TabBadges: View {
+    let tab: Tab
+    let size: CGFloat
+
+    var body: some View {
+        if tab.isCapturing {
+            let live = tab.cameraOn || tab.microphoneOn
+            Button { tab.toggleCapture() } label: {
+                Image(systemName: tab.cameraInUse ? "video.fill" : "mic.fill")
+                    .font(.system(size: size))
+                    .foregroundStyle(live ? Color.red : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .help(live ? "This page is using your camera or microphone. Click to pause." : "Camera and microphone are paused. Click to turn them back on.")
+            .accessibilityLabel(live ? "Using the camera or microphone" : "Camera and microphone paused")
+            .contextMenu {
+                Button(live ? "Pause Camera and Microphone" : "Resume Camera and Microphone") { tab.toggleCapture() }
+                Button("Stop Camera and Microphone") { tab.stopCapture() }
+            }
+        }
+        if tab.dialogWaiting {
+            Image(systemName: "exclamationmark.bubble.fill")
+                .font(.system(size: size)).foregroundStyle(.orange)
+                .help("This page is waiting for you to answer a dialog")
+                .accessibilityLabel("This page is waiting for you to answer a dialog")
+        }
+    }
 }

@@ -3,15 +3,20 @@ import SwiftUI
 extension Notification.Name {
     /// ⌘G / ⇧⌘G from the menu. `object` is true when searching backwards.
     static let findAgain = Notification.Name("lumen.findAgain")
+    /// ⌘E put the selected text in the find bar.
+    static let findUseSelection = Notification.Name("lumen.findUseSelection")
 }
 
 struct FindBar: View {
     var tab: Tab
     @Environment(BrowserState.self) var b
     @State private var text = ""
-    @State private var found = true
+    @State private var result = Tab.FindResult(found: true)
+    @AppStorage("lumen.findCaseSensitive") private var caseSensitive = false
+    @AppStorage("lumen.findWholeWord") private var wholeWord = false
     @FocusState private var focused: Bool
-    private static var lastQuery = ""
+    /// The last text searched, for the next opening and for Use Selection for Find (⌘E).
+    static var lastQuery = ""
 
     var body: some View {
         HStack(spacing: 4) {
@@ -26,9 +31,27 @@ struct FindBar: View {
                 }
                 .onKeyPress(.escape) { close(); return .handled }
                 .onExitCommand { close() }
-            if !found && !text.isEmpty {
-                Text("Not found").font(.system(size: 11)).foregroundStyle(.red)
+            if !text.isEmpty {
+                if !result.found {
+                    Text("Not found").font(.system(size: 11)).foregroundStyle(.red)
+                } else if result.total > 0 {
+                    Text(String(format: L("%d of %d"), result.index, result.total))
+                        .font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
+                        .accessibilityLabel(String(format: L("Match %d of %d"), result.index, result.total))
+                }
             }
+            Menu {
+                Toggle("Match Case", isOn: $caseSensitive)
+                Toggle("Whole Words", isOn: $wholeWord)
+            } label: {
+                Image(systemName: "slider.horizontal.3").font(.system(size: 11))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .foregroundStyle(caseSensitive || wholeWord ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+            .help("Find Options")
+            .accessibilityLabel("Find Options")
             IconButton(systemName: "chevron.up", help: "Previous (⇧⌘G)", size: 11) { search(backwards: true) }
             IconButton(systemName: "chevron.down", help: "Next (⌘G)", size: 11) { search(backwards: false) }
             IconButton(systemName: "xmark", help: "Done", size: 11) { close() }
@@ -43,20 +66,32 @@ struct FindBar: View {
             text = Self.lastQuery
             DispatchQueue.main.async { focused = true }
         }
-        .onChange(of: text) { _, _ in search(backwards: false) }
+        // Typing narrows the match in place instead of jumping to the next one.
+        .onChange(of: text) { _, _ in search(backwards: false, refine: true) }
+        .onChange(of: caseSensitive) { _, _ in search(backwards: false, refine: true) }
+        .onChange(of: wholeWord) { _, _ in search(backwards: false, refine: true) }
         .onReceive(NotificationCenter.default.publisher(for: .findAgain)) { note in
             search(backwards: note.object as? Bool ?? false)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .findUseSelection)) { _ in
+            if text != Self.lastQuery { text = Self.lastQuery }
+        }
+        .onDisappear { tab.clearFindHighlights() }
     }
 
-    private func search(backwards: Bool) {
+    private func search(backwards: Bool, refine: Bool = false) {
         Self.lastQuery = text
-        guard !text.isEmpty else { found = true; return }
-        tab.find(text, backwards: backwards) { found = $0 }
+        guard !text.isEmpty else { result = Tab.FindResult(found: true); tab.clearFindHighlights(); return }
+        let asked = text
+        tab.find(text, backwards: backwards, caseSensitive: caseSensitive, wholeWord: wholeWord, refine: refine) { r in
+            // A later letter may already have started another search.
+            if asked == text { result = r }
+        }
     }
 
     private func close() {
         b.findVisible = false
+        tab.clearFindHighlights()
         tab.webView?.window?.makeFirstResponder(tab.webView)
     }
 }

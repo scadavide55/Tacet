@@ -46,10 +46,11 @@ final class UpdateChecker {
         }
         guard !checking else { return }
         checking = true
+        Diagnostics.log(.updates, force ? "checking, asked from the menu" : "checking", "current \(Self.currentVersion)")
         var request = URLRequest(url: Self.releasesAPI)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 15
-        URLSession(configuration: .ephemeral).dataTask(with: request) { data, response, _ in
+        URLSession(configuration: .ephemeral).dataTask(with: request) { data, response, error in
             let releases = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [[String: Any]]) ?? []
             let ok = (response as? HTTPURLResponse)?.statusCode == 200
             let newest = releases
@@ -60,10 +61,13 @@ final class UpdateChecker {
                 self.checking = false
                 defer { done?() }
                 guard ok else {
+                    let why = (response as? HTTPURLResponse).map { "HTTP \($0.statusCode)" } ?? error.map(Diagnostics.code) ?? ""
+                    Diagnostics.log(.updates, "check failed", why, level: .error)
                     self.lastResult = L("Couldn't check for updates.")
                     return
                 }
                 defaults.set(Date(), forKey: "lumen.updateCheck")
+                Diagnostics.log(.updates, "checked", "newest \(newest?.version ?? "none")")
                 if let newest, Self.isNewer(newest.version, than: Self.currentVersion) {
                     self.available = newest
                     self.lastResult = String(format: L("%@ is available."), newest.name)
@@ -143,6 +147,7 @@ final class UpdateInstaller: NSObject, URLSessionDownloadDelegate {
             return
         }
         release = r
+        Diagnostics.log(.updates, "downloading update", "\(r.version)")
         state = .downloading(0)
         session.downloadTask(with: asset).resume()
     }
@@ -153,7 +158,10 @@ final class UpdateInstaller: NSObject, URLSessionDownloadDelegate {
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        if let error { state = .failed(error.localizedDescription) }
+        if let error {
+            Diagnostics.log(.updates, "update download failed", Diagnostics.code(error), level: .error)
+            state = .failed(error.localizedDescription)
+        }
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
@@ -174,7 +182,9 @@ final class UpdateInstaller: NSObject, URLSessionDownloadDelegate {
             DispatchQueue.main.async {
                 switch result {
                 case .success(let app): self.relaunch(into: app)
-                case .failure(let message): self.state = .failed(message.text)
+                case .failure(let message):
+                    Diagnostics.log(.updates, "update not installed", message.text, level: .error)
+                    self.state = .failed(message.text)
                 }
             }
         }

@@ -2,19 +2,31 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    @State private var pane = SettingsPane.general
+    @State private var query = ""
+
     var body: some View {
-        TabView {
-            GeneralPane().tabItem { Label("General", systemImage: "gearshape") }
-            AppearancePane().tabItem { Label("Appearance", systemImage: "paintbrush") }
-            ShieldPane().tabItem { Label("Shield", systemImage: "shield.lefthalf.filled") }
-            PasswordsPane().tabItem { Label("Passwords", systemImage: "key") }
-            SearchPane().tabItem { Label("Search", systemImage: "magnifyingglass") }
-            SitesPane().tabItem { Label("Sites", systemImage: "globe") }
-            AIPane().tabItem { Label("AI", systemImage: "sparkles") }
-            AutomationsPane().tabItem { Label("Automations", systemImage: "bolt") }
-            ExtensionsPane().tabItem { Label("Extensions", systemImage: "puzzlepiece.extension") }
-            AdvancedPane().tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
+        TabView(selection: $pane) {
+            GeneralPane().tabItem { Label("General", systemImage: "gearshape") }.tag(SettingsPane.general)
+            AppearancePane().tabItem { Label("Appearance", systemImage: "paintbrush") }.tag(SettingsPane.appearance)
+            ShieldPane().tabItem { Label("Shield", systemImage: "shield.lefthalf.filled") }.tag(SettingsPane.shield)
+            PasswordsPane().tabItem { Label("Passwords", systemImage: "key") }.tag(SettingsPane.passwords)
+            SearchPane().tabItem { Label("Search", systemImage: "magnifyingglass") }.tag(SettingsPane.search)
+            SitesPane().tabItem { Label("Sites", systemImage: "globe") }.tag(SettingsPane.sites)
+            AIPane().tabItem { Label("AI", systemImage: "sparkles") }.tag(SettingsPane.ai)
+            AutomationsPane().tabItem { Label("Automations", systemImage: "bolt") }.tag(SettingsPane.automations)
+            ExtensionsPane().tabItem { Label("Extensions", systemImage: "puzzlepiece.extension") }.tag(SettingsPane.extensions)
+            AdvancedPane().tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }.tag(SettingsPane.advanced)
         }
+        .overlay {
+            if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                SettingsSearchResults(query: query) { found in
+                    pane = found
+                    query = ""
+                }
+            }
+        }
+        .searchable(text: $query, placement: .toolbar, prompt: Text("Search Settings"))
         .frame(width: 680, height: 560)
         .tint(Settings.shared.accent)
     }
@@ -176,6 +188,12 @@ struct ProfilesSection: View {
                     TextField("Name", text: Binding(get: { p.name }, set: { name in update(p.id) { $0.name = name } }))
                         .textFieldStyle(.plain)
                     Spacer()
+                    if let address = p.proxy?.address {
+                        Label(String(format: L("Proxy %@"), address), systemImage: "network")
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            .help(String(format: L("This profile's pages connect through %@."), address))
+                    }
+                    ProxyButton(proxy: p.proxy ?? ProfileProxy()) { proxy in update(p.id) { $0.proxy = proxy.kind == .none ? nil : proxy } }
                     Button("Open Window") { openWindow(id: "profile", value: p.id) }
                     Button { delete(p) } label: { Label("Remove", systemImage: "minus.circle.fill").labelStyle(.iconOnly) }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
@@ -216,6 +234,59 @@ struct ProfilesSection: View {
             s.profiles.removeAll { $0.id == p.id }
             ProfileCleanup.remove(p.id)
         }
+    }
+}
+
+/// Opens a profile's proxy settings. They're kept only when the popover closes or Return is pressed,
+/// so a half-typed host never gets used.
+struct ProxyButton: View {
+    let proxy: ProfileProxy
+    let save: (ProfileProxy) -> Void
+    @State private var shown = false
+    @State private var kind = ProfileProxy.Kind.none
+    @State private var host = ""
+    @State private var port = ""
+
+    var body: some View {
+        Button { open() } label: { Label("Proxy", systemImage: "network").labelStyle(.iconOnly) }
+            .buttonStyle(.plain).foregroundStyle(proxy.isValid ? Color.accentColor : .secondary)
+            .help("Proxy")
+            .popover(isPresented: $shown, arrowEdge: .bottom) {
+                Form {
+                    Picker("Proxy", selection: $kind) {
+                        Text("None").tag(ProfileProxy.Kind.none)
+                        Text(verbatim: "SOCKS5").tag(ProfileProxy.Kind.socks5)
+                        Text(verbatim: "HTTP (CONNECT)").tag(ProfileProxy.Kind.httpConnect)
+                    }
+                    if kind != .none {
+                        TextField("Host", text: $host, prompt: Text(verbatim: "proxy.example.com"))
+                            .onSubmit { shown = false }
+                        TextField("Port", text: $port, prompt: Text(verbatim: "1080"))
+                            .onSubmit { shown = false }
+                        if !draft.isValid {
+                            Text("Enter a host and a port from 1 to 65535. Until then this profile connects directly.")
+                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    Text("Only this profile's windows use the proxy. Private windows never do.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
+                .frame(width: 320)
+                .onDisappear { if draft != proxy { save(draft) } }
+            }
+    }
+
+    private var draft: ProfileProxy {
+        ProfileProxy(kind: kind, host: host.trimmingCharacters(in: .whitespacesAndNewlines),
+                     port: Int(port.trimmingCharacters(in: .whitespaces)) ?? 0)
+    }
+
+    private func open() {
+        kind = proxy.kind
+        host = proxy.host
+        port = proxy.port == 0 ? "" : String(proxy.port)
+        shown = true
     }
 }
 
@@ -514,6 +585,7 @@ struct SearchPane: View {
                     .disabled(s.engine.suggestTemplate == nil)
                 Text("Suggestions send what you type to \(s.engine.name). They're never fetched in private windows.")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle("Complete addresses of sites you visit often", isOn: $s.inlineCompletion)
             }
             Section {
                 ForEach(s.shortcuts) { sc in

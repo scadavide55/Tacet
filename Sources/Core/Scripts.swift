@@ -10,7 +10,10 @@ enum Scripts {
         c.add(ScriptBridge.shared, contentWorld: .defaultClient, name: "lumen")
 
         c.addUserScript(WKUserScript(source: bridge, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
-        c.addUserScript(WKUserScript(source: logins, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+        c.addUserScript(WKUserScript(source: media, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .defaultClient))
+        c.addUserScript(WKUserScript(source: fileAccept, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .defaultClient))
+        // In frames too, for sign-in boxes embedded in a page; what a frame may receive is checked in Tab.frameLogin.
+        c.addUserScript(WKUserScript(source: logins, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .defaultClient))
         c.addUserScript(WKUserScript(source: highlights, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
         if s.recoverDrafts {
             c.addUserScript(WKUserScript(source: drafts, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
@@ -20,7 +23,9 @@ enum Scripts {
         }
         // Before the page's own scripts, so sites never offer a passkey Tacet can't use.
         c.addUserScript(WKUserScript(source: passkeys, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page))
-        let allow = json(s.allowlist)
+        c.addUserScript(WKUserScript(source: popups, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page))
+        // Sites with Shield off for now count as allowlisted until Tacet quits.
+        let allow = json(s.allowlist + ShieldTrial.shared.sites)
         if s.adBlock && s.hideCookieBanners {
             c.addUserScript(WKUserScript(source: cookieBanners.replacingOccurrences(of: "__ALLOW__", with: allow),
                                          injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .defaultClient))
@@ -140,11 +145,34 @@ enum Scripts {
         checkTop();
       }, { capture: true, passive: true });
 
+    })();
+    """#
+
+    /// Tells Tacet when sound starts and stops, in the page and in every frame it embeds (a YouTube or Spotify player),
+    /// and mutes them all with the tab. Each frame picks an id so Tacet can tell them apart.
+    /// Says which file types a file field accepts as the page opens it: WebKit doesn't pass its `accept` on to the
+    /// open panel. A field opened without a click (showPicker, or one not in the page) isn't seen, and its panel
+    /// offers every file, as before.
+    static let fileAccept = #"""
+    addEventListener('click', e => {
+      const t = e.composedPath ? e.composedPath()[0] : e.target;
+      if (t instanceof HTMLInputElement && t.type === 'file') {
+        window.webkit.messageHandlers.lumen.postMessage({ type: 'fileAccept', accept: String(t.accept || '').slice(0, 500) });
+      }
+    }, true);
+    """#
+
+    static let media = #"""
+    (() => {
+      if (window.__tacetMedia) return;
+      window.__tacetMedia = true;
+      const post = (m) => { try { webkit.messageHandlers.lumen.postMessage(m); } catch (e) {} };
+      const id = Math.random().toString(36).slice(2);
       let playing = false;
       const media = () => {
         const now = [...document.querySelectorAll('video, audio')].some(m =>
           !m.paused && !m.ended && m.readyState > 2 && m.volume > 0 && (!m.muted || window.__lumenMuted));
-        if (now !== playing) { playing = now; post({ type: 'media', playing: now }); }
+        if (now !== playing) { playing = now; post({ type: 'media', playing: now, id }); }
       };
       for (const ev of ['play', 'playing', 'pause', 'ended', 'volumechange', 'emptied']) {
         document.addEventListener(ev, (e) => {
@@ -152,12 +180,69 @@ enum Scripts {
           media();
         }, true);
       }
+      window.addEventListener('pagehide', () => { if (playing) { playing = false; post({ type: 'media', playing: false, id }); } });
       window.__lumenSetMuted = (m) => {
         window.__lumenMuted = m;
         document.querySelectorAll('video, audio').forEach(v => { v.muted = m; });
         media();
       };
     })();
+    """#
+
+    /// Counts and highlights every match of the find bar's text in what's visible on the page, and says which one is
+    /// selected. In "next"/"prev" mode (whole words, which WebKit's own search can't do) it also selects the match.
+    /// Called with q, cs (case-sensitive), ww (whole word), mode and refine.
+    static let find = #"""
+    const norm = (s) => cs ? s : s.toLowerCase();
+    const needle = norm(q);
+    const isWord = (c) => !!c && /[\p{L}\p{N}_]/u.test(c);
+    const ranges = [];
+    const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT, { acceptNode(n) {
+      const p = n.parentElement;
+      if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(p.tagName) || !p.getClientRects().length) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    } });
+    for (let n; (n = walker.nextNode()) && ranges.length < 5000;) {
+      const t = norm(n.data);
+      let i = 0;
+      while (needle && (i = t.indexOf(needle, i)) !== -1) {
+        if (!ww || (!isWord(n.data[i - 1]) && !isWord(n.data[i + needle.length]))) {
+          const r = document.createRange();
+          r.setStart(n, i); r.setEnd(n, i + needle.length);
+          ranges.push(r);
+        }
+        i += needle.length;
+      }
+    }
+    const sel = getSelection();
+    const current = sel.rangeCount ? sel.getRangeAt(0) : null;
+    const at = (r) => current ? r.compareBoundaryPoints(Range.START_TO_START, current) : 1;
+    let index = 0;
+    if (mode === 'next' || mode === 'prev') {
+      if (ranges.length) {
+        let i;
+        if (mode === 'next') { i = ranges.findIndex(r => refine ? at(r) >= 0 : at(r) > 0); if (i < 0) i = 0; }
+        else { i = -1; ranges.forEach((r, k) => { if (at(r) < 0) i = k; }); if (i < 0) i = ranges.length - 1; }
+        sel.removeAllRanges();
+        sel.addRange(ranges[i]);
+        const box = ranges[i].getBoundingClientRect();
+        if (box.top < 0 || box.bottom > innerHeight) scrollBy({ top: box.top - innerHeight / 3 });
+        index = i + 1;
+      }
+    } else if (current) {
+      const i = ranges.findIndex(r => at(r) >= 0);
+      index = i < 0 ? 0 : i + 1;
+    }
+    if (window.CSS && CSS.highlights && window.Highlight) {
+      if (!document.getElementById('tacet-find-style')) {
+        const st = document.createElement('style');
+        st.id = 'tacet-find-style';
+        st.textContent = '::highlight(tacet-find) { background-color: rgba(255, 214, 0, 0.45); }';
+        (document.head || document.documentElement).appendChild(st);
+      }
+      CSS.highlights.set('tacet-find', new Highlight(...ranges));
+    }
+    return { total: ranges.length, index };
     """#
 
     // MARK: Drafts
@@ -322,6 +407,22 @@ enum Scripts {
     /// Tacet doesn't have yet, so WebKit turns every request down. When a site asks for one, this tells Tacet, so it
     /// can offer to sign in with Safari instead. Sites still see passkeys as available: hiding them makes some
     /// (GitHub) drop the passkey button without asking, and then there'd be no moment to offer Safari.
+    /// Notices a pop-up WebKit refused because no click asked for it, which it otherwise drops without a word, so
+    /// Tacet can say so and offer to open it.
+    static let popups = #"""
+    (() => {
+      const open = window.open;
+      if (typeof open !== 'function') return;
+      window.open = new Proxy(open, { apply(t, self, args) {
+        const w = Reflect.apply(t, self, args);
+        if (!w && !(navigator.userActivation && navigator.userActivation.isActive)) {
+          try { window.dispatchEvent(new CustomEvent('tacet-popup', { detail: String(args[0] || '') })); } catch (e) {}
+        }
+        return w;
+      } });
+    })();
+    """#
+
     static let passkeys = #"""
     (() => {
       if (!window.PublicKeyCredential || window.__tacetPasskeys) return;
@@ -350,6 +451,7 @@ enum Scripts {
       const post = (m) => { try { webkit.messageHandlers.lumen.postMessage(m); } catch (e) {} };
       // The passkeys script runs in the page and can't reach Tacet itself, so it says so with an event.
       window.addEventListener('tacet-passkey', () => post({ type: 'passkey' }));
+      if (window === top) window.addEventListener('tacet-popup', (e) => post({ type: 'popupBlocked', url: String(e.detail || '') }));
       const visible = (el) => {
         const r = el.getBoundingClientRect();
         return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
@@ -551,6 +653,36 @@ enum Scripts {
     /// slightly between Macs. Tacet changes a few of those values by the smallest step, differently for each site
     /// (so sites can't link visits) but the same within a site (so nothing flickers or breaks). It also hides the
     /// exact graphics chip and reports a common number of processor cores.
+    /// Replaces a built-in method with a wrapper that can't be told apart from it: a Proxy keeps its name, length and
+    /// property descriptor, and Function.prototype.toString (itself replaced the same way) shows the original's
+    /// "[native code]". Fingerprinting scripts look for exactly these differences, and a detected change makes a
+    /// browser easier to recognise, not harder. Shared with the tests, which check it in JavaScriptCore.
+    static let maskHelper = #"""
+      const masked = new WeakMap();
+      const maskToString = (win) => {
+        const F = win.Function.prototype;
+        const original = F.toString;
+        if (masked.has(original)) return;
+        const p = new Proxy(original, { apply: (t, self, args) => Reflect.apply(t, masked.get(self) || self, args) });
+        masked.set(p, original);
+        F.toString = p;
+      };
+      const mask = (owner, name, apply) => {
+        const original = owner && owner[name];
+        if (typeof original !== 'function' || masked.has(original)) return;
+        const p = new Proxy(original, { apply: (t, self, args) => apply(t, self, args) });
+        masked.set(p, original);
+        owner[name] = p;
+      };
+      const maskGetter = (owner, name, get) => {
+        const d = owner && Object.getOwnPropertyDescriptor(owner, name);
+        if (!d || typeof d.get !== 'function' || masked.has(d.get)) return;
+        const p = new Proxy(d.get, { apply: (t, self, args) => get(t, self, args) });
+        masked.set(p, d.get);
+        Object.defineProperty(owner, name, { get: p, set: d.set, enumerable: d.enumerable, configurable: d.configurable });
+      };
+    """#
+
     static let fingerprinting = #"""
     (() => {
       const allow = __ALLOW__;
@@ -560,7 +692,7 @@ enum Scripts {
       let seed = __SEED__ >>> 0;
       for (const c of h.split('.').slice(-2).join('.')) seed = Math.imul(seed ^ c.charCodeAt(0), 2654435761) >>> 0;
       const rand = (n) => { let x = (seed ^ Math.imul(n + 1, 0x9E3779B1)) >>> 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 4294967296; };
-
+    __MASK__
       // Canvas: a handful of pixels, chosen from the seed, move by one step in one colour.
       const noisy = (data, width, height) => {
         const pixels = width * height;
@@ -571,59 +703,103 @@ enum Scripts {
           data[p] = data[p] ^ 1;
         }
       };
-      const Ctx = CanvasRenderingContext2D.prototype;
-      const getImageData = Ctx.getImageData;
-      Ctx.getImageData = function (...args) {
-        const img = getImageData.apply(this, args);
-        noisy(img.data, img.width, img.height);
-        return img;
-      };
-      // toDataURL and toBlob read a noisy copy, so the canvas on screen stays as drawn.
-      const copy = (canvas) => {
-        if (!canvas.width || !canvas.height || canvas.width * canvas.height > 4000000) return null;
-        const c = document.createElement('canvas');
-        c.width = canvas.width; c.height = canvas.height;
-        const ctx = c.getContext('2d');
-        try { ctx.drawImage(canvas, 0, 0); } catch (e) { return null; }
-        const img = getImageData.call(ctx, 0, 0, c.width, c.height);
-        noisy(img.data, img.width, img.height);
-        ctx.putImageData(img, 0, 0);
-        return c;
-      };
-      const C = HTMLCanvasElement.prototype;
-      const toDataURL = C.toDataURL, toBlob = C.toBlob;
-      C.toDataURL = function (...args) { const c = copy(this); return toDataURL.apply(c || this, args); };
-      C.toBlob = function (...args) { const c = copy(this); return toBlob.apply(c || this, args); };
-
-      // WebGL: the graphics chip's exact name becomes Apple's generic one.
-      for (const GL of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
-        if (!GL) continue;
-        const getParameter = GL.prototype.getParameter;
-        GL.prototype.getParameter = function (p) {
-          if (p === 37445) return 'Apple Inc.';
-          if (p === 37446) return 'Apple GPU';
-          return getParameter.call(this, p);
+      const patched = new WeakSet();
+      // The same changes go into each window: this one, and any same-origin frame the page creates (an about:blank
+      // iframe is the classic way round them), as soon as the page reaches into it.
+      const patch = (win) => {
+        if (!win || patched.has(win)) return;
+        patched.add(win);
+        maskToString(win);
+        const Ctx = win.CanvasRenderingContext2D && win.CanvasRenderingContext2D.prototype;
+        const getImageData = Ctx && Ctx.getImageData;
+        mask(Ctx, 'getImageData', (t, self, args) => {
+          const img = Reflect.apply(t, self, args);
+          noisy(img.data, img.width, img.height);
+          return img;
+        });
+        // toDataURL and toBlob read a noisy copy, so the canvas on screen stays as drawn.
+        const copy = (canvas) => {
+          if (!getImageData || !canvas.width || !canvas.height || canvas.width * canvas.height > 4000000) return null;
+          const c = win.document.createElement('canvas');
+          c.width = canvas.width; c.height = canvas.height;
+          const ctx = c.getContext('2d');
+          try { ctx.drawImage(canvas, 0, 0); } catch (e) { return null; }
+          const img = getImageData.call(ctx, 0, 0, c.width, c.height);
+          noisy(img.data, img.width, img.height);
+          ctx.putImageData(img, 0, 0);
+          return c;
         };
-      }
+        const C = win.HTMLCanvasElement && win.HTMLCanvasElement.prototype;
+        mask(C, 'toDataURL', (t, self, args) => Reflect.apply(t, copy(self) || self, args));
+        mask(C, 'toBlob', (t, self, args) => Reflect.apply(t, copy(self) || self, args));
 
-      // Audio: rendered sound moves by an amount far below hearing, once per buffer.
-      if (window.AudioBuffer) {
-        const getChannelData = AudioBuffer.prototype.getChannelData;
-        const done = new WeakSet();
-        AudioBuffer.prototype.getChannelData = function (...args) {
-          const data = getChannelData.apply(this, args);
-          if (!done.has(data)) {
-            done.add(data);
-            for (let i = 0; i < data.length; i += 100) data[i] += (rand(i) - 0.5) * 1e-7;
-          }
-          return data;
-        };
-      }
+        // OffscreenCanvas, read the same way.
+        const OCtx = win.OffscreenCanvasRenderingContext2D && win.OffscreenCanvasRenderingContext2D.prototype;
+        const offGetImageData = OCtx && OCtx.getImageData;
+        mask(OCtx, 'getImageData', (t, self, args) => {
+          const img = Reflect.apply(t, self, args);
+          noisy(img.data, img.width, img.height);
+          return img;
+        });
+        const O = win.OffscreenCanvas && win.OffscreenCanvas.prototype;
+        mask(O, 'convertToBlob', (t, self, args) => {
+          let source = self;
+          try {
+            if (offGetImageData && self.width && self.height && self.width * self.height <= 4000000) {
+              const c = new win.OffscreenCanvas(self.width, self.height);
+              const ctx = c.getContext('2d');
+              ctx.drawImage(self, 0, 0);
+              const img = offGetImageData.call(ctx, 0, 0, c.width, c.height);
+              noisy(img.data, img.width, img.height);
+              ctx.putImageData(img, 0, 0);
+              source = c;
+            }
+          } catch (e) {}
+          return Reflect.apply(t, source, args);
+        });
 
-      // A common core count instead of this Mac's exact one.
-      try { Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', { get: () => 8, configurable: true }); } catch (e) {}
+        // WebGL: the graphics chip's exact name becomes Apple's generic one.
+        for (const GL of [win.WebGLRenderingContext, win.WebGL2RenderingContext]) {
+          if (!GL) continue;
+          mask(GL.prototype, 'getParameter', (t, self, args) => {
+            if (args[0] === 37445) return 'Apple Inc.';
+            if (args[0] === 37446) return 'Apple GPU';
+            return Reflect.apply(t, self, args);
+          });
+        }
+
+        // Audio: rendered sound moves by an amount far below hearing, once per buffer.
+        if (win.AudioBuffer) {
+          const done = new WeakSet();
+          mask(win.AudioBuffer.prototype, 'getChannelData', (t, self, args) => {
+            const data = Reflect.apply(t, self, args);
+            if (!done.has(data)) {
+              done.add(data);
+              for (let i = 0; i < data.length; i += 100) data[i] += (rand(i) - 0.5) * 1e-7;
+            }
+            return data;
+          });
+        }
+
+        // A common core count instead of this Mac's exact one.
+        maskGetter(win.Navigator && win.Navigator.prototype, 'hardwareConcurrency', () => 8);
+
+        // Frames the page makes reach the same changes before the page can use them.
+        const F = win.HTMLIFrameElement && win.HTMLIFrameElement.prototype;
+        maskGetter(F, 'contentWindow', (t, self, args) => {
+          const w = Reflect.apply(t, self, args);
+          try { patch(w); } catch (e) {}
+          return w;
+        });
+        maskGetter(F, 'contentDocument', (t, self, args) => {
+          const d = Reflect.apply(t, self, args);
+          try { if (d) patch(d.defaultView); } catch (e) {}
+          return d;
+        });
+      };
+      patch(window);
     })();
-    """#
+    """#.replacingOccurrences(of: "__MASK__", with: maskHelper)
 
     // MARK: Rejecting cookies
 
@@ -856,6 +1032,8 @@ enum Scripts {
     static let picker = #"""
     (() => {
       if (window.__lumenPicker) return;
+      // For a screenshot, the element clicked is measured instead of hidden, and picking ends there.
+      const shot = __SHOT__;
       const box = document.createElement('div');
       box.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:2px solid #5e5ce6;background:rgba(94,92,230,.18);border-radius:3px;transition:all .06s';
       const tip = document.createElement('div');
@@ -914,6 +1092,12 @@ enum Scripts {
       const click = e => {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         if (!target) return;
+        if (shot) {
+          const r = target.getBoundingClientRect();
+          stop(false);
+          window.webkit.messageHandlers.lumen.postMessage({ type: 'pickedShot', x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height });
+          return;
+        }
         const s = selector(target);
         target.style.setProperty('display', 'none', 'important');
         box.style.display = 'none';
@@ -1075,9 +1259,22 @@ final class ScriptBridge: NSObject, WKScriptMessageHandler {
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let webView = message.webView, let tab = Tab.owner(of: webView),
               let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
-        // Scripts are only injected into the page itself; a message from an embedded frame (an ad, say)
-        // must not be able to touch passwords or the tab.
-        guard message.frameInfo.isMainFrame else { return }
+        // Sound is reported from every frame, so embedded players show on the tab and mute with it.
+        if type == "media" {
+            tab.frameMedia(id: body["id"] as? String ?? "main", frame: message.frameInfo, playing: body["playing"] as? Bool ?? false)
+            return
+        }
+        // A file field in any frame: it only narrows what the open panel offers.
+        if type == "fileAccept" {
+            tab.fileAccept = (body["accept"] as? String ?? "", Date())
+            return
+        }
+        // A frame's sign-in form is handled apart: it only ever gets logins saved for its own site, over HTTPS.
+        // Nothing else from an embedded frame (an ad, say) may touch passwords or the tab.
+        guard message.frameInfo.isMainFrame else {
+            if ["loginFocus", "loginBlur", "loginUsername", "loginSubmit"].contains(type) { tab.frameLogin(type, body, frame: message.frameInfo) }
+            return
+        }
         tab.handleMessage(type, body)
     }
 }

@@ -1,8 +1,10 @@
 // Tacet's logic tests. Run with: tools/test.sh
 // They use only pure functions and temporary files: nothing touches your Tacet data.
 import Foundation
+import CoreText
 import JavaScriptCore
 import SQLite3
+import UniformTypeIdentifiers
 import WebKit
 
 var failures = 0
@@ -92,13 +94,13 @@ check(!UpdateChecker.isNewer("1.5", than: "1.5.0"), "1.5 == 1.5.0")
 check(!UpdateChecker.isNewer("1.5.3", than: "1.5.4"), "1.5.3 < 1.5.4")
 
 // MARK: Welcome pages
-eq(Set(WhatsNew.pages(since: "1.7").map(\.version)), ["1.7.1"], "welcome after 1.7: the 1.7.1 pages")
-eq(Set(WhatsNew.pages(since: "1.7.0.3").map(\.version)), ["1.7.1"], "welcome after 1.7.0.3: the 1.7.1 pages")
-eq(Set(WhatsNew.pages(since: "1.6.5").map(\.version)), ["1.7", "1.7.1"], "welcome after 1.6.5: 1.7 and 1.7.1 pages")
-eq(Set(WhatsNew.pages(since: "1.6.1").map(\.version)), ["1.6.2", "1.6.3", "1.6.4", "1.6.5", "1.7", "1.7.1"], "welcome after 1.6.1: every newer page")
+eq(Set(WhatsNew.pages(since: "1.7").map(\.version)), ["1.7.1", "1.8"], "welcome after 1.7: the 1.7.1 and 1.8 pages")
+eq(Set(WhatsNew.pages(since: "1.7.1.1").map(\.version)), ["1.8"], "welcome after 1.7.1.1: the 1.8 pages")
+eq(Set(WhatsNew.pages(since: "1.6.5").map(\.version)), ["1.7", "1.7.1", "1.8"], "welcome after 1.6.5: 1.7 and later pages")
+eq(Set(WhatsNew.pages(since: "1.6.1").map(\.version)), ["1.6.2", "1.6.3", "1.6.4", "1.6.5", "1.7", "1.7.1", "1.8"], "welcome after 1.6.1: every newer page")
 eq(WhatsNew.pages(since: "1.6").count, WhatsNew.all.count, "welcome after 1.6: every page")
 eq(WhatsNew.pages(since: "").count, WhatsNew.all.count, "welcome never seen: every page")
-check(WhatsNew.pages(since: "1.7.1").isEmpty, "welcome already seen: nothing")
+check(WhatsNew.pages(since: "1.8").isEmpty, "welcome already seen: nothing")
 
 // MARK: Arc's sidebar
 do {
@@ -818,6 +820,99 @@ do {
     check(tiny.count < convo.count && (tiny.first?["role"] as? String) == "user", "context: oldest turns go, starting at a request", "\(tiny.count)")
 }
 
+// MARK: The answer in progress fits too (deep research reads many long pages)
+
+/// Whether a transcript is one Anthropic's Messages API accepts: it starts with the user, roles alternate, and each
+/// tool_use is answered by a tool_result in the very next message.
+func validAnthropic(_ t: [[String: Any]]) -> Bool {
+    guard t.first?["role"] as? String == "user" else { return false }
+    for (i, m) in t.enumerated() {
+        if i > 0, m["role"] as? String == t[i - 1]["role"] as? String { return false }
+        let uses = (m["content"] as? [[String: Any]] ?? []).filter { $0["type"] as? String == "tool_use" }.compactMap { $0["id"] as? String }
+        guard !uses.isEmpty else { continue }
+        guard i + 1 < t.count else { return false }
+        let answered = Set((t[i + 1]["content"] as? [[String: Any]] ?? []).compactMap { $0["tool_use_id"] as? String })
+        if !Set(uses).isSubset(of: answered) { return false }
+    }
+    return true
+}
+
+/// The same for OpenAI's Chat Completions: every tool call is answered by a tool message before the next turn, and
+/// no tool message answers a call that isn't there.
+func validOpenAI(_ t: [[String: Any]]) -> Bool {
+    guard t.first?["role"] as? String == "user" else { return false }
+    var open = Set<String>()
+    for m in t {
+        if m["role"] as? String == "tool" {
+            guard let id = m["tool_call_id"] as? String, open.remove(id) != nil else { return false }
+            continue
+        }
+        if !open.isEmpty { return false }
+        for c in m["tool_calls"] as? [[String: Any]] ?? [] { if let id = c["id"] as? String { open.insert(id) } }
+    }
+    return open.isEmpty
+}
+
+func jsonSize(_ t: [[String: Any]]) -> Int { t.reduce(0) { $0 + ((try? JSONSerialization.data(withJSONObject: $1))?.count ?? 0) } }
+
+do {
+    // Ten rounds, each reading one long page, as a deep research does; then the model's last round of two pages.
+    func research(_ provider: AIProvider, pageChars: Int) -> [[String: Any]] {
+        let page = { (n: Int) in String(repeating: "Page \(n) says something. ", count: pageChars / 22) }
+        var t: [[String: Any]] = [["role": "user", "content": "old question " + String(repeating: "o", count: 3000)],
+                                  ["role": "assistant", "content": "old answer"],
+                                  ["role": "user", "content": "Research the topic"]]
+        for n in 0..<11 {
+            let ids = n == 10 ? ["c10a", "c10b"] : ["c\(n)"]
+            let outputs = ids.map { (call: AIClient.ToolCall(id: $0, name: "web_fetch", arguments: [:]), output: page(n), isError: false) }
+            if provider == .anthropic {
+                t.append(["role": "assistant", "content": [["type": "text", "text": "Reading."]] + ids.map { ["type": "tool_use", "id": $0, "name": "web_fetch", "input": ["url": "https://x.example/\($0)"]] }])
+            } else {
+                t.append(["role": "assistant", "content": NSNull(), "tool_calls": ids.map { ["id": $0, "type": "function", "function": ["name": "web_fetch", "arguments": "{}"]] }])
+            }
+            t += AIClient.toolResults(outputs, provider: provider)
+        }
+        return t
+    }
+    for (provider, budget) in [(AIProvider.anthropic, 32_000), (.openAI, 32_000), (.anthropic, 250_000), (.openAI, 250_000)] {
+        let pages = budget == 32_000 ? 6_000 : 25_000
+        let t = research(provider, pageChars: pages)
+        let fit = AssistantChat.fitted(t, budget: budget)
+        let name = "context (\(provider.rawValue), \(budget)): "
+        check(jsonSize(t) > budget, name + "the test starts over budget", "\(jsonSize(t))")
+        check(jsonSize(fit) <= budget, name + "the answer in progress fits", "\(jsonSize(fit))")
+        check(provider == .anthropic ? validAnthropic(fit) : validOpenAI(fit), name + "every tool call keeps its result, in a valid order")
+        let lastRound = t.lastIndex { $0["role"] as? String == "assistant" }!
+        let fitLast = fit.lastIndex { $0["role"] as? String == "assistant" }!
+        eq(jsonSize(Array(fit[fitLast...])), jsonSize(Array(t[lastRound...])), name + "the last round stays whole")
+        eq(fit.first { AssistantChat.isRequest($0) && ($0["content"] as? String) == "Research the topic" } != nil, true, name + "the request stays")
+    }
+    // Ten whole pages of 60,000 characters at once can't fit 32,000 bytes: they share the room, and still all answer.
+    var huge: [[String: Any]] = [["role": "user", "content": "Read them all"],
+                                 ["role": "assistant", "content": [["type": "tool_use", "id": "a", "name": "web_fetch", "input": [:]], ["type": "tool_use", "id": "b", "name": "web_fetch", "input": [:]]]]]
+    huge += AIClient.toolResults([(AIClient.ToolCall(id: "a", name: "web_fetch", arguments: [:]), String(repeating: "a", count: 60_000), false),
+                                  (AIClient.ToolCall(id: "b", name: "web_fetch", arguments: [:]), String(repeating: "b", count: 60_000), false)], provider: .anthropic)
+    let squeezed = AssistantChat.fitted(huge, budget: 32_000)
+    check(jsonSize(squeezed) <= 32_000 && validAnthropic(squeezed), "context: a last round too big alone shares the room", "\(jsonSize(squeezed))")
+    // An older request keeps the user's words after its page when it's shortened.
+    let old = AssistantChat.shortened(["role": "user", "content": "<page url=\"u\" title=\"t\">\n" + String(repeating: "p", count: 9000) + "\n</page>\n\nWhat does it say about cats?"])
+    check((old["content"] as? String ?? "").hasSuffix("What does it say about cats?"), "context: a shortened request keeps the question")
+    // The screenshot after OpenAI tool results isn't a request of its own.
+    let shot = AIClient.toolResults([(AIClient.ToolCall(id: "s", name: "take_screenshot", arguments: [:]), "Screenshot", false)], provider: .openAI, images: ["s": Data([1])])
+    check(!AssistantChat.isRequest(shot[1]) && AssistantChat.isToolResult(shot[1]), "context: a screenshot message isn't taken for a request")
+    // Limits: pages are cut to what the model can take, saying how much arrived.
+    eq(AssistantLimits.of(.ollama).pageChars, 6_000, "limits: local models read 6,000 characters of a page")
+    eq(AssistantLimits.of(.deepSeek).pageChars, 25_000, "limits: DeepSeek reads 25,000")
+    eq(AssistantLimits.of(.anthropic).pageChars, WebTools.textLimit, "limits: others read as before")
+    let local8k = AssistantLimits.of(.ollama, contextTokens: 8_192, overhead: 6_000)
+    check(local8k.budget < 32_000 && local8k.budget >= 4_000, "limits: a known 8k context sets the budget", "\(local8k)")
+    check(AssistantLimits.of(.ollama, contextTokens: 131_072).budget > 32_000, "limits: a big local context takes more")
+    let clipped = AssistantLimits.clip(String(repeating: "z", count: 1000), to: 100)
+    check(clipped.contains("first 100 of its 1000 characters (10%)"), "limits: a cut page says how much is included", clipped)
+    let pageResult = WebTools.format(WebTools.Page(url: URL(string: "https://a.example")!, title: "A", text: String(repeating: "w", count: 30_000), links: []), limit: 6_000)
+    check(pageResult.contains("first 6000 of its 30000"), "limits: web_fetch results are cut for small models")
+}
+
 // MARK: History beyond what's kept in memory
 
 do {
@@ -830,16 +925,128 @@ do {
         eq(hdb.count(), 5, "history: counted on disk")
         eq(hdb.load(limit: 2).map(\.title), ["Page 0 100%", "Page 1 100%"], "history: newest page first")
         eq(hdb.load(limit: 2, offset: 2).map(\.title), ["Page 2 100%", "Page 3 100%"], "history: the next page")
-        let cutoff = now.addingTimeInterval(-2.5 * 3600)
-        eq(hdb.search(["page"], before: cutoff, limit: 10).map(\.title), ["Page 3 100%", "Page 4 100%"], "history: older entries found on disk")
-        eq(hdb.search(["site4", "100%"], before: cutoff, limit: 10).count, 1, "history: every word must match, % taken literally")
-        eq(hdb.search(["page_"], before: now.addingTimeInterval(60), limit: 10).count, 5, "history: _ taken literally")
-        eq(hdb.search(["xx%"], before: now.addingTimeInterval(60), limit: 10).count, 0, "history: % isn't a wildcard")
+        check(hdb.hasIndex, "history: the full-text index is made")
+        eq(hdb.search("page", limit: 10).count, 5, "history: the whole history is searched")
+        eq(hdb.search("pag", limit: 10).count, 5, "history: a word's start is enough")
+        eq(hdb.search("site4 100%", limit: 10).count, 1, "history: every word must match")
+        eq(hdb.search("xx%", limit: 10).count, 0, "history: nothing found for a word no page has")
+        eq(hdb.search("page", limit: 10).map(\.title).first, "Page 4 100%", "history: the most visited page comes first")
+        eq(hdb.search("page", limit: 10, newestFirst: true).map(\.title).first, "Page 0 100%", "history: newest first when asked")
+        // Recency: the same visits three months ago weigh less than this week.
+        hdb.save([HistoryEntry(url: URL(string: "https://old.example/page")!, title: "Page old", date: now.addingTimeInterval(-100 * 86_400), visits: 30)])
+        check(hdb.search("page", limit: 10).first?.title != "Page old", "history: old visits weigh less than recent ones")
+        // Typed visits count more than links: one page typed three times beats one followed four times.
+        let typedPage = HistoryEntry(url: URL(string: "https://typed.example/a")!, title: "Recipe typed", date: now, visits: 3)
+        hdb.save([typedPage], typed: true)
+        hdb.save([typedPage], typed: true)
+        hdb.save([typedPage], typed: true)
+        hdb.save([HistoryEntry(url: URL(string: "https://linked.example/b")!, title: "Recipe linked", date: now, visits: 4)])
+        eq(hdb.search("recipe", limit: 10).map(\.title), ["Recipe typed", "Recipe linked"], "history: typed visits rank above links")
+        eq(hdb.typedVisits(typedPage.url), 3, "history: typed visits are counted, and kept when the row is replaced")
+        // A page on the site you start typing comes before a busier page that only mentions it.
+        hdb.save([HistoryEntry(url: URL(string: "https://news.example/about-github")!, title: "github tips", date: now, visits: 40),
+                  HistoryEntry(url: URL(string: "https://github.com/")!, title: "GitHub", date: now, visits: 2)])
+        eq(hdb.search("github", limit: 10).first?.url.absoluteString, "https://github.com/", "history: a page on the typed site comes first")
         eq(hdb.entry(for: URL(string: "https://site2.example/page_2")!)?.visits, 3, "history: an entry found by its address")
     } else {
         check(false, "history: temporary database opens")
     }
     try? FileManager.default.removeItem(at: url)
+}
+
+// MARK: Searching Settings
+
+do {
+    // Every toggle and picker in a Settings pane can be found by its name.
+    let panes = ["GeneralPane", "AppearancePane", "ShieldPane", "SearchPane", "SitesPane", "AdvancedPane"]
+    let source = (try? String(contentsOfFile: "Sources/UI/SettingsView.swift", encoding: .utf8)) ?? ""
+    let listed = Set(SettingsSearch.entries.map(\.title))
+    var unlisted: [String] = []
+    let structs = source.components(separatedBy: "\nstruct ")
+    for part in structs where panes.contains(where: { part.hasPrefix($0 + ":") }) {
+        let regex = try! NSRegularExpression(pattern: #"\b(?:Toggle|Picker)\("((?:[^"\\]|\\.)*)""#)
+        for m in regex.matches(in: part, range: NSRange(part.startIndex..., in: part)) {
+            let label = String(part[Range(m.range(at: 1), in: part)!])
+            if !label.isEmpty, !label.contains("\\("), !listed.contains(label) { unlisted.append(label) }
+        }
+    }
+    check(!source.isEmpty, "settings search: the panes' source is read")
+    eq(unlisted, [], "settings search: every toggle and picker in a pane is listed")
+    check(SettingsSearch.matches("cookie").contains { $0.pane == .shield }, "settings search: finds a Shield setting")
+    eq(SettingsSearch.matches("zzzz").count, 0, "settings search: nothing for nonsense")
+}
+
+// MARK: A file field's accept attribute
+
+eq(FileAccept.types("image/*"), [.image], "accept: image/*")
+eq(FileAccept.types(".pdf, .PNG"), [.pdf, .png], "accept: extensions, any case")
+eq(FileAccept.types("application/pdf,video/*"), [.pdf, .movie], "accept: MIME types")
+eq(FileAccept.types(""), [], "accept: empty offers every file")
+eq(FileAccept.types("image/*,nonsense"), [], "accept: anything not understood offers every file")
+eq(FileAccept.types("image/*,image/*"), [.image], "accept: no type twice")
+
+// MARK: History from an older Tacet gets its full-text index
+
+do {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("tacet-history-old-\(UUID().uuidString).sqlite")
+    var raw: OpaquePointer?
+    sqlite3_open(url.path, &raw)
+    sqlite3_exec(raw, "CREATE TABLE visits (id TEXT PRIMARY KEY, url TEXT NOT NULL UNIQUE, title TEXT NOT NULL, date REAL NOT NULL, visits INTEGER NOT NULL)", nil, nil, nil)
+    let now = Date().timeIntervalSince1970
+    for (i, (u, t)) in [("https://ricette.example/carbonara", "Perché la carbonara"), ("https://a.example/", "Alpha"), ("https://b.example/x", "Beta")].enumerated() {
+        sqlite3_exec(raw, "INSERT INTO visits VALUES ('\(UUID().uuidString)', '\(u)', '\(t)', \(now - Double(i) * 60), \(i + 1))", nil, nil, nil)
+    }
+    sqlite3_close(raw)
+    func version() -> Int {
+        var db: OpaquePointer?, stmt: OpaquePointer?, v = -1
+        sqlite3_open(url.path, &db)
+        sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &stmt, nil)
+        if sqlite3_step(stmt) == SQLITE_ROW { v = Int(sqlite3_column_int64(stmt, 0)) }
+        sqlite3_finalize(stmt)
+        sqlite3_close(db)
+        return v
+    }
+    func counts() -> (Int, Int) {
+        var db: OpaquePointer?, out = [0, 0]
+        sqlite3_open(url.path, &db)
+        for (i, sql) in ["SELECT count(*) FROM visits", "SELECT count(*) FROM visits_fts_docsize"].enumerated() {
+            var stmt: OpaquePointer?
+            sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
+            if sqlite3_step(stmt) == SQLITE_ROW { out[i] = Int(sqlite3_column_int64(stmt, 0)) }
+            sqlite3_finalize(stmt)
+        }
+        sqlite3_close(db)
+        return (out[0], out[1])
+    }
+    eq(version(), 0, "history migration: an older database starts at version 0")
+    if let migrated = HistoryDB(url) {
+        check(migrated.hasIndex, "history migration: the index is made")
+        eq(migrated.count(), 3, "history migration: every entry is kept")
+        eq(migrated.search("perche carbo", limit: 5).map(\.title), ["Perché la carbonara"], "history migration: old entries are found, accents ignored")
+        eq(migrated.typedVisits(URL(string: "https://a.example/")!), 0, "history migration: old entries have no typed visits")
+        migrated.save([HistoryEntry(url: URL(string: "https://a.example/")!, title: "Alpha renamed", date: Date(), visits: 2)])
+        eq(migrated.search("alpha", limit: 5).map(\.title), ["Alpha renamed"], "history migration: a replaced entry is in the index once")
+        eq(migrated.search("beta", limit: 5).count, 1, "history migration: other entries stay found")
+        migrated.flush()
+    } else {
+        check(false, "history migration: the older database opens")
+    }
+    eq(version(), HistoryDB.schemaVersion, "history migration: the version is written")
+    let (rows, indexed) = counts()
+    eq(rows, indexed, "history migration: the index has one row per entry")
+    // An older Tacet replaces a row without the delete trigger; opening again rebuilds the index.
+    sqlite3_open(url.path, &raw)
+    sqlite3_exec(raw, "INSERT OR REPLACE INTO visits (id, url, title, date, visits) VALUES ('\(UUID().uuidString)', 'https://b.example/x', 'Gamma', \(now), 9)", nil, nil, nil)
+    sqlite3_close(raw)
+    if let again = HistoryDB(url) {
+        eq(again.search("gamma", limit: 5).count, 1, "history migration: a row an older Tacet wrote is found")
+        eq(again.search("beta", limit: 5).count, 0, "history migration: the row it replaced isn't")
+        again.flush()
+        let (r, i) = counts()
+        eq(r, i, "history migration: a stale index is rebuilt on opening")
+        eq(again.count(), 3, "history migration: opening twice changes nothing else")
+    }
+    for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(at: URL(fileURLWithPath: url.path + suffix)) }
 }
 
 // MARK: Finding pages by what they said
@@ -922,7 +1129,7 @@ do {
 
 do {
     let scripts: [(String, String)] = [
-        ("bridge", Scripts.bridge), ("drafts", Scripts.drafts), ("highlights", Scripts.highlights), ("passkeys", Scripts.passkeys),
+        ("bridge", Scripts.bridge), ("media", Scripts.media), ("fileAccept", Scripts.fileAccept), ("find", Scripts.find), ("popups", Scripts.popups), ("drafts", Scripts.drafts), ("highlights", Scripts.highlights), ("passkeys", Scripts.passkeys),
         ("logins", Scripts.logins), ("gpc", Scripts.gpc), ("cookieBanners", Scripts.cookieBanners),
         ("fingerprinting", Scripts.fingerprinting), ("rejectCookies", Scripts.rejectCookies), ("youtube", Scripts.youtube),
         ("forceDark", Scripts.forceDark), ("siteStyles", Scripts.siteStyles), ("picker", Scripts.picker), ("reader", Scripts.reader),
@@ -934,7 +1141,7 @@ do {
     for (name, raw) in scripts {
         // Placeholders are filled in before a script goes into a page.
         let source = raw.replacingOccurrences(of: "__ALLOW__", with: "[]").replacingOccurrences(of: "__DARK__", with: "[\"\"]")
-            .replacingOccurrences(of: "__TIP__", with: "\"\"")
+            .replacingOccurrences(of: "__TIP__", with: "\"\"").replacingOccurrences(of: "__SHOT__", with: "true")
         func valid(_ code: String) -> Bool {
             let js = JSStringCreateWithUTF8CString(code)
             defer { JSStringRelease(js) }
@@ -1008,7 +1215,7 @@ do {
             answer = try await AIClient.stream(provider: .anthropic, base: "http://127.0.0.1:\(server.port)/v1", key: "test",
                                                model: "claude-haiku-5-5", transcript: [["role": "user", "content": "chi ha inventato il web"]],
                                                tools: true, web: true, control: false, quick: true,
-                                               onText: { streamed += $0 }, onServerTool: { _, _ in })
+                                               onText: { streamed += $0 }, onServerTool: { _ in })
         } catch { failure = error.localizedDescription }
     }
     let deadline = Date().addingTimeInterval(10)
@@ -1042,7 +1249,7 @@ do {
             _ = try await AIClient.stream(provider: .openAI, base: "http://127.0.0.1:\(server.port)/v1", key: "test",
                                           model: "gpt-5-mini", transcript: [["role": "user", "content": "ciao"]],
                                           tools: true, web: true, control: false, quick: true,
-                                          onText: { streamed += $0 }, onServerTool: { _, _ in })
+                                          onText: { streamed += $0 }, onServerTool: { _ in })
         } catch { failure = error.localizedDescription }
         done = true
     }
@@ -1054,6 +1261,222 @@ do {
     eq(sent["reasoning_effort"] as? String, "low", "quick answer (OpenAI): less reasoning")
     let first = (sent["messages"] as? [[String: Any]])?.first
     check((first?["content"] as? String ?? "").contains("command bar"), "quick answer (OpenAI): the short prompt is the system message")
+}
+
+// MARK: Tacet Assistant's steps, deep research and replies (1.8)
+
+do {
+    let t0 = Date(timeIntervalSince1970: 1000)
+    func step(_ k: AssistantStep.Kind, _ d: String = "", _ secs: Double? = 5, _ status: AssistantStep.Status = .done) -> AssistantStep {
+        AssistantStep(kind: k, detail: d, started: t0, ended: secs.map { t0.addingTimeInterval($0) }, status: secs == nil ? .running : status)
+    }
+    eq(AssistantStep.time(9.7), "9s", "step time: seconds")
+    eq(AssistantStep.time(65), "1m 05s", "step time: minutes")
+    eq(AssistantStep.time(3720), "1h 02m", "step time: hours")
+    eq(AssistantActivity.live([step(.thinking, "", nil)]), L("Thinking"), "live: thinking")
+    eq(AssistantActivity.live([step(.thinking, "", nil), step(.search, "mac", nil)]), L("Searching the web"), "live: a running search leads over thinking")
+    eq(AssistantActivity.live([step(.read, "a", nil), step(.read, "b", nil)]), String(format: L("Reading %d pages"), 2), "live: pages read at once")
+    eq(AssistantActivity.live([step(.search, "q"), step(.thinking, "", nil)]), L("Going through the results"), "live: thinking after results")
+    eq(AssistantActivity.live([AssistantStep(kind: .stage, detail: "x", stage: .comparing, started: t0), step(.thinking, "", nil)]), L("Comparing sources"), "live: the research stage the model reported")
+    eq(AssistantActivity.live([step(.search, "q")], writing: true), L("Writing the answer"), "live: writing after steps")
+    eq(AssistantActivity.live([], writing: true), nil, "live: a plain reply shows no line")
+    eq(AssistantActivity.summary([step(.search, "a"), step(.read, "x"), step(.read, "y"), step(.read, "z", 2, .failed)]),
+       L("searched the web").prefix(1).uppercased() + L("searched the web").dropFirst() + ", " + String(format: L("read %d pages"), 2),
+       "summary: failed reads aren't counted as read")
+    eq(AssistantActivity.summary([step(.thinking, "", 1)]), nil, "summary: a moment of thinking says nothing")
+    eq(AssistantActivity.summary([step(.thinking, "", 4)]), String(format: L("Thought for %@"), "4s"), "summary: longer thinking")
+    eq(AssistantActivity.summary([step(.search, "a"), step(.read, "b")], research: true), String(format: L("Researched: %d searches, %d pages read"), 1, 1), "summary: deep research")
+    eq(AssistantActivity.listed([step(.thinking, "", 1), step(.search, "a")]).count, 1, "listed: short thinking is left out")
+    eq(AssistantActivity.failures([step(.read, "a", 1, .failed), step(.read, "b")]), 1, "failures counted")
+    var s = step(.read, "a", nil)
+    s.finish(.failed, outcome: "x", at: t0.addingTimeInterval(3))
+    s.finish(.done, at: t0.addingTimeInterval(9))
+    check(s.status == .failed && s.duration() == 3 && s.outcome == "x", "a step finishes once")
+
+    // Saved chats: steps round-trip, and chats from before 1.8 still open.
+    let saved = AssistantHistory.SavedMessage(user: false, text: "a", images: [], pageTitle: nil, quote: nil, activity: [], links: [], sources: [],
+                                              error: nil, steps: [step(.search, "q")], research: true, started: t0, finished: t0)
+    let back = try? JSONDecoder().decode(AssistantHistory.SavedMessage.self, from: JSONEncoder().encode(saved))
+    check(back?.steps?.first?.detail == "q" && back?.research == true, "saved chat keeps its steps")
+    let old = #"{"user":false,"text":"hi","images":[],"activity":["Searching the web for “x”"],"links":[],"sources":[]}"#
+    let oldMessage = try? JSONDecoder().decode(AssistantHistory.SavedMessage.self, from: Data(old.utf8))
+    check(oldMessage != nil && oldMessage?.steps == nil, "a chat saved before 1.8 still opens")
+}
+
+do {
+    let research = AssistantPrompt.system(web: true, control: false, research: true)
+    check(research.contains("DEEP RESEARCH IS ON") && research.contains("research_stage"), "deep research: the prompt explains it")
+    check(!AssistantPrompt.system(web: false, control: false, research: true).contains("DEEP RESEARCH"), "deep research: needs web access")
+    check(!AssistantPrompt.system(web: true, control: false).contains("DEEP RESEARCH"), "deep research: off by default")
+    check(AssistantPrompt.system(web: true, control: false).contains("Never invent facts"), "prompt: no invented facts")
+    check(AssistantPrompt.clientTools(provider: .openAI, web: true, control: false, research: true).contains { $0.name == "research_stage" }, "deep research: the stage tool")
+    check(!AssistantPrompt.clientTools(provider: .openAI, web: true, control: false).contains { $0.name == "research_stage" }, "no stage tool without deep research")
+    check(JSONSerialization.isValidJSONObject(AssistantPrompt.schema(AssistantPrompt.researchTool)), "stage tool schema")
+    eq(AssistantPrompt.anthropicWebTools(model: "claude-opus-5-5", research: true).first?["max_uses"] as? Int, 20, "deep research: more searches")
+    check(AIClient.isTransient(AIClient.Failure.http(529, "")) && AIClient.isTransient(URLError(.networkConnectionLost)), "busy service is retried")
+    check(!AIClient.isTransient(AIClient.Failure.http(401, "")), "a refused key isn't retried")
+    check(AIClient.serverToolFailed(["content": ["type": "web_fetch_tool_error", "error_code": "url_not_accessible"]]), "server fetch error noticed")
+    check(!AIClient.serverToolFailed(["content": [["type": "web_search_result"]]]), "server search results aren't an error")
+}
+
+do {
+    let md = """
+    ### Display
+    **Bold** opening line
+    and its second line
+
+    - one
+    - two
+      more of two
+    1. first
+    2) second
+    > quoted
+    ---
+    | A | B |
+    |---|:-:|
+    | 1 | 2 |
+    ```swift
+    let x = 1
+    """
+    let blocks = MarkdownBlocks.parse(md)
+    eq(blocks.first, .heading(level: 3, text: "Display"), "markdown: heading")
+    eq(blocks[1], .paragraph("**Bold** opening line\nand its second line"), "markdown: bold line is a paragraph, not a list")
+    eq(blocks[2], .list([.init(marker: "•", level: 0, text: "one"), .init(marker: "•", level: 0, text: "two\nmore of two"),
+                         .init(marker: "1.", level: 0, text: "first"), .init(marker: "2.", level: 0, text: "second")]), "markdown: lists")
+    eq(blocks[3], .quote("quoted"), "markdown: quote")
+    eq(blocks[4], .rule, "markdown: rule")
+    eq(blocks[5], .table(header: ["A", "B"], rows: [["1", "2"]]), "markdown: table")
+    eq(blocks[6], .code(language: "swift", text: "let x = 1"), "markdown: a code block still streaming in")
+    eq(blocks.count, 7, "markdown: block count")
+    eq(MarkdownBlocks.parse("#hashtag"), [.paragraph("#hashtag")], "markdown: a hashtag isn't a heading")
+    eq(MarkdownBlocks.listItem("    - deep")?.level, 2, "markdown: nested item level")
+}
+
+do {
+    // A deep research asks Anthropic for more thinking and more searches, and a reply's server searches are reported.
+    let server = fakeServer(reply: sse([
+        #"{"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv1","name":"web_search","input":{}}}"#,
+        #"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"macbook\"}"}}"#,
+        #"{"type":"content_block_stop","index":0}"#,
+        #"{"type":"content_block_start","index":1,"content_block":{"type":"web_search_tool_result","tool_use_id":"srv1","content":[{"type":"web_search_result","url":"https://a.example","title":"A"},{"type":"web_search_result","url":"https://b.example","title":"B"}]}}"#,
+        #"{"type":"content_block_stop","index":1}"#,
+        #"{"type":"content_block_start","index":2,"content_block":{"type":"text","text":""}}"#,
+        #"{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"Done."}}"#,
+        #"{"type":"content_block_stop","index":2}"#,
+        #"{"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
+    ]))
+    var events: [String] = []
+    var done = false
+    Task { @MainActor in
+        _ = try? await AIClient.stream(provider: .anthropic, base: "http://127.0.0.1:\(server.port)/v1", key: "test",
+                                       model: "claude-opus-5-5", transcript: [["role": "user", "content": "research"]],
+                                       tools: true, web: true, control: false, research: true, onText: { _ in },
+                                       onServerTool: { e in
+                                           switch e {
+                                           case .started(let id, let name, let input): events.append("start \(id) \(name) \(input["query"] as? String ?? "")")
+                                           case .finished(let id, let n, let failed): events.append("end \(id) \(n ?? -1) \(failed)")
+                                           }
+                                       })
+        done = true
+    }
+    let deadline = Date().addingTimeInterval(10)
+    while !done && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    eq(events, ["start srv1 web_search macbook", "end srv1 2 false"], "deep research: server searches reported with their results")
+    let sent = server.body().flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    eq((sent["output_config"] as? [String: Any])?["effort"] as? String, "high", "deep research: high effort")
+    eq((sent["thinking"] as? [String: Any])?["type"] as? String, "adaptive", "deep research: adaptive thinking")
+    let names = ((sent["tools"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }
+    check(names.contains("research_stage") && names.contains("web_search"), "deep research: stage tool and web search sent")
+    check((sent["system"] as? String ?? "").contains("DEEP RESEARCH IS ON"), "deep research: prompt sent")
+}
+
+// MARK: Anti-fingerprinting can't be told apart from the browser's own functions
+
+do {
+    let ctx = JSContext()!
+    let result = ctx.evaluateScript("""
+    (() => {
+    \(Scripts.maskHelper)
+      const before = Function.prototype.toString.call(Math.max);
+      const toStringBefore = Function.prototype.toString.call(Function.prototype.toString);
+      maskToString(globalThis);
+      mask(Math, 'max', (t, self, args) => 42);
+      const d = Object.getOwnPropertyDescriptor(Math, 'max');
+      return [Math.max(1, 2) === 42, Function.prototype.toString.call(Math.max) === before, Math.max.toString() === before,
+              Math.max.name === 'max', Math.max.length === 2, d.writable && !d.enumerable && d.configurable,
+              Function.prototype.toString.call(Function.prototype.toString) === toStringBefore,
+              before.includes('[native code]')].join(',');
+    })()
+    """)?.toString() ?? ""
+    eq(result, "true,true,true,true,true,true,true,true", "fingerprinting: masked functions look native (call, toString, name, length, descriptor)")
+}
+
+// MARK: Sign-in forms in embedded frames
+
+check(PasswordStore.frameMayFill(scheme: "https", frameHost: "accounts.example.com", savedHost: "example.com"), "frame login: same site over HTTPS")
+check(PasswordStore.frameMayFill(scheme: "HTTPS", frameHost: "Login.Example.com", savedHost: "www.example.com"), "frame login: case doesn't matter")
+check(!PasswordStore.frameMayFill(scheme: "http", frameHost: "accounts.example.com", savedHost: "example.com"), "frame login: never over HTTP")
+check(!PasswordStore.frameMayFill(scheme: "https", frameHost: "ads.tracker.net", savedHost: "example.com"), "frame login: never another site's frame")
+check(!PasswordStore.frameMayFill(scheme: "https", frameHost: "example.com.evil.net", savedHost: "example.com"), "frame login: a look-alike host is another site")
+check(!PasswordStore.frameMayFill(scheme: "https", frameHost: "", savedHost: "example.com"), "frame login: a frame without a host gets nothing")
+
+// MARK: Completing addresses in the command bar
+
+do {
+    func entry(_ u: String, _ visits: Int) -> HistoryEntry { HistoryEntry(url: URL(string: u)!, title: "", date: Date(), visits: visits) }
+    let sites = InlineCompletion.candidates([entry("https://github.com/", 20), entry("https://www.github.com/apple/swift", 5),
+                                             entry("https://gitlab.com/", 3), entry("https://gizmodo.com/", 1), entry("https://hub.docker.com/", 9)])
+    eq(InlineCompletion.complete("gi", candidates: sites), "github.com", "completion: the most visited site")
+    eq(InlineCompletion.complete("gitl", candidates: sites), "gitlab.com", "completion: narrows as you type")
+    eq(InlineCompletion.complete("giz", candidates: sites), nil, "completion: a site visited once isn't offered")
+    eq(InlineCompletion.complete("thub", candidates: sites), nil, "completion: never in the middle of a name")
+    eq(InlineCompletion.complete("hub", candidates: sites), "hub.docker.com", "completion: from the start of a name")
+    eq(InlineCompletion.complete("www.gi", candidates: sites), "github.com", "completion: www. is ignored")
+    eq(InlineCompletion.complete("github.com/a", candidates: sites), "github.com/apple/swift", "completion: pages once a / is typed")
+    eq(InlineCompletion.complete("github.com", candidates: sites), nil, "completion: nothing to add")
+    eq(InlineCompletion.complete("how to", candidates: sites), nil, "completion: never for words with spaces")
+    eq(InlineCompletion.suffix(of: "github.com", typed: "Gi"), "thub.com", "completion: the grey part after what was typed")
+}
+
+// MARK: Unit conversions and open tabs in the command bar
+
+do {
+    func conv(_ t: String) -> String? { UnitConversion.convert(t).map { String(format: "%.2f %@", $0.value, $0.symbol) } }
+    eq(conv("10 km"), "6.21 mi", "units: km to miles by default")
+    eq(conv("10 km in m"), "10000.00 m", "units: an explicit target")
+    eq(conv("100 °F"), "37.78 °C", "units: Fahrenheit to Celsius")
+    eq(conv("21 c to f"), "69.80 °F", "units: c to f")
+    eq(conv("70 kg"), "154.32 lb", "units: kg to pounds")
+    eq(conv("2,5 kg in g"), "2500.00 g", "units: a comma as decimal point")
+    eq(conv("12 in"), "30.48 cm", "units: inches")
+    eq(conv("5 in in cm"), "12.70 cm", "units: inches to cm with in")
+    eq(conv("10 km in kg"), nil, "units: different kinds don't convert")
+    eq(conv("10 apples"), nil, "units: unknown words are left alone")
+    eq(conv("hello"), nil, "units: not a number")
+    check(InlineCompletion.sameAddress(URL(string: "https://www.example.com/a/"), URL(string: "http://example.com/a#top")), "same address: www, slash, fragment")
+    check(!InlineCompletion.sameAddress(URL(string: "https://example.com/a"), URL(string: "https://example.com/b")), "same address: other pages differ")
+}
+
+// MARK: Page dialogs
+
+do {
+    var policy = DialogPolicy()
+    let t0 = Date(timeIntervalSince1970: 0)
+    check(!policy.record(t0), "dialogs: the first one doesn't offer to stop them")
+    check(policy.record(t0.addingTimeInterval(5)), "dialogs: the second soon after offers to stop them")
+    check(!policy.record(t0.addingTimeInterval(100)), "dialogs: one long after is a first again")
+    policy.reset()
+    check(policy.shown.isEmpty, "dialogs: a new page starts over")
+    // A page that's stopped gets its answers at once, without a dialog.
+    let d = PageDialogs()
+    var answers: [String] = []
+    d.alert(title: "", message: "a") { answers.append("alert") }
+    check(d.isWaiting, "dialogs: no window yet, so the dialog waits")
+    d.confirm(title: "", message: "b") { answers.append("confirm \($0)") }
+    d.prompt(title: "", message: "c", defaultText: "x") { answers.append("prompt \($0 ?? "nil")") }
+    d.reset()
+    eq(answers, ["alert", "confirm false", "prompt nil"], "dialogs: leaving the page answers every waiting dialog")
+    check(!d.isWaiting, "dialogs: nothing left waiting")
 }
 
 // MARK: A mouse wheel scrolls the tabs along the top
@@ -1073,6 +1496,886 @@ do {
     let fits = NSScrollView(frame: NSRect(x: 0, y: 0, width: 300, height: 34))
     fits.documentView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 34))
     check(!WheelScrollsSideways.WheelView.scroll(fits, deltaY: -3, precise: false), "tab strip: a wheel passes through when the tabs fit")
+}
+
+// MARK: Models on this Mac: context, Ollama's own API, short instructions
+
+do {
+    let show: [String: Any] = ["model_info": ["general.architecture": "llama", "llama.context_length": 131072],
+                               "parameters": "num_keep                       24\nstop                           \"<|eot_id|>\""]
+    let c = LocalModels.ollamaContext(show)
+    eq(c.max, 131072, "local: Ollama's trained context from model_info")
+    eq(c.tokens, LocalModels.ollamaPreferred, "local: Tacet asks Ollama for 16k when the model allows it")
+    var withCtx = show
+    withCtx["parameters"] = "num_ctx 8192\ntemperature 0.7"
+    eq(LocalModels.ollamaContext(withCtx).tokens, 8192, "local: a num_ctx set in the Modelfile is kept")
+    eq(LocalModels.ollamaContext(["model_info": ["gemma3.context_length": 2048]]).tokens, 2048, "local: never more than the model was trained for")
+    eq(LocalModels.ollamaContext([:]).tokens, LocalModels.ollamaDefault, "local: Ollama's default when nothing is known")
+
+    let lm: [String: Any] = ["models": [["key": "qwen3-8b", "max_context_length": 262144,
+                                         "loaded_instances": [["id": "qwen3-8b", "config": ["context_length": 4096]]]],
+                                        ["key": "gemma-3", "max_context_length": 131072, "loaded_instances": [] as [Any]]]]
+    eq(LocalModels.lmStudioContext(lm, model: "qwen3-8b")?.tokens, 4096, "local: LM Studio's loaded context, not the model's maximum")
+    check(LocalModels.lmStudioContext(lm, model: "gemma-3") == nil, "local: LM Studio model not loaded: context unknown")
+
+    check(LocalModels.isCompact(.ollama, tokens: 8192), "local: 8k context uses the short instructions")
+    check(!LocalModels.isCompact(.ollama, tokens: 32768), "local: 32k context keeps the full instructions")
+    check(LocalModels.isCompact(.lmStudio, tokens: nil), "local: unknown context of a local model is treated as small")
+    check(!LocalModels.isCompact(.anthropic, tokens: 8192), "local: hosted models never use the short instructions")
+
+    let full = AssistantPrompt.overhead(provider: .ollama, model: "llama3.1", web: true, control: true, quick: false, research: false)
+    let compact = AssistantPrompt.overhead(provider: .ollama, model: "llama3.1", web: true, control: true, quick: false, research: false, compact: true)
+    print("measure: instructions + tools for a local model, full \(full) bytes, short \(compact) bytes")
+    check(compact * 3 < full, "local: short instructions and tools are under a third of the full ones", "\(compact) vs \(full)")
+    check(compact / AssistantLimits.charsPerToken < 1_500, "local: short profile leaves most of a 4k context free", "\(compact)")
+    let kept = AssistantPrompt.compactTools(AssistantPrompt.clientTools(provider: .ollama, web: true, control: false)).map(\.name)
+    check(kept.contains("web_search") && kept.contains("tacet_guide") && kept.contains("get_page_content"), "local: short profile keeps the tools it needs", "\(kept)")
+    check(!kept.contains("use_plugin") && !kept.contains("group_tabs"), "local: short profile leaves out the rest")
+    check(AssistantPrompt.compactSystem(web: true, control: false).contains("never instructions"), "local: short instructions keep the safety rule")
+
+    // The transcript stays in the OpenAI shape; Ollama's own API gets it converted.
+    let transcript: [[String: Any]] = [
+        ["role": "system", "content": "sys"],
+        ["role": "user", "content": [["type": "text", "text": "what is this"],
+                                     ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,QUJD"]]]],
+        ["role": "assistant", "content": NSNull(), "tool_calls": [["id": "call_1", "type": "function",
+                                                                   "function": ["name": "web_search", "arguments": "{\"query\":\"x\"}"]]]],
+        ["role": "tool", "tool_call_id": "call_1", "content": "results"],
+    ]
+    let o = AIClient.ollamaMessages(transcript)
+    eq(o[1]["content"] as? String, "what is this", "ollama: text parts become content")
+    eq(o[1]["images"] as? [String], ["QUJD"], "ollama: pictures go in images as base64")
+    let call = ((o[2]["tool_calls"] as? [[String: Any]])?.first?["function"] as? [String: Any])
+    eq((call?["arguments"] as? [String: Any])?["query"] as? String, "x", "ollama: tool arguments are an object")
+    eq(o[2]["content"] as? String, "", "ollama: an empty assistant turn has empty content")
+    eq(o[3]["tool_name"] as? String, "web_search", "ollama: a tool result is named by its tool")
+
+    let lines = [
+        #"{"model":"m","message":{"role":"assistant","content":"Hel"},"done":false}"#,
+        #"{"model":"m","message":{"role":"assistant","content":"lo","thinking":"hidden"},"done":false}"#,
+        #"{"model":"m","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"web_search","arguments":{"query":"rome"}}}]},"done":false}"#,
+        #"{"model":"m","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop"}"#,
+    ]
+    let stream = AsyncThrowingStream<String, Error> { c in lines.forEach { c.yield($0) }; c.finish() }
+    var shown = ""
+    let sem = DispatchSemaphore(value: 0)
+    var result: AIClient.Result?
+    Task { @MainActor in
+        result = try? await AIClient.readOllama(stream) { shown += $0 }
+        sem.signal()
+    }
+    while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+    eq(shown, "Hello", "ollama: streamed text, without the thinking")
+    eq(result?.toolCalls.first?.name, "web_search", "ollama: tool call read")
+    eq(result?.toolCalls.first?.arguments?["query"] as? String, "rome", "ollama: tool call arguments")
+    let back = (result?.assistantMessage["tool_calls"] as? [[String: Any]])?.first
+    eq(back?["id"] as? String, result?.toolCalls.first?.id, "ollama: reply kept in the OpenAI shape with the same call id")
+}
+
+// MARK: Links in a reply are checked against the pages the assistant saw
+
+do {
+    let reply = """
+    Apple says so ([Apple](https://www.apple.com/newsroom/2026/10/m6/)). See https://example.org/a_(b), \
+    <https://news.example.com/x> and www.wiki.example/page.
+    Also **https://bold.example/p**. Not `https://code.example/x`.
+    ```
+    https://block.example/y
+    ```
+    Again [Apple](https://www.apple.com/newsroom/2026/10/m6/).
+    """
+    eq(AssistantCitations.links(in: reply), ["https://www.apple.com/newsroom/2026/10/m6/", "https://example.org/a_(b)",
+                                              "https://news.example.com/x", "www.wiki.example/page", "https://bold.example/p"],
+       "citations: Markdown links, autolinks and bare addresses, without code or repeats")
+    eq(AssistantCitations.trimmed("https://a.example/x)."), "https://a.example/x", "citations: trailing parenthesis and full stop dropped")
+
+    let n = AssistantCitations.normalize
+    eq(n("https://www.Apple.com/newsroom/#top"), "apple.com/newsroom", "citations: scheme, www, case of host, slash and fragment ignored")
+    eq(n("http://apple.com/newsroom"), n("https://www.apple.com/newsroom/"), "citations: http and https are the same page")
+    eq(n("https://a.example/p?id=3&utm_source=x&fbclid=y"), "a.example/p?id=3", "citations: tracking parameters dropped")
+    eq(n("https://a.example:443/p"), "a.example/p", "citations: default port dropped")
+    eq(n("https://a.example:8080/p"), "a.example:8080/p", "citations: other ports kept")
+    eq(n("https://a.example/Page"), "a.example/Page", "citations: path case kept")
+    eq(n("https://www.google.com/url?q=https://b.example/z&sa=D"), "b.example/z", "citations: a click-tracking redirect counts as its target")
+    check(n("mailto:a@b.example") == nil && n("file:///etc/hosts") == nil, "citations: only web addresses")
+
+    let conversation = "Results: https://news.example.com/x/ and www.apple.com/newsroom/2026/10/m6"
+    let read = [URL(string: "https://example.org/a_(b)")!, URL(string: "http://bold.example/p?utm_medium=e")!]
+    let flagged = AssistantCitations.unverified(in: reply, conversation: conversation, read: read)
+    eq(flagged, ["wiki.example/page"], "citations: only the address nobody saw is flagged")
+    eq(AssistantCitations.unverified(in: "No links here.", conversation: "", read: []), [], "citations: nothing to check")
+    check(AssistantCitations.isUnverified(URL(string: "https://www.wiki.example/page/#s")!, in: flagged), "citations: a shown link matches its flagged form")
+    check(!AssistantCitations.isUnverified(URL(string: "https://apple.com/newsroom/2026/10/m6")!, in: flagged), "citations: a read page isn't flagged")
+
+    let transcript: [[String: Any]] = [["role": "user", "content": "Look at https://user.example/doc"],
+                                       ["role": "assistant", "content": "I made up https://made.example/up"]]
+    eq(AssistantCitations.unverified(in: "[a](https://user.example/doc) [b](https://made.example/up)", transcript: transcript, read: []),
+       ["made.example/up"], "citations: the model's own words don't count as seen")
+
+    let saved = AssistantHistory.SavedMessage(user: false, text: "a", images: [], pageTitle: nil, quote: nil, activity: [], links: [], sources: [],
+                                              error: nil, steps: nil, research: nil, started: nil, finished: nil, unverified: ["made.example/up"])
+    let back = try? JSONDecoder().decode(AssistantHistory.SavedMessage.self, from: JSONEncoder().encode(saved))
+    eq(back?.unverified ?? [], ["made.example/up"], "citations: a saved chat keeps its unverified links")
+    check(AssistantCitations.researchNote(2).contains("2"), "citations: the research note counts the links")
+}
+
+// MARK: Web search engines
+
+do {
+    /// Waits for an async piece of a test, as the page text tests do.
+    func wait<T>(_ body: @escaping () async -> T) -> T {
+        var out: T?
+        Task { out = await body() }
+        let deadline = Date().addingTimeInterval(10)
+        while out == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        return out!
+    }
+
+    // SearXNG's JSON API.
+    let searx = Data(#"{"query":"swift","number_of_results":0,"results":[{"url":"https://swift.org/","title":"Swift.org","content":"Swift is a <b>general-purpose</b> language","engine":"brave"},{"url":"https://swift.org/","title":"Again","content":"dup"},{"url":"javascript:alert(1)","title":"Bad"},{"url":"https://developer.apple.com/swift/","title":"","content":null}],"answers":[],"suggestions":[]}"#.utf8)
+    let sx = (try? SearXNG.parse(searx)) ?? []
+    eq(sx.map(\.url), ["https://swift.org/", "https://developer.apple.com/swift/"], "searxng: http results, once each")
+    eq(sx.first?.snippet, "Swift is a general-purpose language", "searxng: markup taken out of the snippet")
+    eq(sx.last?.title, "https://developer.apple.com/swift/", "searxng: an untitled result shows its address")
+    check((try? SearXNG.parse(Data("<html>Forbidden</html>".utf8))) == nil, "searxng: an answer that isn't JSON is an error")
+    eq(SearXNG(address: "searx.example.org/")?.endpoint.absoluteString, "https://searx.example.org/search", "searxng: address without scheme")
+    eq(SearXNG(address: "http://localhost:8888/search?q=old")?.endpoint.absoluteString, "http://localhost:8888/search", "searxng: own server, /search kept once")
+    check(SearXNG(address: "  ") == nil && SearXNG(address: "ftp://x.org") == nil, "searxng: not set up without an http address")
+    let searxQuery = SearXNG(address: "https://s.example")!.requestURL("a b").query ?? ""
+    check(searxQuery.contains("format=json") && searxQuery.contains("q=a%20b"), "searxng: asks for JSON", searxQuery)
+
+    // Brave Search API.
+    let brave = Data(#"{"type":"search","query":{"original":"swift"},"web":{"type":"search","results":[{"title":"The <strong>Swift</strong> Language","url":"https://swift.org/","description":"Learn <strong>Swift</strong> today","age":"2 days ago"},{"title":"Docs","url":"https://docs.swift.org/","description":"Guides"}]},"news":{"results":[{"title":"News","url":"https://news.example/"}]}}"#.utf8)
+    let br = (try? BraveSearch.parse(brave)) ?? []
+    eq(br.map(\.url), ["https://swift.org/", "https://docs.swift.org/"], "brave: only web results")
+    eq(br.first?.title, "The Swift Language", "brave: <strong> taken out of the title")
+    eq(br.first?.snippet, "Learn Swift today", "brave: description is the snippet")
+    eq((try? BraveSearch.parse(Data(#"{"type":"search","news":{"results":[]}}"#.utf8)))?.count, 0, "brave: no web section, no results")
+    let braveRequest = BraveSearch(key: " k123 ")!.request("x")
+    eq(braveRequest.value(forHTTPHeaderField: "X-Subscription-Token"), "k123", "brave: key sent in its header")
+    check(BraveSearch(key: "  ") == nil, "brave: not set up without a key")
+
+    // DuckDuckGo's check for bots.
+    let anomaly = #"<html><body><form id="challenge-form" action="//duckduckgo.com/anomaly.js"><div class="anomaly-modal__title">Unfortunately, bots use DuckDuckGo too.</div></form></body></html>"#
+    eq(WebTools.readDuckDuckGo(anomaly), .blocked, "ddg: the check for bots is recognized")
+    eq(WebTools.readDuckDuckGo("<html><body></body></html>"), .blocked, "ddg: an empty page counts as blocked")
+    eq(WebTools.readDuckDuckGo(#"<div class="no-results">No  results.</div>"#), .noResults, "ddg: its No results page isn't an error")
+    if case .results(let r) = WebTools.readDuckDuckGo(ddg) { eq(r.count, parsed.count, "ddg: a results page has results") }
+    else { check(false, "ddg: a results page has results") }
+    final class Count: @unchecked Sendable { var n = 0; let lock = NSLock()
+        func next() -> Int { lock.lock(); defer { lock.unlock() }; n += 1; return n } }
+    let loads = Count()
+    var retried = DuckDuckGo()
+    retried.retryDelay = .zero
+    retried.load = { _ in loads.next() == 1 ? anomaly : ddg }
+    let afterRetry = wait { (try? await retried.search("x"))?.count ?? -1 }
+    eq(afterRetry, parsed.count, "ddg: blocked once, asked again after a pause")
+    eq(loads.n, 2, "ddg: one more try only")
+    let stillBlocked = Count()
+    var blocked = DuckDuckGo()
+    blocked.retryDelay = .zero
+    blocked.load = { _ in _ = stillBlocked.next(); return anomaly }
+    let blockedError = wait { () -> String in
+        do { _ = try await blocked.search("x"); return "no error" } catch { return (error as? LocalizedError)?.errorDescription ?? "" }
+    }
+    check(blockedError.contains("DuckDuckGo is refusing"), "ddg: blocked twice is its own error", blockedError)
+    eq(stillBlocked.n, 2, "ddg: gives up after two tries")
+
+    // Engines in order, moving on when one fails.
+    struct Fake: WebSearchEngine {
+        let name: String
+        let answer: @Sendable () async throws -> [WebTools.SearchResult]
+        func search(_ query: String) async throws -> [WebTools.SearchResult] { try await answer() }
+    }
+    let hit = [WebTools.SearchResult(title: "T", url: "https://t.example/", snippet: "")]
+    let down = Fake(name: "SearXNG") { throw WebTools.Failure.http(502) }
+    let none = Fake(name: "Brave") { [] }
+    let good = Fake(name: "DuckDuckGo") { hit }
+    let gate = SearchGate(limit: 3)
+    let fellBack = wait { (try? await WebTools.search("q", engines: [down, none, good], gate: gate))?.engine ?? "failed" }
+    eq(fellBack, "DuckDuckGo", "search: falls back past a failing and an empty engine")
+    let firstWins = wait { (try? await WebTools.search("q", engines: [good, down], gate: gate))?.engine ?? "failed" }
+    eq(firstWins, "DuckDuckGo", "search: the first engine that answers is used")
+    let onlyEmpty = wait { (try? await WebTools.search("q", engines: [down, none], gate: gate)).map { "\($0.engine) \($0.results.count)" } ?? "failed" }
+    eq(onlyEmpty, "Brave 0", "search: no results from any engine is no results, not an error")
+    let allDown = wait { () -> String in
+        do { _ = try await WebTools.search("q", engines: [down, Fake(name: "Brave") { throw WebTools.Failure.engine("Bad key.") }], gate: gate); return "" }
+        catch { return (error as? LocalizedError)?.errorDescription ?? "" }
+    }
+    check(allDown.contains("SearXNG: The server answered with error 502.") && allDown.contains("Brave: Bad key."), "search: every engine's reason when all fail", allDown)
+
+    // Which engines are set up, in the saved order.
+    eq(SearchEngines.configured(order: SearchEngineKind.defaultOrder, searxURL: "", braveKey: nil).map(\.name), ["DuckDuckGo"], "engines: nothing set up, DuckDuckGo only")
+    eq(SearchEngines.configured(order: SearchEngineKind.defaultOrder, searxURL: "searx.example", braveKey: "k").map(\.name), ["SearXNG", "Brave", "DuckDuckGo"], "engines: default order, DuckDuckGo last")
+    eq(SearchEngines.configured(order: ["brave", "duckduckgo", "gone"], searxURL: "searx.example", braveKey: "k").map(\.name), ["Brave", "DuckDuckGo", "SearXNG"], "engines: saved order, unknown names dropped, new ones at the end")
+
+    // At most three searches at once.
+    actor Peak { var now = 0, most = 0
+        func enter() { now += 1; most = max(most, now) }
+        func leave() { now -= 1 } }
+    let peak = Peak()
+    let slow = Fake(name: "Slow") { await peak.enter(); try await Task.sleep(for: .milliseconds(30)); await peak.leave(); return hit }
+    let most = wait { () -> Int in
+        await withTaskGroup(of: Void.self) { group in
+            for n in 0..<8 { group.addTask { _ = try? await WebTools.search("q\(n)", engines: [slow], gate: gate) } }
+        }
+        return await peak.most
+    }
+    eq(most, 3, "search: at most three at the same time")
+}
+
+// MARK: Assistant chat history: search, pins, Markdown
+
+do {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("tacet-chats-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    func msg(_ user: Bool, _ text: String, links: [AssistantHistory.SavedLink] = [], sources: [AssistantHistory.SavedLink] = []) -> AssistantHistory.SavedMessage {
+        .init(user: user, text: text, images: [], activity: [], links: links, sources: sources)
+    }
+    let wal = UUID(), pasta = UUID(), old = UUID()
+    let db = folder.appendingPathComponent("Search.sqlite")
+    let search = AssistantSearch(database: db, chats: folder)
+    func found(_ s: AssistantSearch, _ q: String) -> [UUID] {
+        var out: [UUID]?
+        Task { out = await s.search(q).map(\.id) }
+        while out == nil { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        return out ?? []
+    }
+    search.index(id: wal, title: "SQLite question", messages: [msg(true, "What is WAL mode?"), msg(false, "Write-ahead logging keeps readers and the writer apart.")])
+    search.index(id: pasta, title: "Dinner", messages: [msg(true, "Carbonara?"), msg(false, "Guanciale, uova e pecorino, perché la panna no.")])
+    eq(found(search, "readers writer"), [wal], "chat search: finds a chat by words in an answer")
+    eq(found(search, "perche guan"), [pasta], "chat search: accents don't matter, a word's start is enough")
+    eq(found(search, "dinner"), [pasta], "chat search: finds a chat by its title")
+    var snippet = ""
+    Task { snippet = await search.search("logging").first?.snippet ?? "-" }
+    while snippet.isEmpty { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    check(snippet.contains("\u{2}logging\u{3}"), "chat search: the passage marks the word found", snippet)
+    search.index(id: wal, title: "SQLite question", messages: [msg(true, "Something else entirely")])
+    eq(found(search, "readers"), [], "chat search: a chat saved again replaces what was kept")
+    eq(found(search, "entirely"), [wal], "chat search: the chat saved again is found by its new text")
+    search.remove(pasta)
+    eq(found(search, "guanciale"), [], "chat search: a deleted chat isn't found")
+    // A chat saved before the index existed (its file only) is added; one no longer saved is dropped.
+    let oldChat = AssistantHistory.Saved(summary: .init(id: old, title: "Old chat", date: Date(), provider: "anthropic"),
+                                         messages: [msg(true, "Tell me about fermata signs")], transcript: [], model: nil)
+    try? AssistantHistory.fileData(oldChat)?.write(to: folder.appendingPathComponent(old.uuidString + ".json"))
+    search.sync(with: [(old, "Old chat")])
+    eq(found(search, "fermata"), [old], "chat search: chats saved earlier are indexed from their files")
+    eq(found(search, "entirely"), [], "chat search: chats no longer saved are dropped from the index")
+    var n = -1
+    Task { n = await search.count() }
+    while n < 0 { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    eq(n, 1, "chat search: the index holds exactly the saved chats")
+    search.flush()
+    let reopened = AssistantSearch(database: db, chats: folder)
+    eq(found(reopened, "fermata"), [old], "chat search: the index is kept between launches")
+    check(AssistantSearch.body([msg(true, String(repeating: "a", count: AssistantSearch.charLimit + 50))]).count == AssistantSearch.charLimit, "chat search: text kept per chat is capped")
+
+    // Pinned chats come first, newest first in each group.
+    let now = Date()
+    let a = AssistantHistory.Summary(id: UUID(), title: "Newest", date: now, provider: "")
+    let b = AssistantHistory.Summary(id: UUID(), title: "Pinned old", date: now.addingTimeInterval(-300), provider: "", pinned: true)
+    let c = AssistantHistory.Summary(id: UUID(), title: "Middle", date: now.addingTimeInterval(-100), provider: "")
+    let d = AssistantHistory.Summary(id: UUID(), title: "Pinned new", date: now.addingTimeInterval(-200), provider: "", pinned: true)
+    eq(AssistantHistory.ordered([a, b, c, d]).map(\.title), ["Pinned new", "Pinned old", "Newest", "Middle"], "chat history: pinned chats at the top")
+    eq(AssistantHistory.matching([a, b, c, d], query: "middle", found: [:]).map(\.title), ["Middle"], "chat history: search by title")
+    eq(AssistantHistory.matching([a, b, c, d], query: "zzz", found: [a.id: "x", b.id: "y"]).map(\.title), ["Pinned old", "Newest"], "chat history: search by text, pinned first")
+    let decoded = try? JSONDecoder().decode([AssistantHistory.Summary].self, from: Data(#"[{"id":"\#(UUID().uuidString)","title":"t","date":0,"provider":"p"}]"#.utf8))
+    check(decoded?.first != nil && decoded?.first?.pinned == nil, "chat history: chats saved before pins load, not pinned")
+
+    // Markdown export: title, each message under who said it, sources at the bottom once each.
+    let src = AssistantHistory.SavedLink(url: URL(string: "https://sqlite.org/wal.html")!, title: "Write-Ahead [Logging]")
+    let md = AssistantHistory.markdown(.init(summary: .init(id: wal, title: "SQLite question", date: now, provider: ""),
+                                             messages: [msg(true, "What is WAL mode?"),
+                                                        msg(false, "It keeps readers apart.", links: [src], sources: [src, .init(url: URL(string: "https://example.com/b")!, title: "")])],
+                                             transcript: [], model: nil))
+    check(md.hasPrefix("# SQLite question\n"), "chat export: starts with the title", md)
+    check(md.contains("**You:**\n\nWhat is WAL mode?"), "chat export: the question under You", md)
+    check(md.contains("**Tacet Assistant:**\n\nIt keeps readers apart."), "chat export: the answer under Tacet Assistant", md)
+    check(md.contains("## Sources\n\n- [Write-Ahead \\[Logging\\]](https://sqlite.org/wal.html)\n- [https://example.com/b](https://example.com/b)\n"), "chat export: sources at the bottom, once each", md)
+    check(md.range(of: "## Sources")!.lowerBound > md.range(of: "It keeps readers apart.")!.lowerBound, "chat export: sources after the messages")
+    check(!AssistantHistory.markdown(.init(summary: a, messages: [msg(true, "hi")], transcript: [], model: nil)).contains("## Sources"), "chat export: no Sources heading without sources")
+    eq(AssistantExport.fileName("a/b: c…"), "a-b- c", "chat export: file name without characters a file name can't hold")
+    eq(AssistantExport.fileName("..."), "Untitled chat", "chat export: an empty file name gets a default")
+    try? FileManager.default.removeItem(at: folder)
+}
+
+// MARK: Tabs attached with @, the model for small jobs, and the tokens an answer used
+
+do {
+    eq(AssistantChat.mentionQuery(in: "compare @gi"), "gi", "@: the query after the @")
+    eq(AssistantChat.mentionQuery(in: "@"), "", "@: a lone @ opens the list")
+    eq(AssistantChat.mentionQuery(in: "write to a@b"), nil, "@: an e-mail address isn't a mention")
+    eq(AssistantChat.mentionQuery(in: "compare @github and"), nil, "@: a space ends the mention")
+    eq(AssistantChat.removingMention(from: "compare @gi"), "compare ", "@: the query leaves the draft when a tab is chosen")
+    eq(AssistantChat.removingMention(from: "no mention"), "no mention", "@: a draft without a mention stays")
+    let tabs: [(title: String, url: URL?)] = [("GitHub · Tacet", URL(string: "https://github.com/x")),
+                                              ("Città di Roma", URL(string: "https://www.comune.roma.it")),
+                                              ("News", URL(string: "https://bbc.co.uk/news"))]
+    eq(AssistantChat.mentionMatches(tabs, query: ""), [0, 1, 2], "@: every tab with nothing typed")
+    eq(AssistantChat.mentionMatches(tabs, query: "git"), [0], "@: matches the title, ignoring case")
+    eq(AssistantChat.mentionMatches(tabs, query: "citta"), [1], "@: ignores accents")
+    eq(AssistantChat.mentionMatches(tabs, query: "bbc"), [2], "@: matches the address")
+    eq(AssistantChat.mentionMatches(tabs, query: "zzz"), [], "@: nothing matches")
+    var ids: [UUID] = []
+    for _ in 0..<7 { ids = AssistantChat.adding(UUID(), to: ids) }
+    eq(ids.count, AssistantChat.maxMentionedTabs, "@: at most five tabs go with one message")
+    eq(AssistantChat.adding(ids[0], to: Array(ids.prefix(2))).count, 2, "@: a tab isn't attached twice")
+    eq(AssistantChat.mentionLimit(tabs: 1, pageChars: 60_000), 60_000, "@: one tab may send a whole page")
+    eq(AssistantChat.mentionLimit(tabs: 3, pageChars: 60_000), 40_000, "@: several tabs share two pages' worth")
+    check(AssistantChat.mentionLimit(tabs: 5, pageChars: 60_000) * 5 <= 120_000, "@: five tabs stay within two pages")
+    eq(AssistantChat.mentionLimit(tabs: 5, pageChars: 1_000), 500, "@: a small model still gets the start of each tab")
+
+    eq(Settings.smallModel(chosen: nil, main: "claude-opus-5-5"), "claude-opus-5-5", "small jobs: the default model when none is chosen")
+    eq(Settings.smallModel(chosen: "  ", main: "gpt-5"), "gpt-5", "small jobs: a blank choice is none")
+    eq(Settings.smallModel(chosen: "claude-haiku-5-5", main: "claude-opus-5-5"), "claude-haiku-5-5", "small jobs: the chosen model")
+    eq(AssistantChat.cleanTitle("\"Il web di Tim Berners-Lee.\"\nAltro"), "Il web di Tim Berners-Lee", "small jobs: a title without quotes, full stop or second line")
+    eq(AssistantChat.cleanTitle("  “ ” "), nil, "small jobs: an empty title is dropped")
+
+    let anthropic = AIClient.Usage.anthropic(["input_tokens": 10, "cache_read_input_tokens": 2000, "cache_creation_input_tokens": 50, "output_tokens": 42])
+    eq(anthropic, AIClient.Usage(input: 2060, output: 42, cached: 2000, cacheWrite: 50), "tokens (Anthropic): cache reads and writes count as input")
+    eq(AIClient.Usage.anthropic(["service_tier": "standard"]), nil, "tokens (Anthropic): no counts, no usage")
+    let openAI = AIClient.Usage.openAI(["prompt_tokens": 120, "completion_tokens": 7, "prompt_tokens_details": ["cached_tokens": 100]])
+    eq(openAI, AIClient.Usage(input: 120, output: 7, cached: 100), "tokens (OpenAI): cached tokens are part of the input")
+    eq(AIClient.Usage.openAI(["prompt_tokens": 30, "completion_tokens": 3, "prompt_cache_hit_tokens": 20])?.cached, 20, "tokens (DeepSeek): its cache hits")
+    eq(AIClient.Usage.openAI([:]), nil, "tokens (OpenAI): no counts, no usage")
+    eq(((anthropic ?? .init()) + (anthropic ?? .init())).output, 84, "tokens: an answer's requests add up")
+    eq(AIClient.Usage(input: 1234, output: 5).summary(locale: Locale(identifier: "en_US")), "1,234 in · 5 out", "tokens: no cache, not shown")
+    eq(AIClient.Usage(input: 1234, output: 5, cached: 900).summary(locale: Locale(identifier: "en_US")), "1,234 in · 5 out · 900 cached", "tokens: the summary")
+    check(AIClient.reportsStreamUsage(.openAI) && !AIClient.reportsStreamUsage(.custom) && !AIClient.reportsStreamUsage(.ollama),
+          "tokens: stream_options only to providers known to take it")
+}
+
+do {
+    let server = fakeServer(reply: sse([
+        #"{"type":"message_start","message":{"id":"m","type":"message","role":"assistant","content":[],"usage":{"input_tokens":12,"cache_read_input_tokens":3000,"cache_creation_input_tokens":40,"output_tokens":1}}}"#,
+        #"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+        #"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Sì."}}"#,
+        #"{"type":"content_block_stop","index":0}"#,
+        #"{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":25}}"#,
+        #"{"type":"message_stop"}"#,
+    ]))
+    var answer: AIClient.Result?
+    var failure: String?
+    Task { @MainActor in
+        do {
+            answer = try await AIClient.stream(provider: .anthropic, base: "http://127.0.0.1:\(server.port)/v1", key: "test",
+                                               model: "claude-haiku-5-5", transcript: [["role": "user", "content": "ok?"]],
+                                               tools: false, web: false, control: false,
+                                               onText: { _ in }, onServerTool: { _ in })
+        } catch { failure = error.localizedDescription }
+    }
+    let deadline = Date().addingTimeInterval(10)
+    while answer == nil && failure == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    check(failure == nil, "tokens (Anthropic stream): the request goes through", failure ?? "")
+    eq(answer?.usage, AIClient.Usage(input: 3052, output: 25, cached: 3000, cacheWrite: 40), "tokens (Anthropic stream): read from the start and the end")
+}
+
+do {
+    let server = fakeServer(reply: sse([
+        #"{"choices":[{"index":0,"delta":{"role":"assistant","content":"Ciao"}}],"usage":null}"#,
+        #"{"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":null}"#,
+        #"{"choices":[],"usage":{"prompt_tokens":200,"completion_tokens":9,"prompt_tokens_details":{"cached_tokens":128}}}"#,
+        "[DONE]",
+    ]))
+    var answer: AIClient.Result?
+    var failure: String?
+    Task { @MainActor in
+        do {
+            answer = try await AIClient.stream(provider: .openAI, base: "http://127.0.0.1:\(server.port)/v1", key: "test",
+                                               model: "gpt-5-mini", transcript: [["role": "user", "content": "ciao"]],
+                                               tools: false, web: false, control: false,
+                                               onText: { _ in }, onServerTool: { _ in })
+        } catch { failure = error.localizedDescription }
+    }
+    let deadline = Date().addingTimeInterval(10)
+    while answer == nil && failure == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    check(failure == nil, "tokens (OpenAI stream): the request goes through", failure ?? "")
+    eq(answer?.usage, AIClient.Usage(input: 200, output: 9, cached: 128), "tokens (OpenAI stream): read from the last chunk")
+    let sent = server.body().flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    eq((sent["stream_options"] as? [String: Any])?["include_usage"] as? Bool, true, "tokens (OpenAI stream): the counts are asked for")
+}
+
+do {
+    let server = fakeServer(reply: sse([
+        #"{"choices":[{"index":0,"delta":{"role":"assistant","content":"Ciao"}}]}"#,
+        #"{"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}"#,
+        "[DONE]",
+    ]))
+    var answer: AIClient.Result?
+    var failure: String?
+    Task { @MainActor in
+        do {
+            answer = try await AIClient.stream(provider: .custom, base: "http://127.0.0.1:\(server.port)/v1", key: nil,
+                                               model: "llama", transcript: [["role": "user", "content": "ciao"]],
+                                               tools: false, web: false, control: false,
+                                               onText: { _ in }, onServerTool: { _ in })
+        } catch { failure = error.localizedDescription }
+    }
+    let deadline = Date().addingTimeInterval(10)
+    while answer == nil && failure == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    check(failure == nil, "tokens (other servers): the request goes through", failure ?? "")
+    check(answer != nil && answer?.usage == nil, "tokens (other servers): no counts, nothing shown")
+    let sent = server.body().flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    check(sent["stream_options"] == nil, "tokens (other servers): stream_options isn't sent")
+}
+
+// MARK: The assistant reads PDFs and pages built by JavaScript
+
+do {
+    /// A PDF made here, one line of text per page (none when `lines` is empty for that page).
+    func makePDF(_ lines: [String]) -> Data {
+        let data = NSMutableData()
+        var box = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let ctx = CGContext(consumer: CGDataConsumer(data: data as CFMutableData)!, mediaBox: &box, nil)!
+        for line in lines {
+            ctx.beginPDFPage(nil)
+            if !line.isEmpty {
+                let attr = NSAttributedString(string: line, attributes: [.font: NSFont.systemFont(ofSize: 14)])
+                ctx.textPosition = CGPoint(x: 20, y: 150)
+                CTLineDraw(CTLineCreateWithAttributedString(attr), ctx)
+            }
+            ctx.endPDFPage()
+        }
+        ctx.closePDF()
+        return data as Data
+    }
+    let url = URL(string: "https://example.com/report.pdf")!
+    let pdf = makePDF(["First page about apples", "Second page about pears", "Third page about plums"])
+    let page = WebTools.pdfPage(pdf, url: url)
+    eq(page?.pageCount, 3, "pdf: page count")
+    eq(page?.pageStarts.count, 3, "pdf: every page is read")
+    check(page?.kind == .pdf, "pdf: marked as a PDF")
+    check(page.map { $0.text.contains("[Page 2]") && $0.text.contains("pears") && $0.text.contains("plums") } ?? false,
+          "pdf: each page's text, with its number", page?.text ?? "nil")
+    eq(page?.title, "report.pdf", "pdf: without a title, its file name")
+    if let page {
+        let whole = WebTools.format(page)
+        check(whole.contains("[PDF, 3 pages.]") && !whole.contains("cut"), "pdf: a whole PDF says how many pages", whole)
+        let cut = WebTools.pdfText(page, limit: page.pageStarts[1] + 5)
+        check(cut.contains("only up to page 2 of 3") && !cut.contains("plums"), "pdf: a cut PDF says which page it reaches", cut)
+        check(WebTools.pdfText(page, limit: 10).contains("only up to page 1 of 3"), "pdf: cut in the first page")
+        eq(AssistantChat.readOutcome(page), "PDF · 3 pages", "pdf: the read step says how many pages")
+    }
+    let scanned = WebTools.pdfPage(makePDF(["", ""]), url: url)
+    check(scanned.map { WebTools.format($0).contains("no text to read") } ?? false, "pdf: scans without text say so")
+    eq(WebTools.pdfPage(Data("not a pdf".utf8), url: url)?.pageCount, nil, "pdf: a damaged file can't be read")
+    check(WebTools.isPDF(type: "application/pdf", url: URL(string: "https://example.com/get?id=1")!), "pdf: by its type")
+    check(WebTools.isPDF(type: "application/octet-stream", url: url), "pdf: by its name when the type says nothing")
+    check(WebTools.isPDF(type: "", url: URL(string: "https://example.com/file")!, data: pdf), "pdf: by its first bytes")
+    check(!WebTools.isPDF(type: "text/html", url: url), "pdf: a web page named .pdf is a web page")
+
+    let script = "<script src=\"app.js\"></script>"
+    check(WebTools.needsRendering(text: "Loading…", html: "<html><body>\(script)<div id=app></div></body></html>"),
+          "rendering: almost no text with scripts")
+    check(!WebTools.needsRendering(text: "Short note.", html: "<html><body><p>Short note.</p></body></html>"),
+          "rendering: a short page without scripts is as it is")
+    let middling = String(repeating: "Some words in a page. ", count: 50)
+    check(WebTools.needsRendering(text: middling, html: "<body>\(script)<noscript>Please enable JavaScript to continue.</noscript></body>"),
+          "rendering: a page asking for JavaScript")
+    check(WebTools.needsRendering(text: middling + " Per favore attiva JavaScript.", html: "<body>\(script)</body>"),
+          "rendering: asking for JavaScript in Italian")
+    check(!WebTools.needsRendering(text: middling, html: "<body>\(script)</body>"), "rendering: enough text, no notice")
+    let article = String(repeating: "A long article about how to enable JavaScript in browsers. ", count: 80)
+    check(!WebTools.needsRendering(text: article, html: "<body>\(script)</body>"), "rendering: a long article that mentions JavaScript")
+
+    var rendered: WebTools.Page?, renderDone = false
+    let built = String(repeating: "Text the own script writes. ", count: 30)
+    Task { @MainActor in
+        rendered = await PageRenderer.render(html: "<html><head><title>App</title></head><body><div id=app></div><script>document.getElementById('app').innerText = '\(built)'</script></body></html>",
+                                             baseURL: URL(string: "https://example.com/app")!)
+        renderDone = true
+    }
+    let renderDeadline = Date().addingTimeInterval(20)
+    while !renderDone && Date() < renderDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    check(rendered?.kind == .rendered && rendered?.text.contains("own script writes") == true,
+          "rendering: reads the text a page's script wrote", rendered?.text ?? "nil")
+    eq(rendered.flatMap(AssistantChat.readOutcome), "Read with rendering", "rendering: the read step says so")
+    var refused: WebTools.Page? = WebTools.Page(url: url, title: "", text: "", links: []), refusedDone = false
+    Task { @MainActor in
+        refused = await PageRenderer.render(html: "<p>x</p>", baseURL: URL(string: "http://192.168.1.1/")!)
+        refusedDone = true
+    }
+    while !refusedDone { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    check(refused == nil, "rendering: private addresses aren't opened")
+}
+
+// MARK: Personal instructions and memory
+
+do {
+    let s = Settings.shared
+    let saved = (s.aiAboutMe, s.aiAnswerStyle, s.aiInstructionsInPrivate, s.aiMemory)
+    let realMemory = AssistantMemory.shared
+    let memFile = FileManager.default.temporaryDirectory.appendingPathComponent("tacet-memory-\(UUID().uuidString).json")
+    let memory = AssistantMemory(file: StoredFile(at: memFile))
+    AssistantMemory.shared = memory
+    defer {
+        (s.aiAboutMe, s.aiAnswerStyle, s.aiInstructionsInPrivate, s.aiMemory) = saved
+        AssistantMemory.shared = realMemory
+        try? FileManager.default.removeItem(at: memFile)
+    }
+    s.aiAboutMe = "I teach maths in Turin."; s.aiAnswerStyle = "Answer in Italian."
+    s.aiInstructionsInPrivate = false; s.aiMemory = false
+
+    let normal = AssistantPrompt.system(web: true, control: false)
+    check(normal.contains("<about_user>\nI teach maths in Turin.\n</about_user>") && normal.contains("<answer_style>\nAnswer in Italian."),
+          "instructions: both go in the prompt")
+    check(normal.contains("never over the rules about pages"), "instructions: labelled as preferences, below the safety rules")
+    let priv = AssistantPrompt.system(web: true, control: false, privateWindow: true)
+    check(!priv.contains("Turin") && !priv.contains("about_user"), "instructions: left out in private windows by default")
+    check(AssistantPrompt.system(web: true, control: false, quick: true).contains("Turin"), "instructions: the quick prompt has them too")
+    check(!AssistantPrompt.system(web: true, control: false, quick: true, privateWindow: true).contains("Turin"), "instructions: not in a private quick prompt")
+    check(AppleModel.instructions(control: false).contains("Turin"), "instructions: the Apple model has them")
+    check(!AppleModel.instructions(control: false, privateWindow: true).contains("Turin"), "instructions: not for the Apple model in private windows")
+    s.aiInstructionsInPrivate = true
+    check(AssistantPrompt.system(web: true, control: false, privateWindow: true).contains("Turin"), "instructions: in private windows when allowed")
+    s.aiInstructionsInPrivate = false
+    s.aiAboutMe = ""; s.aiAnswerStyle = ""
+    check(!AssistantPrompt.system(web: true, control: false).contains("personal instructions"), "instructions: nothing added when empty")
+    let long = String(repeating: "a", count: 5_000)
+    let longPart = AssistantPersonal.part(about: long, style: "", memories: nil)
+    check(longPart.count < AssistantPersonal.instructionLimit + 400, "instructions: a long text is cut", "\(longPart.count)")
+    check(AssistantPersonal.part(about: long, style: "", memories: nil, compact: true).count < AssistantPersonal.compactInstructionLimit + 400,
+          "instructions: cut much shorter for the Apple model")
+
+    // The store
+    let a = memory.add("  Prefers   trains\nto planes. ")
+    eq(a?.text, "Prefers trains to planes.", "memory: saved on one line, trimmed")
+    check(memory.add("prefers trains to planes.") == nil, "memory: the same fact isn't saved twice")
+    check(memory.add("   ") == nil, "memory: empty text isn't saved")
+    let b = memory.add("Has a dog called Olivia.")
+    eq(memory.items.map(\.text), ["Has a dog called Olivia.", "Prefers trains to planes."], "memory: newest first")
+    eq(AssistantMemory(file: StoredFile(at: memFile)).items.count, 2, "memory: written to its file at once")
+    memory.update(a!.id, text: "Prefers trains.")
+    eq(memory.items.last?.text, "Prefers trains.", "memory: edited")
+    memory.update(b!.id, text: " ")
+    eq(memory.items.map(\.text), ["Prefers trains."], "memory: emptied while editing, it's deleted")
+    memory.delete(a!.id)
+    check(memory.items.isEmpty, "memory: deleted")
+    eq(AssistantMemory(file: StoredFile(at: memFile)).items.count, 0, "memory: deletions reach the file")
+    eq(AssistantMemory.clean(String(repeating: "x", count: 1_000)).count, AssistantMemory.textLimit, "memory: a fact is cut to its limit")
+
+    // Saving needs the user's yes
+    func propose(_ fact: String, allowed: Bool, answer: Bool) -> (AssistantMemory.Proposal, Bool) {
+        var out: AssistantMemory.Proposal?
+        var asked = false
+        Task { @MainActor in out = await memory.propose(fact, allowed: allowed) { _ in asked = true; return answer } }
+        while out == nil { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        return (out!, asked)
+    }
+    let off = propose("Lives in Turin.", allowed: false, answer: true)
+    check(off == (.off, false) && memory.items.isEmpty, "memory: nothing asked or saved when memory is off")
+    let no = propose("Lives in Turin.", allowed: true, answer: false)
+    check(no == (.declined, true) && memory.items.isEmpty, "memory: the user is asked, and no means nothing is saved")
+    let yes = propose("Lives in Turin.", allowed: true, answer: true)
+    check(yes == (.saved, true) && memory.items.map(\.text) == ["Lives in Turin."], "memory: saved only after the user agrees")
+    let again = propose("lives in turin.", allowed: true, answer: true)
+    check(again == (.already, false), "memory: an already remembered fact isn't asked again")
+    check(propose(" ", allowed: true, answer: true) == (.empty, false), "memory: an empty fact isn't asked")
+
+    // Memory in the prompt and the tool
+    check(!AssistantPrompt.system(web: true, control: false).contains("Lives in Turin"), "memory: off by default, so not in the prompt")
+    check(!AssistantPrompt.clientTools(provider: .openAI, web: true, control: false).contains { $0.name == "remember" }, "memory: no remember tool while off")
+    s.aiMemory = true
+    let withMemory = AssistantPrompt.system(web: true, control: false)
+    check(withMemory.contains("<memories>\n- Lives in Turin.\n</memories>") && withMemory.contains("remember:"), "memory: in the prompt when on, with the tool explained")
+    check(AssistantPrompt.clientTools(provider: .anthropic, web: true, control: false).contains { $0.name == "remember" }, "memory: remember tool when on")
+    check(!AssistantPrompt.clientTools(provider: .openAI, web: true, control: false, privateWindow: true).contains { $0.name == "remember" }, "memory: no remember tool in private windows")
+    let privMemory = AssistantPrompt.system(web: true, control: false, privateWindow: true)
+    check(!privMemory.contains("Lives in Turin") && !privMemory.contains("remember:"), "memory: never in a private window's prompt")
+    s.aiInstructionsInPrivate = true
+    check(!AssistantPrompt.system(web: true, control: false, privateWindow: true).contains("Lives in Turin"), "memory: still out of private windows when instructions are allowed there")
+    let quickMemory = AssistantPrompt.system(web: true, control: false, quick: true)
+    check(quickMemory.contains("Lives in Turin") && !quickMemory.contains("remember:") && !quickMemory.contains("remember saves"),
+          "memory: the quick prompt knows the memories but has no remember tool")
+    check(AppleModel.tools(web: false, memory: true).contains { $0.name == "remember" } && AppleModel.instructions(control: false).contains("Lives in Turin"),
+          "memory: the Apple model gets the tool and the memories")
+    check(!AppleModel.instructions(control: false, privateWindow: true).contains("Lives in Turin"), "memory: not for the Apple model in private windows")
+    var lines: [String] = []
+    for i in 0..<100 { lines.append("Fact number \(i) about the user, long enough to take some room.") }
+    check(AssistantPersonal.memoryList(lines, limit: AssistantPersonal.memoryPromptLimit).count <= AssistantPersonal.memoryPromptLimit, "memory: the list stays within its limit")
+    check(AssistantPersonal.memoryList(lines, limit: 200).hasPrefix("- Fact number 0 "), "memory: the newest ones are kept first")
+
+    let tool = AssistantPersonal.rememberTool
+    let schema = AssistantPrompt.schema(tool)
+    check(JSONSerialization.isValidJSONObject(schema), "remember: valid schema")
+    eq(schema["required"] as? [String], ["fact"], "remember: needs the fact")
+    eq(((schema["properties"] as? [String: Any])?["fact"] as? [String: Any])?["type"] as? String, "string", "remember: the fact is a string")
+    check(tool.description.contains("decides whether to save"), "remember: the model knows the user confirms")
+}
+
+// MARK: Deep research run by the code, with a made-up model and web
+
+do {
+    func wait<T>(_ work: @escaping @MainActor () async -> T) -> T {
+        var out: T?
+        let sem = DispatchSemaphore(value: 0)
+        Task { @MainActor in out = await work(); sem.signal() }
+        while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        return out!
+    }
+
+    // The plan: kept to the limit, every sub-question searched, a plan that can't be read falls back to the question.
+    let plan = DeepResearch.parsePlan("""
+    Sure! ```json
+    {"subquestions":[{"question":"What is A?","searches":["a facts","a official"]},{"question":"What is B?","searches":[]},
+    {"question":"C?","searches":["c1","c2","c3"]},{"question":"D?","searches":["d"]}]}
+    ```
+    """, question: "Q", limit: 3)
+    eq(plan.count, 3, "research: plan kept to the depth's limit")
+    check(plan.allSatisfy { !$0.searches.isEmpty }, "research: no sub-question without a search")
+    eq(plan[1].searches, ["What is B?"], "research: a sub-question without searches is searched by its words")
+    eq(plan[2].searches.count, 2, "research: at most two searches per sub-question")
+    eq(DeepResearch.parsePlan("I can't do that", question: "What is X?", limit: 5), [DeepResearch.SubQuestion(question: "What is X?", searches: ["What is X?"])],
+       "research: an invalid plan falls back to the question itself")
+
+    // Choosing: valid picks only, once each, within the limit; without picks, one page per site first.
+    eq(DeepResearch.parsePicks(#"{"pick":[3,3,0,99,"2",1]}"#, count: 5, limit: 3), [2, 1, 0], "research: picks are valid, once each, within the limit")
+    let r = { (t: String, u: String) in WebTools.SearchResult(title: t, url: u, snippet: "") }
+    let found: [(sub: Int, results: [WebTools.SearchResult])] = [
+        (0, [r("a1", "https://a.com/1"), r("a2", "https://a.com/2"), r("b1", "https://www.b.org/1")]),
+        (1, [r("c1", "https://c.net/1"), r("a1 again", "https://a.com/1#top")]),
+    ]
+    let fallback = DeepResearch.fallbackChoice(found, limit: 3)
+    eq(fallback.map(\.url.absoluteString), ["https://a.com/1", "https://c.net/1", "https://www.b.org/1"], "research: fallback takes one page per site and every sub-question first")
+    eq(DeepResearch.candidates(found).count, 4, "research: the same page found twice is a candidate once")
+
+    // Notes: a quote that isn't in the page is dropped.
+    let page = "The bridge opened in 1937. It is 2,737 metres long, according to the city’s records."
+    let notes = DeepResearch.parseNotes(#"{"notes":[{"sub":1,"fact":"Opened 1937","quote":"The bridge opened in 1937."},{"sub":2,"fact":"Length","quote":"it is 2,737   metres long, according to the city's records"},{"sub":1,"fact":"Made up","quote":"The bridge was painted blue in 1990"}]}"#, page: page, subs: 2)
+    eq(notes.map(\.fact), ["Opened 1937", "Length"], "research: notes whose quote isn't in the page are dropped")
+    eq(notes.map(\.sub), [0, 1], "research: notes keep their sub-question")
+
+    // Checking: confirmed only with two different sites, decided by the code.
+    let n = { (id: Int, u: String) in DeepResearch.Note(id: id, sub: 0, fact: "f\(id)", quote: "q", url: URL(string: u)!, title: "") }
+    let all = [n(1, "https://a.com/x"), n(2, "https://www.a.com/y"), n(3, "https://b.com/z")]
+    let (claims, conflicts) = DeepResearch.parseCheck(#"{"claims":[{"claim":"same site twice","notes":[1,2]},{"claim":"two sites","notes":[1,3,42]}],"conflicts":[{"about":"x","notes":[2,3]}]}"#, notes: all)
+    eq(claims.map(\.confirmed), [false, true], "research: a claim is confirmed only by two different sites")
+    eq(claims[1].notes, [1, 3], "research: note numbers that don't exist are dropped")
+    eq(conflicts.count, 1, "research: conflicts kept")
+
+    // A whole research with a made-up web and model.
+    var prompts: [String] = []
+    var written = ""
+    let pages = (1...12).map { i in (URL(string: "https://site\(i).com/p")!, "Page \(i) says the answer is \(i * 10). Other text \(String(repeating: "x", count: 3_000)).") }
+    var running: Task<DeepResearch.Report, Never>?
+    func backend(cancelAfterReads: Int? = nil) -> DeepResearch.Backend {
+        var reads = 0
+        return DeepResearch.Backend(
+            search: { q in (pages.map { WebTools.SearchResult(title: "T", url: $0.0.absoluteString, snippet: q) }, "Test") },
+            read: { url, limit in
+                reads += 1
+                if let c = cancelAfterReads, reads > c { running?.cancel() }
+                let text = pages.first { $0.0 == url }!.1
+                return ("Title", String(text.prefix(limit)))
+            },
+            ask: { system, prompt in
+                prompts.append(prompt)
+                if system == DeepResearch.plannerSystem { return #"{"subquestions":[{"question":"S1","searches":["s1"]},{"question":"S2","searches":["s2"]}]}"# }
+                if system == DeepResearch.chooserSystem { return #"{"pick":[1,2,3,4,5,6,7,8,9,10,11,12]}"# }
+                if system == DeepResearch.noteSystem, let r = prompt.range(of: "Page "), let num = Int(prompt[r.upperBound...].prefix { $0.isNumber }) {
+                    return #"{"notes":[{"sub":1,"fact":"answer \#(num * 10)","quote":"Page \#(num) says the answer is \#(num * 10)."}]}"#
+                }
+                if system == DeepResearch.checkerSystem { return #"{"claims":[{"claim":"answer","notes":[1,2]}]}"# }
+                return "{}"
+            },
+            write: { system, prompt, onText in written = prompt; onText("Report"); return "Report" })
+    }
+    var events: [DeepResearch.Event] = []
+    let report = wait {
+        await DeepResearch(question: "Q?", depth: .standard, pageChars: 2_000, backend: backend()) { events.append($0) }.run { _ in }
+    }
+    eq(report.sources.count, ResearchDepth.standard.sources, "research: reads at most the depth's number of sources")
+    eq(report.notes.count, 8, "research: one note per page read")
+    check(!report.stopped && report.text == "Report", "research: a whole run writes the report")
+    check(written.contains("answer 10") && written.contains("Confirmed by at least two different sites"), "research: the writer gets the notes and what's confirmed")
+    check(!written.contains(String(repeating: "x", count: 200)), "research: the writer never gets whole pages, only notes")
+    check(prompts.filter { $0.contains("<page>") }.allSatisfy { $0.count < 2_000 + 1_000 }, "research: a page goes to the model in pieces sized for it")
+    let stages = events.compactMap { if case .stage(let s, _) = $0 { return s } else { return nil } }
+    eq(stages, [.planning, .searching, .reading, .verifying, .writing], "research: the timeline shows each stage in order")
+    check(events.contains { if case .progress(_, let t) = $0 { return t.contains("8") } else { return false } }, "research: progress counts the pages read")
+
+    // Stop: the task running the research is cancelled from outside, as the chat's Stop does.
+    let stopped = wait { () async -> DeepResearch.Report in
+        let t = Task { @MainActor in
+            await DeepResearch(question: "Q?", depth: .standard, pageChars: 2_000, backend: backend(cancelAfterReads: 5)).run { _ in }
+        }
+        running = t
+        return await t.value
+    }
+    check(stopped.stopped, "research: Stop in the middle returns what was found, marked as stopped")
+    check(stopped.text.contains(L("Research stopped. Here is what it had found so far.")), "research: the stopped report says so")
+    check(stopped.notes.count >= 1 && stopped.notes.count < 8, "research: notes found before Stop are kept", "\(stopped.notes.count)")
+
+    let quick = wait { await DeepResearch(question: "Q?", depth: .quick, pageChars: 2_000, backend: backend()).run { _ in } }
+    eq(quick.sources.count, 4, "research: a quick research reads about four sources")
+    eq(DeepResearch.pieces(String(repeating: "word. ", count: 1_000), size: 1_500, max: 2).count, 2, "research: pieces never go past their number")
+}
+
+// MARK: Research report export
+
+do {
+    let report = """
+    Prices rose 3% in 2025 ([Istat](https://www.istat.it/a_b?x=1&y=2)).
+
+    ### What changed
+    - Energy, **up** the most
+      - Gas in _winter_
+    - Food, see `a<b>`
+    1. First
+    2. Second
+
+    ### What's uncertain
+    <script>alert(1)</script> and [bad](javascript:alert(1)).
+    """
+    let sources: [(url: URL, title: String)] = [
+        (URL(string: "https://www.istat.it/a_b?x=1&y=2")!, "Istat"),
+        (URL(string: "https://example.com/page")!, "Example"),
+        (URL(string: "https://example.com/page/#top")!, "Example again"),
+        (URL(string: "https://www.istat.it/a_b?x=1&y=2")!, "Istat"),
+        (URL(string: "https://news.example.org/x")!, ""),
+    ]
+    let date = Date(timeIntervalSince1970: 1_780_000_000)
+    let md = ResearchExport.markdown(report: report, question: "How much did prices rise in Italy?", sources: sources, date: date)
+    check(md.hasPrefix("# How much did prices rise in Italy?\n"), "report export: the question is the title when the report has no heading of its own", md)
+    eq(ResearchExport.title(report: "## Inflation in Italy\n\nText", question: "q"), "Inflation in Italy", "report export: the first heading is the title")
+    check(!ResearchExport.markdown(report: "# Own title\n\nText", question: "q", sources: [], date: date).contains("# q"), "report export: no second title")
+    let sourcesPart = md.components(separatedBy: "## Sources").last ?? ""
+    check(md.components(separatedBy: "## Sources").count == 2, "report export: one Sources section")
+    check(md.range(of: "## Sources")!.lowerBound > md.range(of: "What's uncertain")!.lowerBound, "report export: sources after the report")
+    eq(sourcesPart.components(separatedBy: "istat.it").count - 1, 1, "report export: a source listed once")
+    eq(sourcesPart.components(separatedBy: "example.com/page").count - 1, 1, "report export: the same page with a fragment or slash listed once")
+    check(sourcesPart.contains("- [Istat](https://www.istat.it/a_b?x=1&y=2)\n") && sourcesPart.contains("- [news.example.org](https://news.example.org/x)\n"),
+          "report export: title and address of each source, the host when untitled", sourcesPart)
+
+    let html = ResearchExport.html(report: report, question: "Prices & <wages>?", sources: sources, date: date)
+    check(html.contains("<h1>Prices &amp; &lt;wages&gt;?</h1>") && html.contains("<title>Prices &amp; &lt;wages&gt;?</title>"), "report pdf: title escaped")
+    check(html.contains("<h3>What changed</h3>") && html.contains("<h3>What's uncertain</h3>"), "report pdf: headings")
+    check(html.contains("<a href=\"https://www.istat.it/a_b?x=1&amp;y=2\">Istat</a>"), "report pdf: link with its address escaped, underscore kept", html)
+    check(html.contains("<ul>\n<li>Energy, <strong>up</strong> the most<ul>\n<li>Gas in <em>winter</em></li></ul></li>\n<li>Food, see <code>a&lt;b&gt;</code>"),
+          "report pdf: nested bullets, bold, italics and code", html)
+    check(html.contains("<ol>\n<li value=\"1\">First</li>\n<li value=\"2\">Second</li></ol>"), "report pdf: numbered list", html)
+    check(!html.contains("<script>") && html.contains("&lt;script&gt;"), "report pdf: HTML in the report is escaped")
+    check(!html.contains("javascript:") && html.contains("and bad."), "report pdf: only web links are links", html)
+    check(html.contains("<section class=\"sources\"><h2>Sources</h2>") && html.components(separatedBy: "<span class=\"url\">").count - 1 == 3,
+          "report pdf: sources once each, with their address written out")
+    eq(ResearchExport.inline("a_b_c and snake_case_name"), "a_b_c and snake_case_name", "report pdf: underscores inside words stay")
+    eq(ResearchExport.inline("[Wiki](https://en.wikipedia.org/wiki/Rome_(city))"), "<a href=\"https://en.wikipedia.org/wiki/Rome_(city)\">Wiki</a>",
+       "report pdf: an address with parentheses")
+
+    // A long report, printed for real in a hidden web view, fills more than one page.
+    var long = "# A long report\n\n"
+    for i in 1...40 { long += "### Part \(i)\n\nSome findings about part \(i), with a [source](https://example.com/\(i)) and enough words to fill a line or two of the page.\n\n- One point\n- Another point\n\n" }
+    var pdfData: Data?, pdfDone = false
+    Task { @MainActor in
+        ResearchExport.pdf(html: ResearchExport.html(report: long, question: nil, sources: sources, date: date), paper: NSSize(width: 595.28, height: 841.89)) {
+            pdfData = $0; pdfDone = true
+        }
+    }
+    let pdfDeadline = Date().addingTimeInterval(30)
+    while !pdfDone && Date() < pdfDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    let pages = pdfData.flatMap { CGDataProvider(data: $0 as CFData) }.flatMap { CGPDFDocument($0) }
+    check(pdfData.map { $0.starts(with: Array("%PDF".utf8)) } ?? false, "report pdf: a PDF is written")
+    check((pages?.numberOfPages ?? 0) > 1, "report pdf: a long report is paginated", "\(pages?.numberOfPages ?? 0) pages")
+    if let box = pages?.page(at: 1)?.getBoxRect(.mediaBox) { check(abs(box.width - 595.28) < 1 && abs(box.height - 841.89) < 1, "report pdf: A4 pages", "\(box)") }
+}
+
+// MARK: Diagnostics
+
+do {
+    let sites = [
+        ("https://www.bbc.co.uk/news/article-123?id=42&token=secret#top", "bbc.co.uk"),
+        ("https://user:pass@mail.example.com:8443/inbox/private.pdf?q=me", "example.com"),
+        ("http://192.168.1.10/admin?x=1", "192.168.1.10"),
+        ("file:///Users/someone/Documents/taxes.pdf", "file"),
+        ("data:text/html,<b>secret</b>", "data"),
+    ]
+    for (s, want) in sites {
+        let got = Diagnostics.site(URL(string: s))
+        eq(got, want, "diagnostics: site of \(s)")
+        check(!got.contains("/") && !got.contains("?") && !got.contains("secret") && !got.contains("pass"),
+              "diagnostics: site has no path, query or credentials", got)
+    }
+    eq(Diagnostics.site(nil), "-", "diagnostics: no address")
+    let pdf = Diagnostics.file("Bank statement March.pdf", size: 1_200_000)
+    check(pdf.hasPrefix("pdf ") && !pdf.contains("Bank"), "diagnostics: a file shows only its type and size", pdf)
+    eq(Diagnostics.file("notes.my-private-project"), "other", "diagnostics: an odd extension is hidden")
+    eq(Diagnostics.code(NSError(domain: NSURLErrorDomain, code: -1001, userInfo: [NSURLErrorFailingURLStringErrorKey: "https://x.com/a?b"])),
+       "NSURLErrorDomain -1001", "diagnostics: errors only by domain and code")
+
+    let ring = LogRing(capacity: 5)
+    for i in 1...12 { ring.append("event \(i)") }
+    eq(ring.lines.count, 5, "diagnostics: the log keeps only its capacity")
+    check(ring.lines.first?.hasSuffix("event 8") == true && ring.lines.last?.hasSuffix("event 12") == true,
+          "diagnostics: the oldest lines go first", "\(ring.lines)")
+    let one = LogRing(capacity: 300)
+    one.append("one", at: Date(timeIntervalSince1970: 0))
+    check(one.lines.count == 1 && one.lines[0].range(of: #"^\d{4}-\d\d-\d\d \d\d:\d\d:00\.000 one$"#, options: .regularExpression) != nil,
+          "diagnostics: lines carry their time", "\(one.lines)")
+    eq(Diagnostics.recent.capacity, 300, "diagnostics: the app keeps 300 lines")
+
+    let report = Diagnostics.report(["2026-01-01 00:00:00.000 [downloads] started example.com"])
+    let head = report.components(separatedBy: "\n")
+    check(head.count >= 4 && head[0] == "Tacet \(UpdateChecker.currentVersion)" && head[1].hasPrefix("macOS ")
+          && head[2].hasPrefix("Architecture: "), "diagnostics: the log starts with version, macOS and architecture", report)
+    check(report.hasSuffix("[downloads] started example.com"), "diagnostics: the events follow the header", report)
+    Diagnostics.log(.downloads, "test event", site: URL(string: "https://www.example.com/secret/path?q=1"))
+    check(Diagnostics.recent.lines.last?.hasSuffix("[downloads] test event example.com") == true,
+          "diagnostics: events go to the in-memory log", Diagnostics.recent.lines.last ?? "nil")
+}
+
+// MARK: "Site not working?" turns Shield off for now (a list of its own, so your allowlist isn't touched)
+
+do {
+    var trial = ShieldExceptions()
+    check(trial.add("www.Example.com"), "shield trial: a site is added")
+    check(!trial.add("example.com"), "shield trial: the same site isn't added twice")
+    eq(trial.sites, ["example.com"], "shield trial: kept as the allowlist keeps it")
+    check(trial.covers("example.com") && trial.covers("shop.example.com") && trial.covers("WWW.example.com"), "shield trial: off on the site and its subdomains")
+    check(!trial.covers("notexample.com") && !trial.covers("example.org") && !trial.covers(nil), "shield trial: other sites keep Shield")
+    let allowlist = ["news.site"]
+    eq(trial.keep("shop.example.com", in: allowlist), ["example.com", "news.site"], "shield trial: Keep Off moves the site into the allowlist")
+    check(!trial.covers("example.com") && trial.sites.isEmpty, "shield trial: kept sites leave the list for now")
+    eq(trial.keep("other.com", in: allowlist), allowlist, "shield trial: Keep Off with nothing for now leaves the allowlist alone")
+    trial.add("a.com"); trial.add("b.com")
+    eq(trial.remove("www.a.com"), ["a.com"], "shield trial: Turn Shield Back On ends the exception")
+    check(!trial.covers("a.com") && trial.covers("b.com"), "shield trial: only that site gets Shield back")
+    eq(trial.remove("c.com"), [], "shield trial: nothing to end on another site")
+    check(ShieldExceptions.covers(["example.com"], "x.example.com") && !ShieldExceptions.covers(["example.com"], "xexample.com"),
+          "shield trial: the allowlist's own match")
+}
+
+// MARK: A proxy for each profile
+
+do {
+    eq(ProfileProxy(kind: .socks5, host: "proxy.example.com", port: 1080).isValid, true, "proxy: SOCKS5 host and port")
+    eq(ProfileProxy(kind: .httpConnect, host: " 10.0.0.2 ", port: 65535).address, "10.0.0.2:65535", "proxy: host trimmed, top port")
+    eq(ProfileProxy(kind: .socks5, host: "[::1]", port: 9050).address, "[::1]:9050", "proxy: IPv6 shown in brackets")
+    eq(ProfileProxy(kind: .socks5, host: "proxy.example.com", port: 0).isValid, false, "proxy: port 0 is off")
+    eq(ProfileProxy(kind: .socks5, host: "proxy.example.com", port: 65536).isValid, false, "proxy: port above 65535 is off")
+    eq(ProfileProxy(kind: .socks5, host: "  ", port: 1080).isValid, false, "proxy: empty host is off")
+    eq(ProfileProxy(kind: .socks5, host: "a b", port: 1080).isValid, false, "proxy: host with a space is off")
+    eq(ProfileProxy(kind: .none, host: "proxy.example.com", port: 1080).address, nil, "proxy: kind none is off")
+    eq(ProfileProxy(kind: .socks5, host: "proxy.example.com", port: 1080).configurations.count, 1, "proxy: one SOCKS5 configuration")
+    eq(ProfileProxy(kind: .httpConnect, host: "proxy.example.com", port: 8080).configurations.count, 1, "proxy: one HTTP CONNECT configuration")
+    eq(ProfileProxy(kind: .httpConnect, host: "", port: 8080).configurations.count, 0, "proxy: invalid means a direct connection")
+
+    // Profiles saved before proxies existed still read, and so do kinds from a newer Tacet.
+    let old = #"[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"Work","color":2}]"#
+    let profiles = try? JSONDecoder().decode([Profile].self, from: Data(old.utf8))
+    eq(profiles?.first?.name, "Work", "proxy: old profile still reads")
+    eq(profiles?.first?.proxy, nil, "proxy: old profile has no proxy")
+    let newer = #"[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"Work","color":2,"proxy":{"kind":"quic","host":"h","port":1}}]"#
+    let read = try? JSONDecoder().decode([Profile].self, from: Data(newer.utf8))
+    eq(read?.first?.proxy?.kind, ProfileProxy.Kind.none, "proxy: unknown kind reads as none")
+    let saved = Profile(name: "Home", proxy: ProfileProxy(kind: .socks5, host: "127.0.0.1", port: 9050))
+    let again = (try? JSONEncoder().encode([saved])).flatMap { try? JSONDecoder().decode([Profile].self, from: $0) }
+    eq(again?.first?.proxy, saved.proxy, "proxy: saved and read back")
+
+    // Private windows' stores never get a proxy.
+    let privateStore = WKWebsiteDataStore.nonPersistent()
+    check(!ProfileProxies.apply(saved.proxy, to: privateStore), "proxy: refused for a private store")
+    eq(privateStore.proxyConfigurations.count, 0, "proxy: private store stays direct")
 }
 
 print("\(passed) passed, \(failures) failed")

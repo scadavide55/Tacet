@@ -40,6 +40,8 @@ final class BrowserState {
             if selectedID != oldValue, preview != nil { closePreview() }
             if selectedID != oldValue, let t = current {
                 ExtensionEvents.activated(t, previous: oldValue.flatMap { id in tabs.first { $0.id == id } })
+                // A dialog the page showed while in the background, once its page is in the window.
+                if t.dialogWaiting { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { t.showWaitingDialog() } }
             }
         }
     }
@@ -60,6 +62,10 @@ final class BrowserState {
     var showInstallApp = false
     /// The Customize Site panel for the current tab's site.
     var customizingSite = false
+    /// Asks the address bar to open Site Information.
+    var showSiteInfo = false
+    /// Asks the sidebar to take the keyboard, for moving through the tabs with the arrow keys.
+    var focusTabList = false
     var assistantVisible = false { didSet { if !assistantVisible { assistantExpanded = false } } }
     /// The assistant fills the window, as a chat app.
     var assistantExpanded = false
@@ -74,6 +80,9 @@ final class BrowserState {
 
     /// Closed tabs to reopen, newest last; tabs closed together (other tabs, a group) share a batch and come back together.
     private(set) var closedTabs: [(snapshot: TabSnapshot, index: Int, batch: Int)] = []
+    /// Several tabs just closed at once: the toast that offers to bring them back, until it times out.
+    private(set) var closedToast: (count: Int, batch: Int)?
+    @ObservationIgnored private var toastTimer: DispatchWorkItem?
     @ObservationIgnored private var closingBatch: Int?
     @ObservationIgnored private var batches = 0
     @ObservationIgnored private var lastOpened: (opener: UUID, tab: UUID)?
@@ -102,6 +111,7 @@ final class BrowserState {
         let profile = pid.flatMap { id in Settings.shared.profiles.first { $0.id == id } }
         self.profileID = profile?.id
         dataStore = isPrivate ? .nonPersistent() : profile.map { WKWebsiteDataStore(forIdentifier: $0.id) } ?? .default()
+        if let profile, !isPrivate { ProfileProxies.prepare(profile, store: dataStore) }
         sidebarVisible = Settings.shared.sidebarVisible
         WindowRegistry.shared.add(self)
         ExtensionEvents.openedWindow(self)
@@ -454,9 +464,36 @@ final class BrowserState {
     /// Closes several tabs as one batch, which ⇧⌘T brings back whole.
     func closingTogether(_ body: () -> Void) {
         batches += 1
-        closingBatch = batches
+        let batch = batches
+        closingBatch = batch
         body()
         closingBatch = nil
+        let count = closedTabs.filter { $0.batch == batch }.count
+        if count >= 2 { showClosedToast(count: count, batch: batch) }
+    }
+
+    /// "4 tabs closed · Undo", for a few seconds.
+    private func showClosedToast(count: Int, batch: Int) {
+        closedToast = (count, batch)
+        toastTimer?.cancel()
+        let timer = DispatchWorkItem { [weak self] in
+            guard let self, self.closedToast?.batch == batch else { return }
+            self.closedToast = nil
+        }
+        toastTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: timer)
+    }
+
+    func dismissClosedToast() {
+        toastTimer?.cancel()
+        closedToast = nil
+    }
+
+    /// The toast's Undo: the tabs it was about come back in their places, if they're still the last closed.
+    func undoClosedTabs() {
+        guard let batch = closedToast?.batch else { return }
+        dismissClosedToast()
+        if closedTabs.last?.batch == batch { reopenLastClosed() }
     }
 
     func closeOthers(_ keep: Tab) {
@@ -466,9 +503,11 @@ final class BrowserState {
     /// Closes tabs showing the same address as an earlier tab, keeping the selected and pinned ones.
     func closeDuplicates() {
         var seen = Set<String>()
-        for t in tabs.sorted(by: { ($0.isPinned || $0.id == selectedID ? 0 : 1) < ($1.isPinned || $1.id == selectedID ? 0 : 1) }) {
-            guard let key = t.url?.absoluteString else { continue }
-            if seen.contains(key), !t.isPinned, t.id != selectedID { close(t) } else { seen.insert(key) }
+        closingTogether {
+            for t in tabs.sorted(by: { ($0.isPinned || $0.id == selectedID ? 0 : 1) < ($1.isPinned || $1.id == selectedID ? 0 : 1) }) {
+                guard let key = t.url?.absoluteString else { continue }
+                if seen.contains(key), !t.isPinned, t.id != selectedID { close(t) } else { seen.insert(key) }
+            }
         }
     }
 
@@ -750,7 +789,7 @@ final class BrowserState {
         let days = Settings.shared.autoCloseDays
         if days > 0 {
             let old = Date().addingTimeInterval(-Double(days) * 86_400)
-            for t in tabs where !t.isPinned && !t.isSelected && !t.isPlayingAudio && t.lastActive < old { close(t) }
+            for t in tabs where !t.isPinned && !t.isSelected && !t.isPlayingAudio && !t.isCapturing && t.lastActive < old { close(t) }
         }
         var minutes = Double(Settings.shared.hibernateMinutes)
         guard minutes > 0 else { return }
@@ -759,10 +798,10 @@ final class BrowserState {
         hibernate(idleFor: minutes * 60)
     }
 
-    /// Hibernates background tabs unused for `seconds`, except ones playing sound.
+    /// Hibernates background tabs unused for `seconds`, except ones playing sound or using the camera or microphone.
     func hibernate(idleFor seconds: TimeInterval) {
         let cutoff = Date().addingTimeInterval(-seconds)
-        for t in tabs where !t.isSelected && !t.isHibernated && !t.isPlayingAudio && t.lastActive <= cutoff {
+        for t in tabs where !t.isSelected && !t.isHibernated && !t.isPlayingAudio && !t.isCapturing && t.lastActive <= cutoff {
             t.hibernate()
         }
     }

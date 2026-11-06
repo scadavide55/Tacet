@@ -1,0 +1,17 @@
+# Runs Tacet's tests and an arm64 build on every push and pull request. Without the "Tacet Developer" certificate,
+# build.sh signs the app ad hoc, which is enough to check that everything compiles.
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests (translations and logic)
+        run: sh tools/test.sh
+      - name: Build (arm64)
+        run: ARCHS=arm64 ./build.sh

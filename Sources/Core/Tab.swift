@@ -25,6 +25,30 @@ final class Tab: NSObject, Identifiable {
     var groupID: UUID?
     var isPlayingAudio = false
     var isMuted = false
+    /// The page is using the camera or the microphone (paused counts too: a call on mute is still a call), so it's
+    /// never put to sleep or closed by itself, and its tab shows it.
+    var isCapturing = false
+    var cameraOn = false
+    var microphoneOn = false
+    /// The camera is in use, live or paused.
+    var cameraInUse = false
+    /// A dialog from the page is waiting for this tab to come to the front.
+    var dialogWaiting = false
+    /// The page's alert, confirm and prompt dialogs, one at a time on its own window.
+    @ObservationIgnored lazy var dialogs: PageDialogs = {
+        let d = PageDialogs()
+        d.host = { [weak self] in
+            guard let self, self.isSelected, let w = self.webView?.window, w.isVisible else { return nil }
+            return w
+        }
+        d.onWaiting = { [weak self] waiting in
+            if self?.dialogWaiting != waiting { self?.dialogWaiting = waiting }
+        }
+        return d
+    }()
+    /// Frames that reported playing sound, by the id each frame's media script picked, so sound in an embedded
+    /// player (a YouTube or Spotify embed) shows on the tab and is muted with it.
+    @ObservationIgnored var mediaFrames: [String: (frame: WKFrameInfo?, playing: Bool)] = [:]
     var hoverURL: String?
     var isReader = false
     var isSecure = false
@@ -41,8 +65,14 @@ final class Tab: NSObject, Identifiable {
     @ObservationIgnored var hoveredHighlight: UUID?
     /// A site asked for a passkey, which Tacet can't use yet: the banner that offers Safari instead.
     var passkeyHelp: PasskeyHelp?
+    /// A pop-up the page tried to open without a click, which was blocked.
+    var blockedPopup: URL?
+    /// Shield was turned off here from "Site not working?": the banner asks whether to keep it off.
+    var askKeepShieldOff = false
     /// Picking elements on the page to hide.
     var pickingElements = false
+    /// Waiting for a click on the element to take a screenshot of.
+    var pickingScreenshot = false
     /// Developer Mode: the screen size the page is shown at (Responsive Design Mode), and turned sideways.
     var device: DevDevice?
     var deviceLandscape = false
@@ -58,7 +88,7 @@ final class Tab: NSObject, Identifiable {
         didSet { lastLookImage = lastLook.flatMap { NSImage(data: $0.jpeg) } }
     }
     @ObservationIgnored private var lastLookImage: NSImage?
-    @ObservationIgnored private var waking = false
+    @ObservationIgnored var waking = false
     /// Page translation: in progress, done (from which language), or why it couldn't be.
     var translating = false
     var translatedFrom: String?
@@ -71,24 +101,31 @@ final class Tab: NSObject, Identifiable {
     var previewImage: NSImage? { isSelected ? nil : lastLookImage }
 
     @ObservationIgnored private var restoreState: Data?
-    @ObservationIgnored private var pendingURL: URL?
+    @ObservationIgnored var pendingURL: URL?
     @ObservationIgnored private var observers: [NSKeyValueObservation] = []
     @ObservationIgnored private var tokens: [NSObjectProtocol] = []
     @ObservationIgnored private var appliedLists: String?
-    @ObservationIgnored private var upgrade: (host: String, original: URL, at: Date)?
-    @ObservationIgnored private var internalLoad = false
-    @ObservationIgnored private var internalNavigation: WKNavigation?
+    @ObservationIgnored var upgrade: (host: String, original: URL, at: Date)?
+    @ObservationIgnored var internalLoad = false
+    @ObservationIgnored var internalNavigation: WKNavigation?
     @ObservationIgnored private var readerOrigin: URL?
-    @ObservationIgnored private var faviconHost: String?
+    @ObservationIgnored var faviconHost: String?
+    /// The page loading was typed or chosen in the command bar: its visit counts as typed in the history, which ranks
+    /// it above pages only reached by links.
+    @ObservationIgnored var typedLoad = false
     /// Pull to refresh state, kept apart so that only the indicator redraws while you pull.
     let pull = PullToRefresh()
     /// Loading progress, kept apart so that only the progress line redraws while a page loads.
     let load = LoadProgress()
-    @ObservationIgnored private var mediaPermissions: [String: Bool] = [:]
-    @ObservationIgnored private var rememberedUser: (host: String, name: String, at: Date)?
-    @ObservationIgnored private var lastCrash: Date?
+    @ObservationIgnored var mediaPermissions: [String: Bool] = [:]
+    /// What the file field just clicked accepts, and when: the next open panel offers only those files.
+    @ObservationIgnored var fileAccept: (value: String, at: Date)?
+    @ObservationIgnored var rememberedUser: (host: String, name: String, at: Date)?
+    /// The embedded frame whose sign-in field asked for the login menu, and its host.
+    @ObservationIgnored var loginFrame: (frame: WKFrameInfo, host: String)?
+    @ObservationIgnored var lastCrash: Date?
     /// The error page shows because the Mac was offline: it loads again by itself once the network is back.
-    @ObservationIgnored private(set) var failedOffline = false
+    @ObservationIgnored var failedOffline = false
 
     /// Saved accounts shown under a focused sign-in field, in page-view coordinates.
     struct LoginMenu: Equatable {
@@ -115,7 +152,7 @@ final class Tab: NSObject, Identifiable {
     var isSelected: Bool { browser?.selectedID == id || browser?.splitID == id }
     var isPrivate: Bool { browser?.isPrivate ?? false }
     var host: String? { url?.host?.lowercased() }
-    var shieldsUp: Bool { Settings.shared.adBlock && !Settings.shared.isAllowlisted(host) }
+    var shieldsUp: Bool { Settings.shared.adBlock && !Settings.shared.isShieldOff(host) }
     var isStartPage: Bool { url == nil && failedURL == nil && !isLoading }
 
     init(browser: BrowserState, url: URL? = nil, title: String? = nil, state: Data? = nil, pinned: Bool = false) {
@@ -152,7 +189,9 @@ final class Tab: NSObject, Identifiable {
         c.preferences.isElementFullscreenEnabled = true
         c.preferences.isFraudulentWebsiteWarningEnabled = true
         c.preferences.javaScriptCanOpenWindowsAutomatically = false
-        // Inspect Element in the right-click menu, and the Web Inspector from the Develop menu.
+        // Inspect Element in the right-click menu, and the Web Inspector from the Develop menu. The public
+        // isInspectable (set in DevTools.apply) only lets Safari's Develop menu attach from outside; the inspector
+        // inside Tacet's own window and its right-click item still need this key, which has no public form.
         c.preferences.setValue(Settings.shared.developer, forKey: "developerExtrasEnabled")
         c.allowsAirPlayForMediaPlayback = true
         c.mediaTypesRequiringUserActionForPlayback = Settings.shared.blockAutoplay ? .audio : []
@@ -241,6 +280,8 @@ final class Tab: NSObject, Identifiable {
                 if self?.isSecure != w.hasOnlySecureContent { self?.isSecure = w.hasOnlySecureContent }
             },
             wv.observe(\.themeColor) { [weak self] w, _ in if self?.themeColor != w.themeColor { self?.themeColor = w.themeColor } },
+            wv.observe(\.cameraCaptureState) { [weak self] _, _ in self?.captureChanged() },
+            wv.observe(\.microphoneCaptureState) { [weak self] _, _ in self?.captureChanged() },
         ]
         webView = wv
     }
@@ -265,7 +306,7 @@ final class Tab: NSObject, Identifiable {
 
     /// The page has loaded after waking: puts it back where it was scrolled to if it didn't do that itself,
     /// then lets the picture fade.
-    private func finishWaking(restoreScroll: Bool) {
+    func finishWaking(restoreScroll: Bool) {
         guard waking else { return }
         waking = false
         if restoreScroll, let wv = webView, let y = lastLook?.scroll.y, y > 40 {
@@ -291,6 +332,8 @@ final class Tab: NSObject, Identifiable {
     }
 
     private func tearDown() {
+        // WebKit needs an answer to every dialog before the page goes.
+        dialogs.reset()
         observers = []
         webView?.stopLoading()
         webView?.navigationDelegate = nil
@@ -301,7 +344,49 @@ final class Tab: NSObject, Identifiable {
         isLoading = false
         load.value = 0
         isPlayingAudio = false
+        mediaFrames = [:]
+        if isCapturing { isCapturing = false; cameraOn = false; microphoneOn = false }
         hoverURL = nil
+    }
+
+    private func captureChanged() {
+        guard let wv = webView else { return }
+        let camera = wv.cameraCaptureState, mic = wv.microphoneCaptureState
+        let capturing = camera != .none || mic != .none
+        if isCapturing != capturing { isCapturing = capturing }
+        if cameraOn != (camera == .active) { cameraOn = camera == .active }
+        if microphoneOn != (mic == .active) { microphoneOn = mic == .active }
+        if cameraInUse != (camera != .none) { cameraInUse = camera != .none }
+    }
+
+    /// Pauses the camera and microphone, or turns them back on, as the red indicator on the tab is clicked.
+    func toggleCapture() {
+        guard let wv = webView else { return }
+        let resume = !cameraOn && !microphoneOn
+        if wv.cameraCaptureState != .none { wv.setCameraCaptureState(resume ? .active : .muted) }
+        if wv.microphoneCaptureState != .none { wv.setMicrophoneCaptureState(resume ? .active : .muted) }
+    }
+
+    /// Ends the page's use of the camera and microphone.
+    func stopCapture() {
+        webView?.setCameraCaptureState(.none)
+        webView?.setMicrophoneCaptureState(.none)
+    }
+
+    /// A dialog that was waiting for the tab shows once it's in front.
+    func showWaitingDialog() {
+        dialogs.showNext()
+    }
+
+    /// Sound started or stopped in one of the page's frames.
+    func frameMedia(id: String, frame: WKFrameInfo, playing: Bool) {
+        mediaFrames[id] = (frame.isMainFrame ? nil : frame, playing)
+        // A frame that starts playing in a muted tab is muted at once.
+        if playing, isMuted {
+            webView?.evaluateJavaScript("window.__lumenSetMuted && window.__lumenSetMuted(true)", in: frame.isMainFrame ? nil : frame, in: .defaultClient)
+        }
+        let any = mediaFrames.values.contains { $0.playing }
+        if isPlayingAudio != any { isPlayingAudio = any }
     }
 
     func snapshot() -> TabSnapshot {
@@ -366,7 +451,10 @@ final class Tab: NSObject, Identifiable {
 
     func setMuted(_ muted: Bool) {
         isMuted = muted
-        webView?.evaluateJavaScript("window.__lumenSetMuted && window.__lumenSetMuted(\(muted))", in: nil, in: .defaultClient)
+        let js = "window.__lumenSetMuted && window.__lumenSetMuted(\(muted))"
+        webView?.evaluateJavaScript(js, in: nil, in: .defaultClient)
+        // Embedded players too; a frame that has gone since just doesn't answer.
+        for case let frame? in mediaFrames.values.map(\.frame) { webView?.evaluateJavaScript(js, in: frame, in: .defaultClient) }
     }
 
     /// Throws the web view away and makes a new one for the same address, with the right settings for it.
@@ -422,11 +510,12 @@ final class Tab: NSObject, Identifiable {
 
     /// Lets the user click elements on the page to hide them on this site; Esc or `stopPickingElements` ends it.
     func startPickingElements() {
-        guard let wv = webView, url != nil, !isReader, !pickingElements else { return }
+        guard let wv = webView, url != nil, !isReader, !pickingElements, !pickingScreenshot else { return }
         pickingElements = true
         let tip = L("Click what you want to hide on this site · ↑ for a bigger block · Esc when you're done")
         let data = (try? JSONSerialization.data(withJSONObject: [tip])).map { String(decoding: $0, as: UTF8.self) } ?? "[\"\"]"
-        wv.evaluateJavaScript(Scripts.picker.replacingOccurrences(of: "__TIP__", with: data + "[0]"), in: nil, in: .defaultClient)
+        wv.evaluateJavaScript(Scripts.picker.replacingOccurrences(of: "__TIP__", with: data + "[0]").replacingOccurrences(of: "__SHOT__", with: "false"),
+                              in: nil, in: .defaultClient)
         wv.window?.makeFirstResponder(wv)
     }
 
@@ -468,13 +557,69 @@ final class Tab: NSObject, Identifiable {
         Settings.shared.siteZoom = map
     }
 
-    func find(_ text: String, backwards: Bool, done: @escaping (Bool) -> Void) {
-        guard let wv = webView, !text.isEmpty else { done(true); return }
-        let c = WKFindConfiguration()
-        c.backwards = backwards
-        c.caseSensitive = false
-        c.wraps = true
-        wv.find(text, configuration: c) { done($0.matchFound) }
+    struct FindResult: Equatable {
+        var found: Bool
+        /// Which match is selected (from 1) and how many the page has; 0 when they can't be counted.
+        var index = 0
+        var total = 0
+    }
+
+    /// Finds `text` on the page. `refine` searches again from the start of the current match, so typing another
+    /// letter narrows it instead of jumping to the next one. Whole words are found by Tacet's own script, since
+    /// WebKit's search has no such option; then every match is counted and highlighted.
+    func find(_ text: String, backwards: Bool, caseSensitive: Bool = false, wholeWord: Bool = false, refine: Bool = false,
+              done: @escaping (FindResult) -> Void) {
+        guard let wv = webView, !text.isEmpty else { clearFindHighlights(); done(FindResult(found: true)); return }
+        let args: [String: Any] = ["q": text, "cs": caseSensitive, "ww": wholeWord, "mode": wholeWord ? (backwards ? "prev" : "next") : "count",
+                                   "refine": refine]
+        let count = { [weak wv] in
+            wv?.callAsyncJavaScript(Scripts.find, arguments: args, in: nil, in: .defaultClient) { result in
+                let r = (try? result.get()) as? [String: Any]
+                let total = (r?["total"] as? Int) ?? 0, index = (r?["index"] as? Int) ?? 0
+                done(FindResult(found: total > 0, index: index, total: total))
+            }
+        }
+        if wholeWord { count(); return }
+        let start = refine ? "const s = getSelection(); if (s.rangeCount) s.collapseToStart();" : ""
+        wv.evaluateJavaScript(start, in: nil, in: .defaultClient) { _ in
+            let c = WKFindConfiguration()
+            c.backwards = backwards
+            c.caseSensitive = caseSensitive
+            c.wraps = true
+            wv.find(text, configuration: c) { r in
+                guard r.matchFound else { self.clearFindHighlights(); done(FindResult(found: false)); return }
+                count()
+            }
+        }
+    }
+
+    /// Opens the blocked pop-up in a new tab.
+    func openBlockedPopup() {
+        guard let target = blockedPopup else { return }
+        blockedPopup = nil
+        if target.scheme != "about" { browser?.newTab(url: target) }
+    }
+
+    /// Lets this site open pop-ups from now on, and opens the one that was blocked.
+    func allowPopups() {
+        guard let host else { return }
+        let site = PasswordStore.site(host)
+        if !Settings.shared.popupSites.contains(site) { Settings.shared.popupSites.append(site) }
+        webView?.configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
+        openBlockedPopup()
+    }
+
+    func clearFindHighlights() {
+        webView?.evaluateJavaScript("if (window.CSS && CSS.highlights) CSS.highlights.delete('tacet-find')", in: nil, in: .defaultClient)
+    }
+
+    /// The selected text, for Use Selection for Find.
+    func selectedText(_ done: @escaping (String?) -> Void) {
+        guard let wv = webView else { done(nil); return }
+        wv.evaluateJavaScript("String(window.getSelection ? window.getSelection() : '')", in: nil, in: .defaultClient) { result in
+            let t = ((try? result.get()) as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            done(t.isEmpty ? nil : String(t.prefix(200)))
+        }
     }
 
     func printPage() {
@@ -497,32 +642,12 @@ final class Tab: NSObject, Identifiable {
             panel.nameFieldStringValue = Self.fileName(self.title) + ".pdf"
             panel.beginSheetModal(for: window) { response in
                 guard response == .OK, let url = panel.url else { return }
-                try? data.write(to: url)
+                do { try data.write(to: url) } catch { Dialogs.saveFailed(error, window: window) }
             }
         }
     }
 
-    /// Saves what's visible on the page as a PNG where you choose, and copies it to the clipboard.
-    func screenshot() {
-        guard let wv = webView, let window = wv.window else { return }
-        wv.takeSnapshot(with: nil) { image, _ in
-            guard let image, let tiff = image.tiffRepresentation,
-                  let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { NSSound.beep(); return }
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.writeObjects([image])
-            let stamp = Date().formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false)).replacingOccurrences(of: ":", with: ".")
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [.png]
-            panel.nameFieldStringValue = "\(Self.fileName(self.title)) \(stamp).png"
-            panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-            panel.beginSheetModal(for: window) { response in
-                guard response == .OK, let url = panel.url else { return }
-                try? png.write(to: url)
-            }
-        }
-    }
-
-    private static func fileName(_ title: String) -> String {
+    static func fileName(_ title: String) -> String {
         let cleaned = title.components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>")).joined(separator: " ")
             .trimmingCharacters(in: .whitespaces)
         return cleaned.isEmpty ? "Tacet" : String(cleaned.prefix(80))
@@ -567,6 +692,13 @@ final class Tab: NSObject, Identifiable {
                 } else if ["forceDark", "cookieBanners", "rejectCookies", "fingerprinting", "plugins", "youtubeAds", "gpc"].contains(key), self.isSelected, self.url != nil {
                     wv.reload()
                 }
+            case "shieldTrial":
+                Scripts.install(on: wv.configuration.userContentController)
+                self.applyBlocking(for: self.url)
+                // Only pages on the site reload, as for the allowlist; the others get it on their next load.
+                if self.isSelected, self.url != nil, ShieldExceptions.covers(note.userInfo?["sites"] as? [String] ?? [], self.host) {
+                    wv.reload()
+                }
             case "developer":
                 DevTools.apply(to: wv)
             case "uaMode", "customUA":
@@ -591,6 +723,12 @@ final class Tab: NSObject, Identifiable {
             s.saveSiteStyle(style)
         case "pickerDone":
             pickingElements = false
+            pickingScreenshot = false
+        case "pickedShot":
+            guard pickingScreenshot else { return }
+            pickingScreenshot = false
+            let n = { (k: String) in CGFloat((body[k] as? NSNumber)?.doubleValue ?? 0) }
+            screenshotElement(CGRect(x: n("x"), y: n("y"), width: n("w"), height: n("h")))
         case "favicon":
             guard let href = body["href"] as? String, let iconURL = URL(string: href), let host else { return }
             if faviconHost == host, favicon != nil { return }
@@ -608,11 +746,9 @@ final class Tab: NSObject, Identifiable {
             if hoverURL != link { hoverURL = link }
         case "top":
             pull.atTop = body["top"] as? Bool ?? true
-        case "media":
-            let playing = body["playing"] as? Bool ?? false
-            if isPlayingAudio != playing { isPlayingAudio = playing }
         case "loginFocus":
             guard Settings.shared.autofillPasswords else { return }
+            loginFrame = nil
             let isNew = body["newPassword"] as? Bool ?? false
             let saved = isNew ? [] : PasswordStore.shared.logins(for: host)
             let strong = isNew && Settings.shared.suggestStrongPasswords ? PasswordStore.generate() : nil
@@ -637,6 +773,11 @@ final class Tab: NSObject, Identifiable {
         case "passkey":
             guard let host, passkeyHelp == nil || passkeyHelp?.site != PasswordStore.site(host) else { return }
             passkeyHelp = PasskeyHelp(site: PasswordStore.site(host), url: url)
+        case "popupBlocked":
+            guard let raw = body["url"] as? String else { return }
+            let target = raw.isEmpty ? nil : URL(string: raw, relativeTo: url)?.absoluteURL
+            guard target == nil || ["http", "https"].contains(target?.scheme?.lowercased() ?? "") else { return }
+            blockedPopup = target ?? URL(string: "about:blank")
         case "loginUsername":
             if let host, let name = body["username"] as? String, !name.isEmpty { rememberedUser = (host, name, Date()) }
         case "loginSubmit":
@@ -650,7 +791,7 @@ final class Tab: NSObject, Identifiable {
     // MARK: Drafts
 
     /// Offers back what you were writing on this page last time, if it wasn't sent.
-    private func offerDrafts() {
+    func offerDrafts() {
         let found = Settings.shared.recoverDrafts && !isPrivate ? Drafts.shared.on(url) : []
         if draftOffer != found { draftOffer = found }
     }
@@ -684,62 +825,11 @@ final class Tab: NSObject, Identifiable {
         draftOffer = []
     }
 
-    // MARK: Highlights
-
-    /// Puts this page's highlights back, again a little later for pages that fill in as they load.
-    func applyHighlights() {
-        let list = Highlights.shared.on(url)
-        guard !list.isEmpty, !isPrivate else { return }
-        let payload = list.map { ["id": $0.id.uuidString, "quote": $0.quote, "prefix": $0.prefix, "suffix": $0.suffix, "css": $0.css, "note": $0.note] }
-        // Only into the same web view, still on the same page: a later run must not mark another document.
-        guard let wv = webView, let page = url.map(Highlight.pageKey) else { return }
-        for delay in [0.0, 1.5, 4.0] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, self.webView === wv, wv.url.map(Highlight.pageKey) == page else { return }
-                wv.callAsyncJavaScript("return window.__tacetHL && window.__tacetHL.apply(list)", arguments: ["list": payload],
-                                                   in: nil, in: .defaultClient) { _ in }
-            }
-        }
-    }
-
-    /// Marks the selected text in a colour, then asks for a note when wanted.
-    func highlightSelection(color: Int, askNote: Bool = false) {
-        guard !isPrivate, let page = url, let wv = webView else { return }
-        let id = UUID()
-        let css = Highlight.colors[color % Highlight.colors.count].css
-        wv.callAsyncJavaScript("return window.__tacetHL && window.__tacetHL.capture(h)", arguments: ["h": ["id": id.uuidString, "css": css, "note": ""]],
-                               in: nil, in: .defaultClient) { [weak self] result in
-            guard let self, let found = (try? result.get()) as? [String: Any], let quote = found["quote"] as? String else { return }
-            let h = Highlight(id: id, url: Highlight.pageKey(page), title: self.title, quote: quote,
-                              prefix: found["prefix"] as? String ?? "", suffix: found["suffix"] as? String ?? "", color: color)
-            Highlights.shared.add(h)
-            if askNote { self.editHighlightNote(id) }
-        }
-    }
-
-    func editHighlightNote(_ id: UUID) {
-        guard let h = Highlights.shared.items.first(where: { $0.id == id }) else { return }
-        Dialogs.prompt(webView?.window, title: L("Note"), message: h.plainQuote.count > 160 ? String(h.plainQuote.prefix(160)) + "…" : h.plainQuote,
-                       defaultText: h.note) { [weak self] text in
-            guard let text else { return }
-            let note = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            Highlights.shared.update(id) { $0.note = note }
-            self?.webView?.callAsyncJavaScript("window.__tacetHL && window.__tacetHL.note(i, t)", arguments: ["i": id.uuidString, "t": note],
-                                               in: nil, in: .defaultClient) { _ in }
-        }
-    }
-
-    func removeHighlight(_ id: UUID) {
-        Highlights.shared.remove([id])
-        webView?.callAsyncJavaScript("window.__tacetHL && window.__tacetHL.remove(i)", arguments: ["i": id.uuidString], in: nil, in: .defaultClient) { _ in }
-        if hoveredHighlight == id { hoveredHighlight = nil }
-    }
-
     // MARK: What the page said
 
     /// A moment after a page loads, its text is kept so the page can be found later by what it said. Pages with a
     /// password field aren't kept: what's on them is often private.
-    private func keepPageText(of url: URL, in webView: WKWebView) {
+    func keepPageText(of url: URL, in webView: WKWebView) {
         guard PageText.mayKeep(url, isPrivate: isPrivate) else { return }
         let space = browser?.spaceID
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self, weak webView] in
@@ -749,457 +839,6 @@ final class Tab: NSObject, Identifiable {
                 guard let self, let text = try? result.get() as? String, webView.url == url else { return }
                 PageText.shared.keep(url: url, title: self.title, text: text, space: space)
             }
-        }
-    }
-
-    // MARK: Passkeys
-
-    struct PasskeyHelp: Equatable {
-        enum Stage: Equatable { case ask, inSafari, importing, failed(String), needsAccess }
-        let site: String
-        let url: URL?
-        var stage = Stage.ask
-    }
-
-    /// Opens the page in Safari, where the passkey works, to sign in there.
-    func signInWithSafari() {
-        guard var help = passkeyHelp, let page = help.url ?? url,
-              let safari = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari") else { return }
-        NSWorkspace.shared.open([page], withApplicationAt: safari, configuration: NSWorkspace.OpenConfiguration())
-        help.stage = .inSafari
-        passkeyHelp = help
-    }
-
-    /// Copies the site's cookies from Safari into this tab's website data and reloads, so the sign-in made there
-    /// carries on here.
-    func bringSignInFromSafari() {
-        guard var help = passkeyHelp, let store = webView?.configuration.websiteDataStore.httpCookieStore else { return }
-        help.stage = .importing
-        passkeyHelp = help
-        let site = help.site
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result = Result { try BrowserImporter.safariSignIns(site: site) }
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.passkeyHelp?.site == site else { return }
-                switch result {
-                case .failure(BrowserImporter.ImportError.permission):
-                    self.passkeyHelp?.stage = .needsAccess
-                case .failure(let error):
-                    self.passkeyHelp?.stage = .failed(error.localizedDescription)
-                case .success(let cookies) where cookies.isEmpty:
-                    self.passkeyHelp?.stage = .failed(L("Safari hasn't saved this sign-in yet. Quit Safari, then try again."))
-                case .success(let cookies):
-                    let group = DispatchGroup()
-                    for c in cookies {
-                        group.enter()
-                        store.setCookie(c) { group.leave() }
-                    }
-                    group.notify(queue: .main) { [weak self] in
-                        guard let self else { return }
-                        self.passkeyHelp = nil
-                        self.reload()
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: Passwords
-
-    private func offerToSave(username raw: String, password: String) {
-        let s = Settings.shared
-        guard s.savePasswords, s.passwordManager.isEmpty, !isPrivate, !password.isEmpty, let host,
-              !s.neverSaveHosts.contains(PasswordStore.site(host)) else { return }
-        var username = raw
-        if username.isEmpty, let r = rememberedUser, PasswordStore.site(r.host) == PasswordStore.site(host),
-           Date().timeIntervalSince(r.at) < 600 {
-            username = r.name
-        }
-        let store = PasswordStore.shared
-        let existing = store.logins(for: host).first { $0.username == username }
-        let pending = PendingLogin(host: existing?.host ?? host, username: username, password: password, isUpdate: existing != nil)
-        let started = Date()
-        // Comparing with the saved password reads the Keychain, which can wait on a macOS prompt: never on the main thread.
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let unchanged = existing.map { store.matches(host: $0.host, username: username, password: password) } ?? false
-            guard !unchanged else { return }
-            // Wait for the sign-in to navigate, so the banner doesn't flash on the login page.
-            let wait = max(0, 0.8 - Date().timeIntervalSince(started))
-            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { self?.pendingSave = pending }
-        }
-    }
-
-    func savePending() {
-        guard let p = pendingSave else { return }
-        PasswordStore.shared.save(host: p.host, username: p.username, password: p.password)
-        pendingSave = nil
-    }
-
-    func neverSavePending() {
-        guard let p = pendingSave else { return }
-        Settings.shared.neverSaveHosts = Array(Set(Settings.shared.neverSaveHosts + [PasswordStore.site(p.host)])).sorted()
-        pendingSave = nil
-    }
-
-    func fill(_ login: SavedLogin) {
-        loginMenu = nil
-        let reason = String(format: L("fill your password for %@"), login.host)
-        let site = PasswordStore.site(login.host)
-        guard let asked = webView, host.map(PasswordStore.site) == site else { return }
-        PasswordStore.shared.password(for: login, reason: reason) { [weak self] password in
-            // Touch ID takes a moment, and the page may have moved on meanwhile: the password only goes into the
-            // same web view, still on the login's site, over HTTPS (or plain HTTP on the very host it was saved for).
-            guard let self, let password, let wv = self.webView, wv === asked, let now = wv.url, let nowHost = now.host?.lowercased(),
-                  PasswordStore.site(nowHost) == site, now.scheme == "https" || now.scheme == "http" && nowHost == login.host.lowercased()
-            else { return }
-            wv.window?.makeFirstResponder(wv)
-            // The page checks its own address too, in case a navigation started after the one above.
-            wv.callAsyncJavaScript("const h = location.hostname.toLowerCase(); if (h !== s && !h.endsWith('.' + s)) return false; return window.__lumenFill && window.__lumenFill(u, p)",
-                                   arguments: ["u": login.username, "p": password, "s": site], in: nil, in: .defaultClient) { _ in }
-        }
-    }
-
-    /// Puts a generated password into the sign-up form; saving is offered when the form is sent.
-    func fillStrong(_ password: String) {
-        loginMenu = nil
-        guard let wv = webView else { return }
-        wv.window?.makeFirstResponder(wv)
-        wv.callAsyncJavaScript("return window.__lumenFillNew && window.__lumenFillNew(p)",
-                               arguments: ["p": password], in: nil, in: .defaultClient) { _ in }
-    }
-
-    private func showHTTPSOnlyPage(_ url: URL, in webView: WKWebView, certificate: Bool = false) {
-        failedURL = url
-        internalLoad = true
-        internalNavigation = webView.loadHTMLString(Scripts.httpsOnlyPage(url: url, certificate: certificate), baseURL: nil)
-    }
-
-    private func openExternal(_ url: URL) {
-        guard let app = NSWorkspace.shared.urlForApplication(toOpen: url) else { return }
-        if url.scheme == "mailto" {
-            NSWorkspace.shared.open(url)
-            return
-        }
-        let name = FileManager.default.displayName(atPath: app.path)
-        Dialogs.confirm(webView?.window, title: String(format: L("Open “%@”?"), name),
-                        message: String(format: L("%@ wants to open a “%@” link in %@."), InputResolver.displayHost(self.url), url.scheme ?? "", name),
-                        ok: L("Open")) { if $0 { NSWorkspace.shared.open(url) } }
-    }
-
-    private func handleError(_ error: Error, in webView: WKWebView) {
-        let e = error as NSError
-        if e.domain == NSURLErrorDomain && e.code == NSURLErrorCancelled { return }
-        // 102: interrupted by a policy change (downloads, our own redirects). 204: handled by a plug-in.
-        if e.domain == "WebKitErrorDomain" && (e.code == 102 || e.code == 204) { return }
-        let failing = (e.userInfo[NSURLErrorFailingURLErrorKey] as? URL) ?? webView.url
-        if let up = upgrade, let f = failing, f.scheme == "https", f.host?.lowercased() == up.host, HTTPSUpgrade.shouldFallBack(e) {
-            // A bad certificate doesn't mean the site has no HTTPS: someone on the network may be in the way. The
-            // user decides, and the site isn't remembered as HTTP-only.
-            let certificate = HTTPSUpgrade.isCertificateError(e)
-            if !certificate { HTTPSUpgrade.httpOnly.insert(up.host) }
-            upgrade = nil
-            if (certificate || Settings.shared.httpsOnly) && !HTTPSUpgrade.userAllowed.contains(up.host) {
-                showHTTPSOnlyPage(up.original, in: webView, certificate: certificate)
-            } else {
-                webView.load(URLRequest(url: up.original))
-            }
-            return
-        }
-        guard let f = failing else { return }
-        failedURL = f
-        failedOffline = e.domain == NSURLErrorDomain && [NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost,
-                                                         NSURLErrorDataNotAllowed, NSURLErrorCannotFindHost].contains(e.code)
-        internalLoad = true
-        internalNavigation = webView.loadHTMLString(Scripts.errorPage(url: f, error: e), baseURL: f)
-    }
-}
-
-// MARK: - Navigation
-
-extension Tab: WKNavigationDelegate {
-    func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, preferences: WKWebpagePreferences,
-                 decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
-        preferences.allowsContentJavaScript = Settings.shared.javaScript && !javaScriptOff
-        if internalLoad {
-            internalLoad = false
-            decisionHandler(.allow, preferences)
-            return
-        }
-        if action.shouldPerformDownload {
-            decisionHandler(.download, preferences)
-            return
-        }
-        guard let url = action.request.url else {
-            decisionHandler(.allow, preferences)
-            return
-        }
-        let scheme = url.scheme?.lowercased() ?? ""
-        if scheme == "lumen-continue-http" {
-            decisionHandler(.cancel, preferences)
-            let raw = String(url.absoluteString.dropFirst("lumen-continue-http:".count))
-            // Only Tacet's own "Not Secure" page may lift HTTPS-only, and only for the address it was shown for.
-            if let target = URL(string: raw), let h = target.host?.lowercased(), target == failedURL {
-                HTTPSUpgrade.userAllowed.insert(h)
-                load(target)
-            }
-            return
-        }
-        // Extension pages (settings, popups opened in a tab) use their own scheme.
-        if !["http", "https", "file", "about", "data", "blob", "javascript", "webkit-extension", PluginAppScheme.scheme].contains(scheme) {
-            decisionHandler(.cancel, preferences)
-            if action.navigationType == .linkActivated || action.targetFrame?.isMainFrame == true { openExternal(url) }
-            return
-        }
-        if action.navigationType == .linkActivated,
-           action.modifierFlags.contains(.command) || action.buttonNumber == 2 {
-            decisionHandler(.cancel, preferences)
-            browser?.openInBackground(url, from: self, select: action.modifierFlags.contains(.shift))
-            return
-        }
-        // A pinned tab stays on its site, as in Arc: a link to another site opens in a new tab next to it.
-        if isPinned, Settings.shared.pinnedStayOnSite, action.navigationType == .linkActivated, action.targetFrame?.isMainFrame == true,
-           let from = (pinnedHome ?? self.url)?.host, let to = url.host, PasswordStore.site(from) != PasswordStore.site(to) {
-            decisionHandler(.cancel, preferences)
-            browser?.newTab(url: url, after: self)
-            return
-        }
-        // In an installed web app, links to other sites open in the browser.
-        if WebApp.isActive, action.navigationType == .linkActivated, action.targetFrame?.isMainFrame == true,
-           let host = url.host, PasswordStore.site(host) != WebApp.site {
-            decisionHandler(.cancel, preferences)
-            WebApp.openInBrowser(url)
-            return
-        }
-        if action.targetFrame?.isMainFrame == true {
-            let s = Settings.shared
-            let fresh = action.navigationType != .backForward && action.navigationType != .reload
-                && (action.request.httpMethod ?? "GET") == "GET"
-            if fresh, s.stripTracking, let clean = URLCleaner.unwrap(url) ?? URLCleaner.clean(url) {
-                decisionHandler(.cancel, preferences)
-                webView.load(URLRequest(url: clean))
-                return
-            }
-            if fresh, s.httpsUpgrade || s.httpsOnly, HTTPSUpgrade.eligible(url), let host = url.host?.lowercased() {
-                if let up = upgrade, up.host == host, Date().timeIntervalSince(up.at) < 5 {
-                    // The HTTPS site redirected back to HTTP, so it doesn't want HTTPS.
-                    HTTPSUpgrade.httpOnly.insert(host)
-                    upgrade = nil
-                    if s.httpsOnly && !HTTPSUpgrade.userAllowed.contains(host) {
-                        decisionHandler(.cancel, preferences)
-                        showHTTPSOnlyPage(url, in: webView)
-                        return
-                    }
-                } else if let https = HTTPSUpgrade.upgraded(url) {
-                    upgrade = (host, url, Date())
-                    decisionHandler(.cancel, preferences)
-                    webView.load(URLRequest(url: https))
-                    return
-                }
-            }
-            if s.httpsOnly, url.scheme == "http", let host = url.host?.lowercased(),
-               HTTPSUpgrade.httpOnly.contains(host), !HTTPSUpgrade.userAllowed.contains(host) {
-                decisionHandler(.cancel, preferences)
-                showHTTPSOnlyPage(url, in: webView)
-                return
-            }
-            applyBlocking(for: url)
-        }
-        decisionHandler(.allow, preferences)
-    }
-
-    func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse,
-                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-        if let http = response.response as? HTTPURLResponse,
-           (http.value(forHTTPHeaderField: "Content-Disposition") ?? "").lowercased().hasPrefix("attachment") {
-            decisionHandler(.download)
-            return
-        }
-        decisionHandler(response.canShowMIMEType ? .allow : .download)
-    }
-
-    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
-        DownloadManager.shared.track(download)
-        closeIfOnlyDownloading(webView)
-    }
-
-    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
-        DownloadManager.shared.track(download)
-        closeIfOnlyDownloading(webView)
-    }
-
-    /// A tab opened just for a file (a link with a new tab, an address from another app) has nothing to show once
-    /// the file starts downloading, so it closes, as in Safari.
-    private func closeIfOnlyDownloading(_ webView: WKWebView) {
-        guard webView.backForwardList.currentItem == nil, !isPinned, let browser else { return }
-        DispatchQueue.main.async { [weak self, weak browser] in
-            guard let self, let browser, browser.tabs.contains(where: { $0 === self }) else { return }
-            // Not kept among closed tabs: ⇧⌘T would only download the file again.
-            self.url = nil
-            self.pendingURL = nil
-            if browser.tabs.count > 1 {
-                browser.close(self)
-            } else {
-                // The window's only tab goes back to the start page instead of staying blank.
-                self.title = L("New Tab")
-                self.isLoading = false
-            }
-        }
-    }
-
-    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        // Each assignment redraws the views watching the tab, so only changes are made.
-        if hoverURL != nil { hoverURL = nil }
-        if loginMenu != nil { loginMenu = nil }
-        if insecureWarning { insecureWarning = false }
-        if navigation !== internalNavigation {
-            if failedURL != nil { failedURL = nil }
-            failedOffline = false
-            if isReader { isReader = false }
-        }
-    }
-
-    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
-        if !blockedHere.isEmpty { blockedHere = [:] }
-        // A new page isn't translated, and isn't the one being read aloud.
-        if translatedFrom != nil { translatedFrom = nil }
-        if translationError != nil { translationError = nil }
-        if readingAloud { ReadAloud.shared.stop() }
-        let host = webView.url?.host?.lowercased()
-        let z = host.flatMap { Settings.shared.siteZoom[$0] } ?? Settings.shared.defaultZoom
-        if abs(webView.pageZoom - z) > 0.001 { webView.pageZoom = z }
-        if zoom != z { zoom = z }
-        if host != faviconHost {
-            faviconHost = nil
-            favicon = Favicons.shared.cached(host)
-        }
-        if isPlayingAudio { isPlayingAudio = false }
-        browser?.tabDidNavigate(self)
-    }
-
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if waking { finishWaking(restoreScroll: true) }
-        // The passkey banner belongs to the site that asked; signing in may move between its pages.
-        if let help = passkeyHelp, help.site != host.map(PasswordStore.site) { passkeyHelp = nil }
-        guard navigation !== internalNavigation, !isPrivate, !isReader, let u = webView.url else { return }
-        History.shared.record(url: u, title: webView.title ?? "")
-        keepPageText(of: u, in: webView)
-        applyHighlights()
-        offerDrafts()
-    }
-
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        handleError(error, in: webView)
-    }
-
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        // macOS ends background pages' processes when memory runs short: such a tab sleeps, and loads again only when
-        // you come back to it, instead of taking the memory straight back.
-        if !isSelected, browser?.preview !== self, webView === self.webView {
-            hibernate()
-            return
-        }
-        // A page that keeps crashing its process would otherwise reload forever, using all the CPU.
-        if let last = lastCrash, Date().timeIntervalSince(last) < 15, let u = url ?? webView.url {
-            lastCrash = nil
-            let e = NSError(domain: "WebKitErrorDomain", code: 0, userInfo: [
-                NSLocalizedDescriptionKey: L("This page stopped working more than once, so Tacet stopped reloading it."),
-            ])
-            failedURL = u
-            internalLoad = true
-            internalNavigation = webView.loadHTMLString(Scripts.errorPage(url: u, error: e), baseURL: u)
-            return
-        }
-        lastCrash = Date()
-        webView.reload()
-    }
-
-    func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge,
-                 completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        let method = challenge.protectionSpace.authenticationMethod
-        guard method == NSURLAuthenticationMethodHTTPBasic || method == NSURLAuthenticationMethodHTTPDigest else {
-            completionHandler(.performDefaultHandling, nil)
-            return
-        }
-        guard challenge.previousFailureCount < 3 else {
-            completionHandler(.cancelAuthenticationChallenge, nil)
-            return
-        }
-        Dialogs.credentials(webView.window, host: challenge.protectionSpace.host,
-                            realm: challenge.protectionSpace.realm) { result in
-            if let (user, pass) = result {
-                completionHandler(.useCredential, URLCredential(user: user, password: pass, persistence: .forSession))
-            } else {
-                completionHandler(.cancelAuthenticationChallenge, nil)
-            }
-        }
-    }
-}
-
-// MARK: - UI
-
-extension Tab: WKUIDelegate {
-    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
-                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        // A link that opens a new tab follows the opening rules; sign-in pop-ups (sized windows) never do.
-        if navigationAction.navigationType == .linkActivated, windowFeatures.width == nil, windowFeatures.height == nil,
-           let url = navigationAction.request.url, OpeningRules.route(url, from: browser) { return nil }
-        return browser?.openPopup(configuration: configuration, from: self, features: windowFeatures)
-    }
-
-    func webViewDidClose(_ webView: WKWebView) {
-        browser?.close(self)
-    }
-
-    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
-                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
-        Dialogs.alert(webView.window, title: frame.securityOrigin.host, message: message, done: completionHandler)
-    }
-
-    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
-                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
-        Dialogs.confirm(webView.window, title: frame.securityOrigin.host, message: message, done: completionHandler)
-    }
-
-    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?,
-                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
-        Dialogs.prompt(webView.window, title: frame.securityOrigin.host, message: prompt,
-                       defaultText: defaultText ?? "", done: completionHandler)
-    }
-
-    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
-                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
-        panel.canChooseDirectories = parameters.allowsDirectories
-        panel.canChooseFiles = true
-        if let window = webView.window {
-            panel.beginSheetModal(for: window) { completionHandler($0 == .OK ? panel.urls : nil) }
-        } else {
-            completionHandler(panel.runModal() == .OK ? panel.urls : nil)
-        }
-    }
-
-    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
-                 initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
-                 decisionHandler: @escaping (WKPermissionDecision) -> Void) {
-        let kind = MediaPermission.Kind(type)
-        let key = MediaPermission.key(host: origin.host, kind: kind)
-        // Private windows remember a choice only in the tab; other windows remember it for the site.
-        if let remembered = isPrivate ? mediaPermissions[key] : Settings.shared.mediaPermissions[key] {
-            decisionHandler(remembered ? .grant : .deny)
-            return
-        }
-        Dialogs.confirm(webView.window, title: String(format: L("Allow “%@” to use your %@?"), origin.host, kind.label),
-                        message: L(isPrivate ? "Tacet remembers your choice until you close this tab."
-                                             : "Tacet remembers your choice for this site. You can change it in Settings › Sites."),
-                        ok: L("Allow"), cancel: L("Don't Allow")) { [weak self] allowed in
-            guard let self else { decisionHandler(.deny); return }
-            if self.isPrivate {
-                self.mediaPermissions[key] = allowed
-            } else {
-                Settings.shared.mediaPermissions[key] = allowed
-            }
-            decisionHandler(allowed ? .grant : .deny)
         }
     }
 }
@@ -1333,35 +972,6 @@ extension LumenWebView {
     }
 }
 
-extension LumenWebView {
-    /// Highlight for selected text; note and removal on a highlight.
-    func addHighlightItems(to menu: NSMenu) {
-        guard let tab, !tab.isPrivate, tab.url != nil else { return }
-        if let id = tab.hoveredHighlight, Highlights.shared.items.contains(where: { $0.id == id }) {
-            menu.insertItem(.separator(), at: 0)
-            menu.insertItem(ActionMenuItem(L("Remove Highlight")) { tab.removeHighlight(id) }, at: 0)
-            menu.insertItem(ActionMenuItem(L("Edit Highlight Note…")) { tab.editHighlightNote(id) }, at: 0)
-        }
-        guard let copy = menu.items.firstIndex(where: { $0.identifier?.rawValue == "WKMenuItemIdentifierCopy" }) else { return }
-        let sub = NSMenu()
-        for (i, c) in Highlight.colors.enumerated() {
-            let item = ActionMenuItem(L(c.name)) { tab.highlightSelection(color: i) }
-            item.image = NSImage(size: NSSize(width: 12, height: 12), flipped: false) { rect in
-                c.swatch.setFill()
-                NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
-                return true
-            }
-            sub.addItem(item)
-        }
-        sub.addItem(.separator())
-        sub.addItem(ActionMenuItem(L("Highlight with Note…")) { tab.highlightSelection(color: 0, askNote: true) })
-        let item = NSMenuItem(title: L("Highlight"), action: nil, keyEquivalent: "")
-        item.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil)
-        item.submenu = sub
-        menu.insertItem(item, at: copy + 1)
-    }
-}
-
 final class ActionMenuItem: NSMenuItem {
     private let handler: () -> Void
 
@@ -1374,68 +984,6 @@ final class ActionMenuItem: NSMenuItem {
     required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     @objc private func fire() { handler() }
-}
-
-// MARK: - Dialogs
-
-enum Dialogs {
-    private static func present(_ alert: NSAlert, in window: NSWindow?, done: @escaping (NSApplication.ModalResponse) -> Void) {
-        if let window, window.attachedSheet == nil {
-            alert.beginSheetModal(for: window, completionHandler: done)
-        } else {
-            done(alert.runModal())
-        }
-    }
-
-    static func alert(_ window: NSWindow?, title: String, message: String, done: @escaping () -> Void) {
-        let a = NSAlert()
-        a.messageText = title.isEmpty ? L("This page says") : title
-        a.informativeText = message
-        a.addButton(withTitle: L("OK"))
-        present(a, in: window) { _ in done() }
-    }
-
-    static func confirm(_ window: NSWindow?, title: String, message: String, ok: String = L("OK"),
-                        cancel: String = L("Cancel"), done: @escaping (Bool) -> Void) {
-        let a = NSAlert()
-        a.messageText = title.isEmpty ? L("This page says") : title
-        a.informativeText = message
-        a.addButton(withTitle: ok)
-        a.addButton(withTitle: cancel)
-        present(a, in: window) { done($0 == .alertFirstButtonReturn) }
-    }
-
-    static func prompt(_ window: NSWindow?, title: String, message: String, defaultText: String,
-                       done: @escaping (String?) -> Void) {
-        let a = NSAlert()
-        a.messageText = title.isEmpty ? L("This page says") : title
-        a.informativeText = message
-        a.addButton(withTitle: L("OK"))
-        a.addButton(withTitle: L("Cancel"))
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
-        field.stringValue = defaultText
-        a.accessoryView = field
-        a.window.initialFirstResponder = field
-        present(a, in: window) { done($0 == .alertFirstButtonReturn ? field.stringValue : nil) }
-    }
-
-    static func credentials(_ window: NSWindow?, host: String, realm: String?, done: @escaping ((String, String)?) -> Void) {
-        let a = NSAlert()
-        a.messageText = String(format: L("Sign in to %@"), host)
-        a.informativeText = realm.map { String(format: L("The site says: “%@”"), $0) } ?? L("This site requires a username and password.")
-        a.addButton(withTitle: L("Sign In"))
-        a.addButton(withTitle: L("Cancel"))
-        let user = NSTextField(frame: NSRect(x: 0, y: 30, width: 280, height: 24))
-        user.placeholderString = L("Username")
-        let pass = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
-        pass.placeholderString = L("Password")
-        let box = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 54))
-        box.addSubview(user)
-        box.addSubview(pass)
-        a.accessoryView = box
-        a.window.initialFirstResponder = user
-        present(a, in: window) { done($0 == .alertFirstButtonReturn ? (user.stringValue, pass.stringValue) : nil) }
-    }
 }
 
 @Observable

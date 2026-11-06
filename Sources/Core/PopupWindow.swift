@@ -9,6 +9,12 @@ final class PopupWindow: NSObject, WKUIDelegate, WKNavigationDelegate, NSWindowD
     private let onClose: (PopupWindow) -> Void
     /// The window that opened the pop-up; links it opens go there, so a private window's stay private.
     private weak var opener: BrowserState?
+    /// The page's alert, confirm and prompt dialogs, as sheets on the pop-up, one at a time.
+    private lazy var dialogs: PageDialogs = {
+        let d = PageDialogs()
+        d.host = { [weak self] in self?.window }
+        return d
+    }()
 
     init(configuration: WKWebViewConfiguration, features: WKWindowFeatures, opener: BrowserState?, onClose: @escaping (PopupWindow) -> Void) {
         self.onClose = onClose
@@ -115,6 +121,7 @@ final class PopupWindow: NSObject, WKUIDelegate, WKNavigationDelegate, NSWindowD
 
     func windowWillClose(_ notification: Notification) {
         observations = []
+        dialogs.reset()
         onClose(self)
     }
 
@@ -132,17 +139,17 @@ final class PopupWindow: NSObject, WKUIDelegate, WKNavigationDelegate, NSWindowD
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
-        Dialogs.alert(window, title: frame.securityOrigin.host, message: message, done: completionHandler)
+        dialogs.alert(title: frame.securityOrigin.host, message: message, done: completionHandler)
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
-        Dialogs.confirm(window, title: frame.securityOrigin.host, message: message, done: completionHandler)
+        dialogs.confirm(title: frame.securityOrigin.host, message: message, done: completionHandler)
     }
 
     func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
-        Dialogs.prompt(window, title: frame.securityOrigin.host, message: prompt, defaultText: defaultText ?? "", done: completionHandler)
+        dialogs.prompt(title: frame.securityOrigin.host, message: prompt, defaultText: defaultText ?? "", done: completionHandler)
     }
 
     /// File fields in a pop-up (an upload or a document check during a payment, say) work as they do in a tab.

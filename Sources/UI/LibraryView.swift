@@ -232,7 +232,7 @@ struct BookmarkList: View {
         panel.allowedContentTypes = [.html]
         panel.nameFieldStringValue = "Tacet Bookmarks.html"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? bookmarks.exportHTML().write(to: url, atomically: true, encoding: .utf8)
+        do { try bookmarks.exportHTML().write(to: url, atomically: true, encoding: .utf8) } catch { Dialogs.saveFailed(error, window: NSApp.keyWindow) }
     }
 }
 

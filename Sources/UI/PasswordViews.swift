@@ -418,7 +418,7 @@ struct PasswordsPane: View {
             panel.allowedContentTypes = [.commaSeparatedText]
             panel.nameFieldStringValue = "Tacet Passwords.csv"
             guard panel.runModal() == .OK, let url = panel.url else { return }
-            try? store.exportCSV().write(to: url, atomically: true, encoding: .utf8)
+            do { try store.exportCSV().write(to: url, atomically: true, encoding: .utf8) } catch { Dialogs.saveFailed(error, window: NSApp.keyWindow) }
         }
     }
 }

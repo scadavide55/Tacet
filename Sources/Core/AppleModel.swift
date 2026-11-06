@@ -22,13 +22,19 @@ enum AppleModel {
 
     /// The tools that fit its context: reading pages, tabs, videos and history, opening pages, the web if it's on,
     /// and using the page if Browser use is on.
-    static func tools(web: Bool, control: Bool = false) -> [AssistantPrompt.Tool] {
+    static func tools(web: Bool, control: Bool = false, memory: Bool = false) -> [AssistantPrompt.Tool] {
         let names = ["tacet_guide", "use_plugin", "get_page_content", "get_selection", "list_tabs", "read_tab", "get_video_transcript", "search_history", "open_page"]
         return AssistantPrompt.tools.filter { names.contains($0.name) } + (web ? AssistantPrompt.webTools : [])
-            + (control ? AssistantPrompt.controlTools : [])
+            + (control ? AssistantPrompt.controlTools : []) + (memory ? [AssistantPersonal.rememberTool] : [])
     }
 
-    static func instructions(control: Bool) -> String {
+    /// The personal instructions and memories go in cut much shorter than for cloud models, to fit the small context.
+    /// `remember` says whether the session has the remember tool (not in the command bar).
+    static func instructions(control: Bool, privateWindow: Bool = false, remember: Bool = true) -> String {
+        base(control: control) + AssistantPersonal.part(privateWindow: privateWindow, compact: true, tool: remember)
+    }
+
+    private static func base(control: Bool) -> String {
         """
         You are Tacet Assistant, the assistant in Tacet \(UpdateChecker.currentVersion), a web browser on the user's Mac. \
         You run on the Mac itself. Tacet was called Lumen until 1.6.2, and you were Lumen Assistant. For any question \
@@ -69,9 +75,9 @@ final class AppleChatSession {
     /// Which tool groups the session was made with; a change of the chat buttons needs a new session.
     let toolKey: String
 
-    init(tools: [AssistantPrompt.Tool], control: Bool, run: @escaping @Sendable (String, String) async -> String) {
+    init(tools: [AssistantPrompt.Tool], instructions: String, run: @escaping @Sendable (String, String) async -> String) {
         let bridged: [any FoundationModels.Tool] = tools.compactMap { BridgeTool($0, run: run) }
-        session = LanguageModelSession(model: .default, tools: bridged, instructions: AppleModel.instructions(control: control))
+        session = LanguageModelSession(model: .default, tools: bridged, instructions: instructions)
         toolKey = tools.map(\.name).joined(separator: ",")
     }
 

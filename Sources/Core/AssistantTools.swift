@@ -143,7 +143,7 @@ enum AssistantSources {
 
     /// The transcript as text for the model, or why there isn't one.
     @MainActor
-    static func transcript(in webView: WKWebView) async -> (text: String, ok: Bool) {
+    static func transcript(in webView: WKWebView, limit: Int = transcriptLimit) async -> (text: String, ok: Bool) {
         let lang = Locale.preferredLanguages.first.map { String($0.prefix(2)) } ?? "en"
         let result: Any?
         do {
@@ -158,15 +158,10 @@ enum AssistantSources {
             return ((d["none"] as? Bool ?? false) ? "This video has no captions, so there is no transcript."
                     : "YouTube didn't return a transcript for this video. It may have none, or it may need the video to be opened once.", false)
         }
-        var text = lines.joined(separator: "\n")
-        var note = ""
-        if text.count > transcriptLimit {
-            text = String(text.prefix(transcriptLimit))
-            note = "\n[The transcript is longer; only the first \(transcriptLimit) characters are included.]"
-        }
+        let text = AssistantLimits.clip(lines.joined(separator: "\n"), to: min(limit, transcriptLimit), what: "transcript")
         let meta = [("title", title), ("channel", d["author"] as? String ?? ""), ("length", d["length"] as? String ?? ""),
                     ("language", d["language"] as? String ?? "")].filter { !$0.1.isEmpty }
             .map { "\($0.0)=\"\(attribute($0.1))\"" }.joined(separator: " ")
-        return ("<transcript \(meta)>\n\(text)\(note)\n</transcript>", true)
+        return ("<transcript \(meta)>\n\(text)\n</transcript>", true)
     }
 }
