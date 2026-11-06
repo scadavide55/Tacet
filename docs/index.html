@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tacet (formerly Lumen) — a quiet browser for the Mac</title>
-<meta name="description" content="Tacet is a small, fast browser for macOS built on WebKit. It blocks ads and trackers before they load, turns the blocker off in one click, and has an assistant that reads the page for you.">
-<meta name="theme-color" content="#161513" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme: light)">
+<title>Tacet — the quiet browser for the Mac</title>
+<meta name="description" content="Tacet is a small, fast and private browser for macOS built on WebKit. Ads and trackers blocked before they load, tidy tabs, a command bar, and an assistant that can run on your Mac. Moving from Arc takes a minute.">
+<meta name="theme-color" content="#0e0d0b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f3ec" media="(prefers-color-scheme: light)">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Tacet — a quiet browser for the Mac">
-<meta property="og:description" content="Small, fast and private. Ads and trackers blocked out of the box, an assistant that reads the page for you.">
-<meta property="og:image" content="https://scadavide55.github.io/Tacet/assets/screenshot.jpg">
+<meta property="og:title" content="Tacet — the quiet browser for the Mac">
+<meta property="og:description" content="Small, fast and private. Ads and trackers blocked out of the box, an assistant that reads the page, and your Arc sidebar moved in a minute.">
+<meta property="og:image" content="https://scadavide55.github.io/Tacet/assets/window.jpg">
 <meta property="og:url" content="https://scadavide55.github.io/Tacet/">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="canonical" href="https://scadavide55.github.io/Tacet/">
@@ -23,86 +23,102 @@
   "name": "Tacet",
   "operatingSystem": "macOS 14 or later",
   "applicationCategory": "BrowserApplication",
-  "softwareVersion": "1.7.1.1",
+  "softwareVersion": "1.8",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "downloadUrl": "https://github.com/scadavide55/Tacet/releases/download/v1.7.1.1/Tacet-1.7.1.1.dmg",
+  "downloadUrl": "https://github.com/scadavide55/Tacet/releases/latest",
   "url": "https://scadavide55.github.io/Tacet/",
   "description": "A small, fast and private macOS browser built on WebKit, with a native ad blocker you can turn off in one click."
 }
 </script>
 <script>
-  // The remembered theme, applied before anything draws.
+  // The remembered theme, applied before anything draws; "js" lets content fade in only when scripts run.
   (() => {
+    const r = document.documentElement;
+    r.classList.add('js');
     let t = null;
     try { t = localStorage.getItem('theme'); } catch (e) {}
-    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    if (t === 'light' || t === 'dark') r.dataset.theme = t;
   })();
 </script>
 <style>
 :root {
-  --bg: #faf8f4;
-  --surface: #ffffff;
-  --fg: #1c1b18;
-  --muted: #68645c;
-  --faint: #9c978d;
-  --line: #e6e2da;
-  --line-strong: #cfc9be;
-  --code: #f0ede6;
-  --accent: #e0541f;
+  --bg: #f6f3ec;
+  --surface: #fffdf9;
+  --raised: #ffffff;
+  --fg: #16140f;
+  --muted: #5f5a50;
+  --faint: #938d81;
+  --line: #e4ded2;
+  --line-strong: #cbc3b4;
+  --code: #eee9df;
+  --accent: #d2452a;
   --junk: #b8412a;
   --ok: #2c8a4b;
-  --shadow: 0 1px 2px rgba(28, 27, 24, .06), 0 12px 32px -12px rgba(28, 27, 24, .18);
+  --live: #e5372b;
+  --ink: #141210;
+  --shadow: 0 1px 2px rgba(22, 20, 15, .06), 0 18px 40px -18px rgba(22, 20, 15, .22);
+  --shadow-lg: 0 2px 4px rgba(22, 20, 15, .06), 0 40px 80px -30px rgba(22, 20, 15, .35);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --serif: ui-serif, "New York", "Iowan Old Style", "Palatino", "Book Antiqua", Georgia, serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --max: 1080px;
+  --max: 1160px;
+  --r: 16px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #161513; --surface: #1e1d1a; --fg: #ebe8e1; --muted: #a39e94; --faint: #6f6b63;
-    --line: #2b2a26; --line-strong: #3e3c37; --code: #24231f; --accent: #ff7a3a; --junk: #e0705a; --ok: #5cc27a;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 16px 40px -12px rgba(0, 0, 0, .6);
+    --bg: #0e0d0b; --surface: #161512; --raised: #1c1b17; --fg: #efeae1; --muted: #a59f93; --faint: #6f6a60;
+    --line: #262420; --line-strong: #3a3731; --code: #211f1b; --accent: #ff6a43; --junk: #ec7a62; --ok: #5cc27a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 40px -18px rgba(0, 0, 0, .7);
+    --shadow-lg: 0 2px 4px rgba(0, 0, 0, .5), 0 40px 90px -30px rgba(0, 0, 0, .9);
     color-scheme: dark;
   }
 }
-:root[data-theme="dark"] {
-  --bg: #161513; --surface: #1e1d1a; --fg: #ebe8e1; --muted: #a39e94; --faint: #6f6b63;
-  --line: #2b2a26; --line-strong: #3e3c37; --code: #24231f; --accent: #ff7a3a; --junk: #e0705a; --ok: #5cc27a;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 16px 40px -12px rgba(0, 0, 0, .6);
+:root[data-theme="dark"], .night {
+  --bg: #0e0d0b; --surface: #161512; --raised: #1c1b17; --fg: #efeae1; --muted: #a59f93; --faint: #6f6a60;
+  --line: #262420; --line-strong: #3a3731; --code: #211f1b; --accent: #ff6a43; --junk: #ec7a62; --ok: #5cc27a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 40px -18px rgba(0, 0, 0, .7);
+  --shadow-lg: 0 2px 4px rgba(0, 0, 0, .5), 0 40px 90px -30px rgba(0, 0, 0, .9);
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html { scroll-padding-top: 72px; }
+/* Smooth only after the page has settled: an animated jump to an address's #section while scripts fill the page lands in the wrong place. */
+html.smooth { scroll-behavior: smooth; }
 body {
   margin: 0; background: var(--bg); color: var(--fg);
   font: 16px/1.6 var(--font); -webkit-font-smoothing: antialiased;
-  font-feature-settings: "kern", "liga";
+  font-feature-settings: "kern", "liga"; overflow-x: hidden;
 }
 a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 a:hover { text-decoration-color: currentColor; }
 img { max-width: 100%; height: auto; display: block; }
 button { font: inherit; color: inherit; }
 h1, h2, h3, h4 { font-weight: 500; margin: 0; }
-h1, h2 { font-family: var(--serif); letter-spacing: 0; text-wrap: balance; }
+h1, h2 { font-family: var(--serif); text-wrap: balance; }
 p { margin: 0; }
-.wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-code { font: 13.5px/1.5 var(--mono); background: var(--code); padding: 2px 6px; border-radius: 4px; overflow-wrap: anywhere; }
-kbd { display: inline-block; font: 13px/1 var(--font); padding: 4px 7px; border: 1px solid var(--line-strong); border-radius: 5px; white-space: nowrap; }
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 28px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: 12px; top: -60px; z-index: 50; background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 8px; text-decoration: none; }
+.skip:focus { top: 12px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+code { font: 13.5px/1.5 var(--mono); background: var(--code); padding: 2px 6px; border-radius: 5px; overflow-wrap: anywhere; }
+kbd { display: inline-block; font: 13px/1 var(--font); padding: 4px 7px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 6px; white-space: nowrap; background: var(--raised); }
+.tag { display: inline-block; font: 600 10.5px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; padding: 4px 6px; border-radius: 5px; color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); vertical-align: 3px; margin-left: 6px; }
 
 /* Nav */
-nav { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
-nav .wrap { display: flex; align-items: center; gap: 28px; height: 56px; }
-.brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 16px; text-decoration: none; }
-.brand img { width: 24px; height: 24px; }
+nav { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: saturate(1.6) blur(16px); -webkit-backdrop-filter: saturate(1.6) blur(16px); border-bottom: 1px solid transparent; transition: border-color .2s; }
+nav.scrolled { border-bottom-color: var(--line); }
+nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16.5px; text-decoration: none; letter-spacing: -.01em; }
+.brand img { width: 26px; height: 26px; }
 .navlinks { display: flex; gap: 22px; margin-left: auto; font-size: 14px; color: var(--muted); }
-.navlinks a { text-decoration: none; }
+.navlinks a { text-decoration: none; position: relative; padding: 4px 0; }
 .navlinks a:hover { color: var(--fg); }
-.iconbtn { width: 32px; height: 32px; border: 0; background: none; border-radius: 6px; display: grid; place-items: center; cursor: pointer; color: var(--muted); flex: none; }
+.navlinks a.hot { color: var(--accent); }
+.iconbtn { width: 34px; height: 34px; border: 0; background: none; border-radius: 8px; display: grid; place-items: center; cursor: pointer; color: var(--muted); flex: none; }
 .iconbtn:hover { color: var(--fg); background: var(--code); }
 .iconbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 #theme .sun, :root[data-theme="light"] #theme .moon { display: none; }
@@ -111,97 +127,177 @@ nav .wrap { display: flex; align-items: center; gap: 28px; height: 56px; }
   :root:not([data-theme="light"]) #theme .moon { display: none; }
   :root:not([data-theme="light"]) #theme .sun { display: block; }
 }
+:root[data-theme="dark"] #theme .moon { display: none; }
+:root[data-theme="dark"] #theme .sun { display: block; }
 #menu { display: none; }
-.sheet { display: none; position: sticky; top: 56px; z-index: 19; background: var(--bg); border-bottom: 1px solid var(--line); padding: 8px 24px 12px; }
+.sheet { display: none; position: sticky; top: 60px; z-index: 29; background: var(--bg); border-bottom: 1px solid var(--line); padding: 8px 28px 14px; }
 .sheet.open { display: grid; }
-.sheet a { padding: 10px 0; border-bottom: 1px solid var(--line); text-decoration: none; }
+.sheet a { padding: 11px 0; border-bottom: 1px solid var(--line); text-decoration: none; }
 .sheet a:last-child { border: 0; }
 
 /* Buttons */
 .btn {
-  display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--fg); background: var(--fg); color: var(--bg);
-  padding: 9px 16px; border-radius: 6px; font-size: 15px; font-weight: 500; text-decoration: none; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid var(--fg); background: var(--fg); color: var(--bg);
+  padding: 10px 18px; border-radius: 999px; font-size: 15px; font-weight: 500; text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: transform .15s, opacity .15s, border-color .15s;
 }
-.btn:hover { opacity: .85; }
+.btn:hover { opacity: .88; }
+.btn:active { transform: scale(.98); }
 .btn.quiet { background: transparent; color: var(--fg); border-color: var(--line-strong); }
 .btn.quiet:hover { opacity: 1; border-color: var(--fg); }
-.btn.small { padding: 6px 12px; font-size: 14px; }
-.btn svg { width: 16px; height: 16px; }
+.btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.small { padding: 7px 14px; font-size: 14px; }
+.btn.big { padding: 14px 24px; font-size: 16px; }
+.btn svg { width: 17px; height: 17px; fill: currentColor; }
+
+/* The corona from the icon, drawn once and reused */
+.corona { --c1: var(--accent); --c2: var(--ink); display: block; }
+.spin { animation: spin 140s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Hero */
-.hero { padding: 72px 0 0; }
-.hero h1 { font-size: clamp(38px, 5.4vw, 58px); line-height: 1.08; max-width: 14ch; margin-bottom: 22px; }
-.hero .lead { font-size: 19px; line-height: 1.55; color: var(--muted); max-width: 620px; }
+.hero { position: relative; padding: 64px 0 0; text-align: center; overflow: hidden; }
+.hero-bg { position: absolute; inset: -340px 0 auto; display: grid; place-items: center; pointer-events: none; }
+.hero-bg .corona { width: 1100px; height: 1100px; opacity: .05; --c2: var(--bg); }
+.hero-bg { -webkit-mask-image: linear-gradient(#000 35%, transparent 75%); mask-image: linear-gradient(#000 35%, transparent 75%); }
+.pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 40px; position: relative; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 6px; border-radius: 999px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 80%, transparent); font-size: 13.5px; color: var(--muted); text-decoration: none; transition: border-color .2s, color .2s; }
+.pill:hover { border-color: var(--line-strong); color: var(--fg); }
+.pill b { font-weight: 600; font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: #fff; background: var(--accent); padding: 3px 8px; border-radius: 999px; }
+.pill .live { width: 8px; height: 8px; border-radius: 50%; background: var(--live); margin: 0 4px 0 8px; box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 60%, transparent); animation: pulse 2s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.emblem { width: 84px; height: 84px; margin: 0 auto 28px; filter: drop-shadow(0 10px 24px color-mix(in srgb, var(--accent) 35%, transparent)); position: relative; }
+.hero h1 { font-size: clamp(46px, 7.4vw, 94px); line-height: 1.02; letter-spacing: -.015em; position: relative; }
+.hero h1 em { font-style: italic; color: var(--accent); }
+.hero .lead { font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: var(--muted); max-width: 640px; margin: 26px auto 0; position: relative; }
 .hero .lead b { color: var(--fg); font-weight: 500; }
-.cta { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 30px; }
-.fine { margin-top: 16px; font-size: 14px; color: var(--faint); }
-.shot { margin: 56px 0 0; }
-.shot img { border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: var(--shadow); }
-.shot figcaption, .wide figcaption { margin-top: 12px; font-size: 13.5px; color: var(--faint); }
+.cta { display: flex; align-items: center; gap: 14px 18px; flex-wrap: wrap; margin-top: 30px; }
+.hero .cta { justify-content: center; margin-top: 34px; position: relative; }
+.fine { margin-top: 18px; font-size: 13.5px; color: var(--faint); position: relative; }
+.shot { position: relative; margin: 64px auto 0; max-width: 1080px; }
+.shot::before { content: ""; position: absolute; inset: 8% 6% -4%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 38%, transparent), transparent); filter: blur(60px); opacity: .55; z-index: 0; }
+.shot img { position: relative; z-index: 1; border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow-lg); }
+.shot figcaption { position: relative; margin-top: 14px; font-size: 13px; color: var(--faint); }
 
-/* Facts under the hero */
-.facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 48px; border-top: 1px solid var(--line); }
-.facts div { padding-top: 16px; border-top: 2px solid var(--fg); margin-top: -1px; }
-.facts b { display: block; font: 500 30px/1.1 var(--serif); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
-.facts span { font-size: 14px; color: var(--muted); }
+.facts { display: grid; grid-template-columns: repeat(4, 1fr); margin: 56px 0 0; border-top: 1px solid var(--line); text-align: left; }
+.facts div { padding: 22px 22px 6px 0; }
+.facts div + div { padding-left: 22px; border-left: 1px solid var(--line); }
+.facts b { display: block; font: 500 34px/1.1 var(--serif); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.facts div > span { font-size: 14px; color: var(--muted); }
 
-/* Sections: a hairline, a numbered label in the margin, content beside it */
-section { border-top: 1px solid var(--line); margin-top: 88px; padding-top: 32px; }
-section.band { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 56px 0 64px; }
-section.band + section { border-top: 0; }
-.label::before { content: counter(sec, decimal-leading-zero); counter-increment: sec; display: block; font: 500 20px/1 var(--serif); color: var(--accent); margin-bottom: 8px; }
-body { counter-reset: sec; }
-.grid { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 24px 40px; }
-.label { font-size: 13px; color: var(--muted); letter-spacing: .02em; padding-top: 6px; }
-.label small { display: block; color: var(--faint); letter-spacing: 0; }
-h2 { font-size: clamp(27px, 3.2vw, 34px); line-height: 1.2; max-width: 26ch; }
+/* Sections */
+section { padding: 112px 0 0; position: relative; }
+section.band { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 96px 0 104px; margin-top: 112px; }
+section.band + section { padding-top: 104px; }
+.head { max-width: 760px; }
+.head.center { margin: 0 auto; text-align: center; }
+.eyebrow { font-size: 13.5px; font-weight: 500; color: var(--accent); margin-bottom: 14px; display: inline-flex; align-items: center; gap: 10px; }
+.eyebrow::before { content: ""; width: 22px; height: 1px; background: currentColor; }
+.head.center .eyebrow::after { content: ""; width: 22px; height: 1px; background: currentColor; }
+h2 { font-size: clamp(30px, 4vw, 48px); line-height: 1.1; letter-spacing: -.01em; }
 h2 em { font-style: italic; color: var(--accent); }
-.navlinks a { position: relative; padding: 4px 0; }
-.navlinks a::after { content: ""; position: absolute; left: 0; right: 100%; bottom: 0; height: 1px; background: var(--fg); transition: right .2s; }
-.navlinks a:hover::after { right: 0; }
-.mark { font-size: 13px; color: var(--accent); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-.mark::before { content: ""; width: 22px; height: 1px; background: var(--accent); }
-.sub { color: var(--muted); font-size: 17px; max-width: 60ch; margin-top: 14px; }
+.sub { color: var(--muted); font-size: 17.5px; max-width: 62ch; margin-top: 16px; }
+.head.center .sub { margin-left: auto; margin-right: auto; }
 .sub b { color: var(--fg); font-weight: 500; }
-.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; margin-top: 36px; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 56px; align-items: center; margin-top: 44px; }
+.two.top { align-items: start; }
 .two .sub { margin-top: 0; }
 .list { list-style: none; padding: 0; margin: 24px 0 0; }
-.list li { padding: 11px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+.list li { padding: 12px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; }
 .list li b { color: var(--fg); font-weight: 500; }
-.frame { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.frame { border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); overflow: hidden; box-shadow: var(--shadow); }
 .note { margin-top: 14px; font-size: 13.5px; color: var(--faint); }
+.note a { color: var(--muted); }
 
-/* Features */
-.features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 40px; margin-top: 36px; }
-.features > div { padding: 20px 0 22px; border-top: 1px solid var(--line); transition: background .2s; }
-.features > div:hover h3 { color: var(--accent); }
-.features > div.wide2 { grid-column: span 2; }
-.art { margin-top: 18px; }
-.tabs { display: flex; gap: 4px; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
-.tab { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 5px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tab i { width: 9px; height: 9px; border-radius: 2px; flex: none; background: var(--c, var(--accent)); }
-.tab.on { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
-.tab.zz { opacity: .5; }
-.tab.grp { flex: 0 0 auto; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--fg); }
-.split { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; height: 84px; }
-.split div { border-radius: 6px; background: var(--bg); border: 1px solid var(--line); position: relative; overflow: hidden; }
-.split div::before { content: ""; position: absolute; inset: 10px 12px auto; height: 7px; border-radius: 3px; background: var(--line-strong); }
-.split div::after { content: ""; position: absolute; inset: 26px 12px 10px; background: repeating-linear-gradient(var(--line) 0 3px, transparent 3px 9px); }
-.features h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-.features p { color: var(--muted); font-size: 15px; }
-.wide { margin: 40px 0 0; }
-.wide img { border: 1px solid var(--line-strong); border-radius: 8px; }
+/* Scroll reveal, only when scripts run and motion is welcome */
+.js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s cubic-bezier(.2, .7, .2, 1); }
+.js .reveal.in { opacity: 1; transform: none; }
+
+/* Arc */
+.arc { position: relative; background: var(--bg); color: var(--fg); margin-top: 112px; padding: 104px 0 112px; overflow: hidden; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.arc .glowbg { position: absolute; right: -300px; top: -300px; width: 760px; height: 760px; opacity: .08; pointer-events: none; }
+.arc .glowbg .corona { width: 100%; height: 100%; --c2: var(--bg); }
+.arc-top { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr); gap: 56px; align-items: center; position: relative; }
+.countdown { position: relative; width: 260px; height: 260px; margin-left: auto; display: grid; place-items: center; text-align: center; }
+.countdown svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.countdown circle { fill: none; stroke-width: 6; }
+.countdown .track { stroke: var(--line-strong); }
+.countdown .left { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 1.6s cubic-bezier(.2, .7, .2, 1); }
+.countdown b { display: block; font: 500 76px/1 var(--serif); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.countdown span { display: block; font-size: 15px; color: var(--fg); margin-top: 6px; }
+.countdown small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 4px; max-width: 18ch; }
+.arc-steps { list-style: none; padding: 0; margin: 64px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: st; position: relative; }
+.arc-steps li { padding: 24px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); counter-increment: st; }
+.arc-steps li::before { content: counter(st, decimal-leading-zero); display: block; font: 500 22px/1 var(--serif); color: var(--accent); margin-bottom: 14px; }
+.arc-steps b { display: block; font-weight: 600; margin-bottom: 6px; }
+.arc-steps p { color: var(--muted); font-size: 15px; }
+.map { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 32px; padding: 8px 24px; border: 1px solid var(--line); border-radius: var(--r); position: relative; }
+.map div { display: flex; align-items: baseline; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+.map div:nth-last-child(-n+3) { border-bottom: 0; }
+.map .from { color: var(--fg); font-weight: 500; white-space: nowrap; }
+.map .arrow { color: var(--accent); flex: none; }
+.map .to { color: var(--muted); }
+
+/* Bento grid */
+.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; margin-top: 48px; }
+.card { grid-column: span 2; padding: 26px; border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); position: relative; overflow: hidden; transition: border-color .2s, transform .2s; }
+.card:hover { border-color: var(--line-strong); }
+.card.big { grid-column: span 3; padding: 30px; }
+.card.wide { grid-column: span 4; }
+.card h3 { font-size: 17px; font-weight: 600; margin-bottom: 8px; letter-spacing: -.005em; }
+.card.big h3 { font: 500 26px/1.2 var(--serif); margin-bottom: 10px; }
+.card p { color: var(--muted); font-size: 15px; }
+.ico { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 18px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ico svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.mock { margin-top: 22px; }
+
+/* Activity line mock (Deep research) */
+.act { border: 1px solid var(--line); border-radius: 12px; background: var(--bg); padding: 6px 14px; font-size: 14px; }
+.act-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+.act-row:last-child { border-bottom: 0; }
+.act-row .st { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+.act-row .st i { width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); }
+.act-row.run { color: var(--fg); }
+.act-row.run .st i { width: 14px; height: 14px; background: none; border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent); border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+.act-row.done .st i { background: var(--ok); }
+.act-row .tm { margin-left: auto; color: var(--faint); font-variant-numeric: tabular-nums; font-size: 13px; }
+.act-row.wait { opacity: .35; }
+.act-cap { margin-top: 10px; font-size: 12.5px; color: var(--faint); }
+
+/* Command bar mock (in the card) */
+.mbar { border: 1px solid var(--line); border-radius: 12px; background: var(--bg); overflow: hidden; font-size: 15px; }
+.mbar .in { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.mbar .in svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; }
+.mbar .typed { color: var(--fg); }
+.mbar .sel { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--fg); border-radius: 2px; }
+.mbar .row { display: flex; align-items: center; gap: 10px; padding: 9px 14px; color: var(--muted); font-size: 14px; }
+.mbar .row.on { background: var(--code); color: var(--fg); }
+.mbar .row .k { margin-left: auto; font-size: 12.5px; color: var(--faint); }
+.mbar .row .eq { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--code); font-size: 13px; color: var(--muted); flex: none; }
+.mbar .row.on .eq { background: var(--raised); }
+.mini { margin-top: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); white-space: nowrap; }
+.chip.solid { color: var(--fg); }
+.chip .rec { width: 7px; height: 7px; border-radius: 50%; background: var(--live); }
+.chip mark { background: color-mix(in srgb, #ffcc00 55%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
 
 /* Command bar demo */
-.cmd { margin-top: 32px; max-width: 720px; }
-.cmd .in { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
-.cmd .in svg { width: 18px; height: 18px; color: var(--muted); flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.cmd input { flex: 1; min-width: 0; border: 0; background: transparent; font: 17px var(--font); color: var(--fg); outline: none; }
+.cmd { margin-top: 0; }
+.cmd .in { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.cmd .in > svg { width: 18px; height: 18px; color: var(--muted); flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.field { position: relative; flex: 1; min-width: 0; }
+.cmd input { position: relative; z-index: 1; width: 100%; border: 0; padding: 0; background: transparent; font: 17px/1.4 var(--font); color: var(--fg); outline: none; }
 .cmd input::placeholder { color: var(--faint); }
-.cmd .list { max-height: 330px; overflow: auto; padding: 6px; margin: 0; }
-.cmd .hit { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 6px; font-size: 15px; }
+.ghost { position: absolute; inset: 0; display: flex; align-items: center; font: 17px/1.4 var(--font); white-space: pre; overflow: hidden; pointer-events: none; }
+.ghost .t { color: transparent; }
+.ghost .r { color: var(--fg); background: color-mix(in srgb, var(--accent) 26%, transparent); border-radius: 2px; }
+.cmd .tabhint { font-size: 12px; color: var(--faint); flex: none; display: none; }
+.cmd.completing .tabhint { display: inline; }
+.cmd .list { height: 340px; overflow: auto; padding: 6px; margin: 0; }
+.cmd .hit { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 8px; font-size: 15px; }
 .cmd .hit.sel { background: var(--code); }
-.cmd .ic { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; flex: none; background: var(--code); color: var(--muted); font-size: 13px; }
+.cmd .ic { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; flex: none; background: var(--code); color: var(--muted); font-size: 13px; }
+.cmd .hit.sel .ic:not(.site) { background: var(--raised); }
 .cmd .ic.site { color: #fff; font-weight: 600; }
 .cmd .ic svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .cmd .t { flex: 1; min-width: 0; }
@@ -209,13 +305,13 @@ h2 em { font-style: italic; color: var(--accent); }
 .cmd .t span { display: block; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmd .bd { font-size: 12.5px; color: var(--faint); flex: none; }
 .cmd .empty { padding: 24px; color: var(--faint); text-align: center; font-size: 15px; }
-.tries { margin-top: 12px; font-size: 14px; color: var(--muted); }
-.tries button { border: 0; background: none; padding: 0; margin-right: 12px; color: var(--muted); cursor: pointer; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
-.tries button:hover { color: var(--fg); }
+.tries { margin-top: 16px; font-size: 14px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tries button { border: 1px solid var(--line); background: var(--raised); padding: 4px 11px; border-radius: 999px; color: var(--muted); cursor: pointer; font-size: 13.5px; }
+.tries button:hover { color: var(--fg); border-color: var(--line-strong); }
 
 /* Shield popover */
-.panel { padding: 32px 24px; }
-.popover { max-width: 320px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 10px; padding: 16px; font-size: 14px; box-shadow: var(--shadow); }
+.panel { padding: 36px 24px; background: var(--surface); }
+.popover { max-width: 330px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 12px; padding: 16px; font-size: 14px; box-shadow: var(--shadow); }
 .popover header { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
 .popover header svg { width: 22px; height: 22px; color: var(--accent); }
 .popover header b { display: block; font-size: 14px; font-weight: 600; }
@@ -232,51 +328,58 @@ h2 em { font-style: italic; color: var(--accent); }
 .counter b { color: var(--fg); font-weight: 500; }
 
 /* Clean link demo */
-.url { font: 14.5px/1.7 var(--mono); padding: 20px 22px; word-break: break-all; }
+.url { font: 14.5px/1.7 var(--mono); padding: 22px 24px; word-break: break-all; }
 .url .junk { color: var(--junk); transition: opacity .5s, font-size .5s; }
 .url.clean .junk { opacity: 0; font-size: 0; }
 .url .keep { color: var(--muted); }
-.url-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--faint); padding: 10px 22px; border-bottom: 1px solid var(--line); }
+.url-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--faint); padding: 11px 24px; border-bottom: 1px solid var(--line); }
 .url-label span:last-child { color: var(--fg); }
+.url-label span.ok { color: var(--ok); }
+.privacy-split { margin-top: 88px; }
 
 /* Assistant chat */
-.chat { padding: 20px; display: grid; gap: 12px; font-size: 14px; min-height: 320px; align-content: start; }
-.chat .head { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-.chat .head span.beta { font-weight: 500; color: var(--muted); }
+.chat { padding: 20px; display: grid; gap: 12px; font-size: 14px; min-height: 380px; align-content: start; }
+.chat .chead { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.chat .chead svg { width: 15px; height: 15px; fill: var(--accent); }
 .chat .model { margin-left: auto; font: 12px var(--mono); font-weight: 400; color: var(--muted); }
 .chat .page { justify-self: end; font-size: 12.5px; color: var(--muted); }
 .chat .page::before { content: "Page · "; color: var(--faint); }
-.chat .you { justify-self: end; background: var(--code); padding: 8px 12px; border-radius: 12px 12px 2px 12px; max-width: 90%; }
+.chat .you { justify-self: end; background: var(--code); padding: 8px 12px; border-radius: 14px 14px 3px 14px; max-width: 90%; }
 .chat .ai { line-height: 1.55; }
 .chat .ai b { font-weight: 600; }
-.chat .tool { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-.chat .tool::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-.chat .tool.done::before { background: var(--ok); }
+.chat .steps { border: 1px solid var(--line); border-radius: 10px; padding: 2px 12px; background: var(--bg); }
+.chat .steps:empty { display: none; }
+.chat .step { display: flex; align-items: center; gap: 9px; padding: 7px 0; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.chat .step:last-child { border-bottom: 0; }
+.chat .step .st { width: 14px; height: 14px; display: grid; place-items: center; flex: none; }
+.chat .step .st i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+.chat .step.done .st i { width: 7px; height: 7px; border: 0; background: var(--ok); animation: none; }
+.chat .step .tm { margin-left: auto; color: var(--faint); font-variant-numeric: tabular-nums; }
 .chat .src { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
-.chat .src span { padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; }
-.chat .box { margin-top: 6px; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); color: var(--faint); font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.chat .src span { padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; }
+.chat .box { margin-top: 6px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); color: var(--faint); font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
 .chat .box kbd { font-size: 11px; padding: 2px 5px; }
 .caret::after { content: "▍"; color: var(--accent); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
-.scene { margin-top: 10px; font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.scene { margin-top: 12px; font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
 
 /* Appearance */
-.swatches { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
-.swatch { width: 24px; height: 24px; border-radius: 50%; border: 0; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+.swatches { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
+.swatch { width: 26px; height: 26px; border-radius: 50%; border: 0; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
 .swatch.active { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--fg); }
-.tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 12px; }
-.tile { aspect-ratio: 4/3; border-radius: 6px; border: 0; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); }
+.tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 14px; }
+.tile { aspect-ratio: 4/3; border-radius: 8px; border: 0; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); }
 .tile.active { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--fg); }
-.mock .bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--bg); }
-.mock .dots { display: flex; gap: 5px; margin-right: 6px; }
-.mock .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
-.mock .tab { padding: 4px 10px; border-radius: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mock .tab.on { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--fg); }
+.win .bar { display: flex; align-items: center; gap: 6px; padding: 9px 10px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.win .dots { display: flex; gap: 6px; margin-right: 6px; }
+.win .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); }
+.win .tb { padding: 4px 10px; border-radius: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.win .tb.on { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--fg); }
 .startpage { aspect-ratio: 16/9; display: grid; place-items: center; color: #fff; text-align: center; transition: background .5s; }
-.startpage .clock { font-size: 40px; font-weight: 600; letter-spacing: -0.02em; text-shadow: 0 2px 16px rgba(0,0,0,.35); font-variant-numeric: tabular-nums; }
+.startpage .clock { font-size: 44px; font-weight: 600; letter-spacing: -0.02em; text-shadow: 0 2px 16px rgba(0,0,0,.35); font-variant-numeric: tabular-nums; }
 .startpage .hi { font-size: 13px; opacity: .9; }
 .startpage .favs { display: flex; gap: 8px; margin-top: 14px; justify-content: center; }
-.startpage .favs i { width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,.2); display: grid; place-items: center; font-style: normal; font-weight: 600; font-size: 12px; }
+.startpage .favs i { width: 32px; height: 32px; border-radius: 9px; background: rgba(255,255,255,.2); display: grid; place-items: center; font-style: normal; font-weight: 600; font-size: 12px; }
 .bg-aurora { background: radial-gradient(circle at 15% 10%, rgba(46,196,182,.55), transparent 60%), radial-gradient(circle at 90% 95%, rgba(142,68,173,.45), transparent 65%), linear-gradient(#0b1026, #1b2a6b); }
 .bg-dusk { background: radial-gradient(circle at 15% 10%, rgba(255,138,91,.55), transparent 60%), radial-gradient(circle at 90% 95%, rgba(255,195,113,.45), transparent 65%), linear-gradient(#2b1b3f, #7a2e58); }
 .bg-ocean { background: radial-gradient(circle at 15% 10%, rgba(0,180,216,.55), transparent 60%), radial-gradient(circle at 90% 95%, rgba(72,202,228,.45), transparent 65%), linear-gradient(#03152b, #0b3d6e); }
@@ -285,340 +388,557 @@ h2 em { font-style: italic; color: var(--accent); }
 .bg-graphite { background: radial-gradient(circle at 15% 10%, rgba(99,99,102,.55), transparent 60%), radial-gradient(circle at 90% 95%, rgba(142,142,147,.45), transparent 65%), linear-gradient(#1c1c1e, #3a3a3c); }
 
 /* Compare */
-.compare { margin-top: 32px; overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 600px; }
-th, td { padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { font-weight: 500; color: var(--muted); font-size: 13.5px; }
-th:first-child, td:first-child { padding-left: 0; }
-th:not(:first-child), td:not(:first-child) { width: 13%; }
+.compare { margin-top: 44px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); }
+table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 640px; }
+th, td { padding: 13px 16px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+th { font-weight: 500; color: var(--muted); font-size: 13.5px; background: var(--surface); }
+th:not(:first-child), td:not(:first-child) { width: 13%; text-align: center; }
 th.tacet { color: var(--fg); font-weight: 600; }
-td.y { color: var(--fg); }
-td.p { color: var(--muted); }
-td.n { color: var(--faint); }
-td.tacet { font-weight: 500; }
+td.tacet { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+th.tacet { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.yes, .part, .no { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; }
+.yes { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.part { background: var(--code); color: var(--muted); }
+.no { color: var(--faint); }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; font-size: 13px; color: var(--faint); align-items: center; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
 
 /* Shortcuts */
-.keysearch { display: flex; align-items: center; gap: 10px; max-width: 360px; margin-top: 24px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); }
+.keysearch { display: flex; align-items: center; gap: 10px; max-width: 380px; margin-top: 32px; padding: 9px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--raised); }
 .keysearch input { flex: 1; border: 0; background: transparent; font: 15px var(--font); color: var(--fg); outline: none; min-width: 0; }
 .keysearch svg { width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; }
-.keys { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; margin-top: 20px; }
-.key { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 36px; margin-top: 20px; }
+.key { display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
 .key.hide { display: none; }
 .key kbd { min-width: 78px; text-align: center; font-variant-numeric: tabular-nums; }
 .key span { color: var(--muted); }
 .nokeys { color: var(--faint); margin-top: 20px; display: none; font-size: 15px; }
 
-/* Release */
-.release .meta { color: var(--muted); font-size: 15px; margin-top: 8px; }
-.release .meta b { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
-.relnotes { margin-top: 20px; max-width: 64ch; }
-.relnotes ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--muted); }
+/* Release and download */
+.dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: start; }
+.dl .corona { width: 64px; height: 64px; margin-bottom: 26px; }
+.meta { color: var(--muted); font-size: 15px; margin-top: 14px; }
+.meta b { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
+.relnotes { margin-top: 26px; padding: 22px 24px; border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); }
+.relnotes h3 { font-size: 13.5px; color: var(--muted); font-weight: 500; margin-bottom: 12px; }
+.relnotes ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--muted); font-size: 15px; }
 .relnotes li b { color: var(--fg); font-weight: 500; }
-.relnotes .more { display: inline-block; margin-top: 16px; font-size: 15px; }
-
-/* Download */
-.steps { margin: 32px 0 0; padding-left: 22px; max-width: 64ch; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; color: var(--muted); font-size: 15px; }
-.steps li::marker { color: var(--faint); font-variant-numeric: tabular-nums; }
+.relnotes .more { display: inline-block; margin-top: 16px; font-size: 14.5px; }
+.steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; counter-reset: dls; }
+.steps li { padding: 20px 22px 20px 64px; border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); position: relative; color: var(--muted); font-size: 15px; counter-increment: dls; }
+.steps li::before { content: counter(dls); position: absolute; left: 22px; top: 19px; width: 26px; height: 26px; border-radius: 50%; background: var(--code); color: var(--fg); display: grid; place-items: center; font-size: 13px; font-weight: 600; }
 .steps b { color: var(--fg); font-weight: 500; }
-.copy { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 10px 8px 14px; border-radius: 6px; background: var(--code); font: 13.5px var(--mono); color: var(--fg); }
+.copy { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 8px 10px 8px 14px; border-radius: 9px; background: var(--code); font: 13.5px var(--mono); color: var(--fg); }
 .copy span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.copy button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); border-radius: 5px; padding: 3px 9px; font: 500 12.5px var(--font); cursor: pointer; flex: none; }
+.copy button { border: 1px solid var(--line-strong); background: var(--raised); color: var(--muted); border-radius: 6px; padding: 3px 10px; font: 500 12.5px var(--font); cursor: pointer; flex: none; }
 .copy button:hover { color: var(--fg); }
 
 /* FAQ */
-.faq { max-width: 720px; margin-top: 8px; }
-details { border-bottom: 1px solid var(--line); padding: 16px 0; }
-summary { cursor: pointer; font-size: 16px; font-weight: 500; list-style: none; display: flex; justify-content: space-between; gap: 20px; }
+.faq { max-width: 780px; margin: 40px auto 0; }
+details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+details:first-child { border-top: 1px solid var(--line); }
+summary { cursor: pointer; font-size: 16.5px; font-weight: 500; list-style: none; display: flex; justify-content: space-between; gap: 20px; }
 summary::-webkit-details-marker { display: none; }
-summary::after { content: "+"; color: var(--faint); font-weight: 400; font-size: 20px; line-height: 1; flex: none; }
-details[open] summary::after { content: "–"; }
-details p { color: var(--muted); margin: 10px 0 0; font-size: 15px; max-width: 64ch; }
+summary::after { content: "+"; color: var(--faint); font-weight: 400; font-size: 22px; line-height: 1; flex: none; transition: transform .2s; }
+details[open] summary::after { transform: rotate(45deg); }
+details p { color: var(--muted); margin: 12px 0 0; font-size: 15px; max-width: 66ch; }
+
+/* Final call */
+.final { text-align: center; padding: 120px 0 0; }
+.final .corona { width: 96px; height: 96px; margin: 0 auto 30px; }
+.final h2 { font-size: clamp(34px, 5vw, 60px); }
+.final .cta { justify-content: center; }
 
 /* Footer */
-footer { margin-top: 96px; border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--muted); font-size: 14px; }
-footer .cols { display: flex; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+footer { margin-top: 120px; border-top: 1px solid var(--line); padding: 36px 0 52px; color: var(--muted); font-size: 14px; }
+footer .cols { display: flex; justify-content: space-between; gap: 32px; flex-wrap: wrap; align-items: flex-start; }
 footer .cols p { max-width: 46ch; }
 footer ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 20px; flex-wrap: wrap; }
 footer a { text-decoration: none; }
 footer a:hover { color: var(--fg); }
-footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-width: 70ch; }
+footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-width: 72ch; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .spin, .pill .live, .act-row.run .st i, .chat .step .st i { animation: none; }
   .caret::after { animation: none; }
+  .js .reveal { opacity: 1; transform: none; transition: none; }
 }
 
 /* Responsive */
-@media (max-width: 900px) {
-  .grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .label { display: flex; align-items: baseline; gap: 10px; }
-  .label::before { margin: 0; }
+@media (max-width: 1020px) {
+  .navlinks { gap: 16px; }
+  .navlinks .opt { display: none; }
+  .keys { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card, .card.big { grid-column: span 3; }
+  .card.wide { grid-column: span 6; }
+}
+@media (max-width: 880px) {
+  .two, .dl, .arc-top { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  .countdown { margin: 0 auto; }
+  .arc-steps, .map { grid-template-columns: minmax(0, 1fr); }
+  .map div:nth-last-child(-n+3) { border-bottom: 1px solid var(--line); }
+  .map div:last-child { border-bottom: 0; }
   .facts { grid-template-columns: 1fr 1fr; }
-  .features > div.wide2 { grid-column: span 1; }
-  .art.tabs { overflow-x: auto; scrollbar-width: none; }
-  .art .tab { flex: 0 0 auto; }
-  .label { padding-top: 0; }
-  .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  section { margin-top: 64px; }
+  .facts div:nth-child(3) { padding-left: 0; border-left: 0; }
+  .facts div:nth-child(n+3) { border-top: 1px solid var(--line); }
+  section { padding-top: 88px; }
+  section.band, .arc { margin-top: 88px; padding: 80px 0 88px; }
 }
-@media (max-width: 760px) {
-  .two { grid-template-columns: minmax(0, 1fr); gap: 28px; }
-  .keys { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 640px) {
-  .wrap { padding: 0 16px; }
+@media (max-width: 720px) {
+  .wrap { padding: 0 18px; }
   .navlinks { display: none; }
   #menu { display: grid; }
-  .hero { padding-top: 48px; }
-  .features { grid-template-columns: minmax(0, 1fr); }
+  .sheet { padding: 8px 18px 14px; }
+  .hero { padding-top: 40px; }
+  .pills { margin-bottom: 32px; }
+  .bento { grid-template-columns: minmax(0, 1fr); }
+  .card, .card.big, .card.wide { grid-column: span 1; }
+  .keys { grid-template-columns: minmax(0, 1fr); }
   .tiles { grid-template-columns: repeat(3, 1fr); }
-  .cmd input { font-size: 16px; }
-  .sheet { padding: 8px 16px 12px; }
+  .cmd input, .ghost { font-size: 16px; }
   footer .cols { flex-direction: column; }
+  .countdown { width: 220px; height: 220px; }
+  .countdown b { font-size: 64px; }
 }
 </style>
 </head>
 <body>
-<a class="sr" href="#features">Skip to content</a>
-<nav id="nav">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="corona" viewBox="0 0 200 200">
+      <circle cx="100" cy="100" r="92" style="fill:var(--c1,#d2452a)"/>
+      <circle cx="100" cy="100" r="34" style="fill:var(--c2,#141210)"/>
+      <g style="stroke:var(--c2,#141210)" stroke-width="5" stroke-linecap="round">
+        <line x1="100" y1="54" x2="100" y2="18"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(15 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(30 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(45 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(60 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(75 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(90 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(105 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(120 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(135 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(150 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(165 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(180 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(195 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(210 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(225 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(240 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(255 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(270 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(285 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(300 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(315 100 100)"/>
+        <line x1="100" y1="54" x2="100" y2="18" transform="rotate(330 100 100)"/>
+        <line x1="100" y1="50" x2="100" y2="26" transform="rotate(345 100 100)"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+<a class="skip" href="#main">Skip to content</a>
+<nav id="nav" aria-label="Main">
   <div class="wrap">
-    <a class="brand" href="#top"><img src="assets/icon.png" alt="">Tacet</a>
+    <a class="brand" href="#top"><img src="assets/icon.png" alt="" width="26" height="26">Tacet</a>
     <div class="navlinks">
+      <a href="#new">What's new</a>
       <a href="#features">Features</a>
-      <a href="#shield">Shield</a>
+      <a class="opt" href="#privacy">Privacy</a>
       <a href="#assistant">Assistant</a>
-      <a href="#compare">Compare</a>
-      <a href="#faq">Questions</a>
-      <a href="https://github.com/scadavide55/Tacet">GitHub</a>
+      <a class="opt" href="#compare">Compare</a>
+      <a class="hot" href="#arc">From Arc</a>
+      <a class="opt" href="https://github.com/scadavide55/Tacet">GitHub</a>
     </div>
     <button class="iconbtn" id="theme" aria-label="Switch between light and dark" title="Light or dark">
       <svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
       <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
     </button>
-    <button class="iconbtn" id="menu" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <button class="iconbtn" id="menu" aria-label="Menu" aria-expanded="false" aria-controls="sheet"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <a class="btn small" href="#download">Download</a>
   </div>
 </nav>
 <div class="sheet" id="sheet">
-  <a href="#features">Features</a><a href="#command">Command bar</a><a href="#shield">Shield</a><a href="#assistant">Assistant</a><a href="#compare">Compare</a><a href="arc.html">Switching from Arc</a><a href="#shortcuts">Shortcuts</a><a href="#faq">Questions</a><a href="https://github.com/scadavide55/Tacet">GitHub</a>
+  <a href="#new">What's new in 1.8</a><a href="#arc">Switching from Arc</a><a href="#features">Features</a><a href="#command">Command bar</a><a href="#privacy">Privacy</a><a href="#assistant">Assistant</a><a href="#compare">Compare</a><a href="#shortcuts">Shortcuts</a><a href="#faq">Questions</a><a href="https://github.com/scadavide55/Tacet">GitHub</a>
 </div>
 
 <header class="hero" id="top">
+  <div class="hero-bg" aria-hidden="true"><svg class="corona spin"><use href="#corona"/></svg></div>
   <div class="wrap">
-    <p class="mark">Free browser for macOS, version 1.7.1.1</p>
-    <h1>A quiet browser for the Mac.</h1>
-    <p class="lead">Tacet is a small, fast browser built on WebKit, the engine behind Safari. It blocks ads and trackers before they load and turns the blocker off for a site in one click. An assistant can read the page, your tabs and your history, and it can run entirely on your Mac. <b>No account, no analytics, free and open source.</b></p>
-    <div class="cta">
-      <a class="btn" id="dl-top" href="https://github.com/scadavide55/Tacet/releases/download/v1.7.1.1/Tacet-1.7.1.1.dmg">Download Tacet <span id="dl-v">1.7.1.1</span></a>
-      <a href="https://github.com/scadavide55/Tacet">Source on GitHub</a>
+    <div class="pills">
+      <a class="pill" href="#new"><b id="new-tag">New</b> Tacet 1.8: deep research and more <span aria-hidden="true">→</span></a>
+      <a class="pill" href="#arc"><span class="live" aria-hidden="true"></span><span id="arc-pill">Arc stops working on 22 December</span> <span aria-hidden="true">→</span></a>
     </div>
-    <p class="fine">macOS 14 or later · Apple silicon and Intel · about 7 MB · Tacet was called Lumen until October 2026</p>
-    <figure class="shot">
+    <svg class="corona emblem" aria-hidden="true"><use href="#corona"/></svg>
+    <h1>The quiet browser<br> for the <em>Mac</em>.</h1>
+    <p class="lead">Tacet is a small, fast browser built on WebKit, the engine behind Safari. It blocks ads and trackers before they load, keeps your tabs tidy, and has an assistant that reads the page and can run entirely on your Mac. <b>No account, no analytics, free and open source.</b></p>
+    <div class="cta">
+      <a class="btn big" id="dl-top" href="https://github.com/scadavide55/Tacet/releases/latest">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.8 1.2 1.8 2.6 3.1 2.5 1.3-.1 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.5.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.6-1-2.1-4.1zM13.9 4.9c.7-.8 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z"/></svg>
+        Download for Mac
+      </a>
+      <a class="btn quiet big" href="#arc">Coming from Arc?</a>
+    </div>
+    <p class="fine">Free and open source · <span class="vname">Version 1.8</span> · macOS 14 or later · Apple silicon and Intel · about <span class="size">11 MB</span></p>
+    <figure class="shot reveal">
       <img src="assets/window.jpg" width="2000" height="1281" alt="Tacet with the Wikipedia article on tacet open and Tacet Assistant beside it, summarising the page" fetchpriority="high">
-      <figcaption>Tacet with the assistant panel open beside the page.</figcaption>
+      <figcaption>Tacet with the assistant beside the page.</figcaption>
     </figure>
-    <div class="facts" aria-label="At a glance">
-      <div><b>7 MB</b><span>one download, Apple silicon and Intel</span></div>
+    <div class="facts reveal" aria-label="At a glance">
+      <div><b><span class="size">11 MB</span></b><span>one download, Apple silicon and Intel</span></div>
       <div><b>0</b><span>accounts, analytics or trackers in Tacet itself</span></div>
-      <div><b>1 click</b><span>turns the blocker off for a site</span></div>
+      <div><b>1 click</b><span>turns the ad blocker off for a site</span></div>
       <div><b>WebKit</b><span>the engine behind Safari, so sites just work</span></div>
     </div>
   </div>
 </header>
 
-<section id="features">
-  <div class="wrap grid">
-    <div class="label">Features</div>
-    <div>
-      <h2>Safari's engine, the things Safari is missing, and nothing you have to turn off.</h2>
-      <div class="features">
-        <div class="wide2"><h3>Tabs that tidy themselves</h3><p>Drag a tab onto another to make a group, or let Tacet group tabs from the same site. Save a group and close it, reopen it later with every tab. ⌘-click picks several, sort by site or title, close duplicates in one click.</p>
-          <div class="art tabs" aria-hidden="true">
-            <div class="tab grp" style="--c:#e0541f">Work</div>
-            <div class="tab on" style="--c:#e0541f"><i></i>Tacet · GitHub</div>
-            <div class="tab" style="--c:#e0541f"><i></i>WebKit Blog</div>
-            <div class="tab grp" style="--c:#30b0c7">Rome trip</div>
-            <div class="tab zz" style="--c:#30b0c7"><i></i>Trenitalia</div>
-            <div class="tab zz" style="--c:#30b0c7"><i></i>Airbnb</div>
-          </div>
-        </div>
-        <div><h3>Split view and Reader</h3><p>Two pages side by side with ⌥⌘S. A cluttered article becomes clean text with ⇧⌘R, and the Reading List keeps it for the plane.</p>
-          <div class="art split" aria-hidden="true"><div></div><div></div></div>
-        </div>
-        <div><h3>Ads blocked, natively</h3><p>Stopped before they load by WebKit's own content blocker. No extension, no slowdown, and it works offline.</p></div>
-        <div><h3>Light on memory</h3><p>Tabs you haven't touched in a while go to sleep, then wake up exactly where you left them, history included.</p></div>
-        <div><h3>Private by default</h3><p>Tracking stripped from links, automatic HTTPS, Global Privacy Control, and private windows that forget everything and lock with Touch ID.</p></div>
-        <div><h3>Passwords with Touch ID</h3><p>Saved in the Mac's Keychain, filled after Touch ID, strong ones suggested on sign-up. Works beside 1Password and KeePassXC.</p></div>
-        <div><h3>Tacet Plugins</h3><p>A store of plugins checked by the developer: remove picture backgrounds offline with Cutout, a focus timer, smart dark mode, YouTube without Shorts, and more.</p></div>
-        <div><h3>Extensions</h3><p>Add the Safari extensions that come with your apps, or Chrome and Firefox ones from a file. You see what each can do before it runs.</p></div>
-        <div><h3>Sites as apps</h3><p>Install any site as an app with its own window and Dock icon, kept apart from your browsing.</p></div>
-        <div><h3>Customize Site</h3><p>Give any site its own theme, font and width, hide floating bars or anything you click on, add your own CSS or JavaScript.</p></div>
-        <div><h3>Moving in is easy</h3><p>Bookmarks, history and sign-ins come over from Safari, Chrome, Firefox, Brave, Edge, Opera and Arc. Guided setup in English, Italian and French.</p></div>
-        <div><h3>Updates itself</h3><p>Tacet checks for new versions and installs them for you. Each one opens with a short note on what changed.</p></div>
-      </div>
-      <figure class="wide">
-        <img src="assets/groups.png" width="2410" height="88" loading="lazy" alt="Tab groups along the top of the Tacet window, each in its own colour">
-        <figcaption>Tab groups along the top of the window, each in its own colour.</figcaption>
-      </figure>
-    </div>
-  </div>
-</section>
+<main id="main">
 
-<section id="command" class="band">
-  <div class="wrap grid">
-    <div class="label">Command bar</div>
-    <div>
-      <h2>Addresses, searches, tabs, bookmarks, history and commands, in one bar.</h2>
-      <p class="sub">Press ⌘L or ⌘K in Tacet. The same bar is below, with a few tabs and bookmarks made up for it. Type a site to open it, a word to search, or the name of a command.</p>
-      <div class="cmd frame" id="cmd" role="combobox" aria-expanded="true" aria-haspopup="listbox">
-        <div class="in">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-          <input id="cmd-in" type="text" placeholder="Search or enter address" autocomplete="off" spellcheck="false" aria-label="Command bar demo">
+<section id="arc" class="arc night">
+  <div class="glowbg" aria-hidden="true"><svg class="corona spin"><use href="#corona"/></svg></div>
+  <div class="wrap">
+    <div class="arc-top">
+      <div class="reveal">
+        <p class="eyebrow">Switching from Arc</p>
+        <h2>Arc stops working on 22&nbsp;December. Your sidebar moves <em>in a minute</em>.</h2>
+        <p class="sub">The Browser Company is ending Arc on the Mac and Windows, and after that day it won't open. Tacet reads Arc's sidebar straight from your Mac and rebuilds it: <b>every Space as a tab group, Favorites as pinned tabs, folders as groups of their own</b>, with your history, bookmarks and sign-ins. Imported tabs wait folded and load only when you open them.</p>
+        <div class="cta">
+          <a class="btn accent" href="#download">Download Tacet</a>
+          <a class="btn quiet" href="arc.html">How the move works</a>
         </div>
-        <div class="list" id="cmd-list" role="listbox"></div>
+        <p class="note">Date from the <a href="https://resources.arc.net/hc/en-us/articles/44412972248471-Arc-Sunset-Key-Dates-and-What-to-Expect">Arc Help Center: Arc Sunset, key dates</a>. Importing before then is safest.</p>
       </div>
-      <p class="tries">Try
-        <button data-q="yt lofi">yt lofi</button><button data-q="w Tacet">w Tacet</button><button data-q="reader">reader</button><button data-q="private">private</button><button data-q="group">group</button><button data-q="webkit.org">webkit.org</button>
-      </p>
-    </div>
-  </div>
-</section>
-
-<section id="shield">
-  <div class="wrap grid">
-    <div class="label">Shield</div>
-    <div>
-      <h2>Ad blocking with a <em>real</em> off switch.</h2>
-      <div class="two">
+      <div class="countdown reveal" aria-live="polite">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="54"/><circle class="left" id="arc-ring" cx="60" cy="60" r="54" stroke-dasharray="339.3" stroke-dashoffset="339.3"/></svg>
         <div>
-          <p class="sub">Most blockers are all or nothing. Shield has a switch for every site and sensible defaults everywhere else. ⇧⌘B turns the whole thing off and on again. The switches on the right work.</p>
-          <ul class="list">
-            <li><b>Works offline.</b> A built-in list covers the biggest ad and tracking networks from the first launch.</li>
-            <li><b>Community lists.</b> EasyList and EasyPrivacy add tens of thousands of rules, converted to WebKit rules and refreshed weekly.</li>
-            <li><b>No cookie walls.</b> Consent banners are hidden and the page scrolls again.</li>
-            <li><b>Fewer YouTube ads.</b> Video ads are stripped or skipped.</li>
-            <li><b>Third-party cookies blocked.</b> Sites can't follow you around the web.</li>
-          </ul>
+          <b id="arc-days">—</b>
+          <span id="arc-unit">days left</span>
+          <small id="arc-when">until Arc stops opening, on 22 December 2026</small>
         </div>
-        <div class="frame panel">
-          <div class="popover" id="popover">
-            <header>
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l8 3.4v5.8c0 5-3.4 9.5-8 10.8-4.6-1.3-8-5.8-8-10.8V5.4L12 2z" opacity=".35"/><path d="M12 2v20c-4.6-1.3-8-5.8-8-10.8V5.4L12 2z"/></svg>
-              <div><b>Tacet Shield</b><span>news.example.com</span></div>
-            </header>
-            <div class="tg on" id="tg-site" role="switch" aria-checked="true" tabindex="0"><span>Protection on this site</span><i class="switch"></i></div>
-            <hr>
-            <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="212"><span>Block ads and trackers</span><i class="switch"></i></div>
-            <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="18"><span>Hide cookie banners</span><i class="switch"></i></div>
-            <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="24"><span>Skip YouTube ads</span><i class="switch"></i></div>
-            <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="14"><span>Block third-party cookies</span><i class="switch"></i></div>
-            <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="7"><span>Remove tracking from links</span><i class="switch"></i></div>
-            <div class="rules"><span id="rules-n">275</span> rules active</div>
+      </div>
+    </div>
+    <ol class="arc-steps reveal">
+      <li><b>Download Tacet</b><p>Open the .dmg and drag Tacet to Applications. Free, for macOS 14 or later.</p></li>
+      <li><b>Choose Arc in the setup</b><p>Keep “Arc Spaces and pinned tabs” ticked. Later it's in File › Import from Another Browser.</p></li>
+      <li><b>Allow, then browse</b><p>When macOS asks about “Arc Safe Storage”, choose Allow to keep your sign-ins.</p></li>
+    </ol>
+    <div class="map reveal" aria-label="What comes across from Arc">
+      <div><span class="from">Spaces</span><span class="arrow">→</span><span class="to">a tab group each, with its emoji</span></div>
+      <div><span class="from">Favorites</span><span class="arrow">→</span><span class="to">pinned tabs</span></div>
+      <div><span class="from">Folders</span><span class="arrow">→</span><span class="to">groups named “Space · Folder”</span></div>
+      <div><span class="from">History, bookmarks</span><span class="arrow">→</span><span class="to">come across as they are</span></div>
+      <div><span class="from">Sign-ins</span><span class="arrow">→</span><span class="to">still signed in, after you allow</span></div>
+      <div><span class="from">Split View, ⌘T</span><span class="arrow">→</span><span class="to">split view and a command bar, built in</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="new">
+  <div class="wrap">
+    <div class="head reveal">
+      <p class="eyebrow">New in Tacet 1.8</p>
+      <h2>An assistant that does its homework, a command bar that finishes your sentences.</h2>
+      <p class="sub">And a browser that's harder to push around: pages can't freeze it with dialogs, can't spot its fingerprinting protection, and can't open pop-ups behind your back.</p>
+    </div>
+    <div class="bento">
+      <div class="card big reveal">
+        <h3>Deep research <span class="tag">Beta</span></h3>
+        <p>Ask a hard question and Tacet Assistant plans it, searches from several angles, reads the pages in full, checks the facts against each other and writes a report with its sources. You see every step as it happens, with how long it took.</p>
+        <div class="mock">
+          <div class="act" id="dr" aria-label="Example of a deep research in progress">
+            <div class="act-row"><span class="st"><i></i></span><span>Planned 4 questions</span><span class="tm">2s</span></div>
+            <div class="act-row"><span class="st"><i></i></span><span>Searched the web, 6 searches</span><span class="tm">5s</span></div>
+            <div class="act-row"><span class="st"><i></i></span><span>Read 8 pages</span><span class="tm">14s</span></div>
+            <div class="act-row"><span class="st"><i></i></span><span>Compared sources</span><span class="tm">4s</span></div>
+            <div class="act-row"><span class="st"><i></i></span><span>Checked the facts</span><span class="tm">3s</span></div>
+            <div class="act-row"><span class="st"><i></i></span><span>Writing the report</span><span class="tm">6s</span></div>
           </div>
-          <div class="counter"><b id="blocked-n">0</b> requests blocked on this page</div>
+          <p class="act-cap">An illustration of the activity line.</p>
         </div>
+      </div>
+      <div class="card big reveal">
+        <h3>The command bar finishes your addresses</h3>
+        <p>Type the start of a site you visit often and it completes it; Tab takes it. Sums and units are worked out as you type, and an address already open offers to switch to its tab.</p>
+        <div class="mock">
+          <div class="mbar" aria-hidden="true">
+            <div class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span><span class="typed">gi</span><span class="sel">thub.com</span></span></div>
+            <div class="row on"><span class="eq">→</span>github.com<span class="k">Switch to tab</span></div>
+            <div class="row"><span class="eq">=</span>10 km = 6.21 mi<span class="k">Copy</span></div>
+            <div class="row"><span class="eq">=</span>21 °C = 69.8 °F<span class="k">Copy</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.6-4.6"/></svg></div>
+        <h3>Find on Page counts</h3>
+        <p>Every match highlighted, “3 of 12”, narrowing as you type. Match case or whole words, and ⌘E searches for the selection.</p>
+        <div class="mini" aria-hidden="true"><span class="chip solid"><mark>tacet</mark></span><span class="chip">3 of 12</span><span class="chip">Aa</span></div>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="11" rx="2"/><path d="M8 19h11a2 2 0 0 0 2-2V9"/><path d="M6.5 8.5l6 4M12.5 8.5l-6 4"/></svg></div>
+        <h3>Pop-ups that say so</h3>
+        <p>A pop-up no click asked for is blocked, and Tacet tells you, with Open and Always Allow on This Site.</p>
+        <div class="mini" aria-hidden="true"><span class="chip">Pop-up blocked</span><span class="chip solid">Open</span></div>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="12" height="10" rx="2"/><path d="M15 11l6-3v8l-6-3"/></svg></div>
+        <h3>Camera and microphone in sight</h3>
+        <p>Tabs using them show it, and never go to sleep, so a call in a background tab keeps going.</p>
+        <div class="mini" aria-hidden="true"><span class="chip solid"><span class="rec"></span>Weekly call</span></div>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></div>
+        <h3>Sound from embedded players</h3>
+        <p>A YouTube or Spotify player inside a page now shows on its tab, and mutes with it.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h6M7 14h3"/><path d="M15 15l2 2 3-4"/></svg></div>
+        <h3>No more dialog storms</h3>
+        <p>A page's alerts wait their turn in its own window and can be silenced. Tacet never freezes for them.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+        <h3>Sign-ins inside pages</h3>
+        <p>Saved passwords fill sign-in boxes embedded in a page, only for the same site and only over HTTPS.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 4a7 7 0 0 0-7 7v2M19 11a7 7 0 0 0-3-5.7M12 8a3 3 0 0 0-3 3v3a6 6 0 0 0 1.5 4M15 11v2a9 9 0 0 1-1 4M12 11v3"/></svg></div>
+        <h3>Protection you can't spot</h3>
+        <p>Canvas, WebGL and audio readings still change for each site, and now look exactly like the browser's own, frames included.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg></div>
+        <h3>After an unexpected quit</h3>
+        <p>Tacet asks before reopening the windows from before, in case a page was the reason.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 18l4-12 4 12M5.5 14h5"/><path d="M14 15l2.5 2.5L21 12"/></svg></div>
+        <h3>Spelling, like every Mac app</h3>
+        <p>The Edit menu has Spelling and Grammar, Substitutions, Transformations and Speech, in every text field.</p>
+      </div>
+    </div>
+    <p class="note reveal">Also: Tacet Assistant leaves beta, with replies laid out cleanly, sources you can click and every step it takes in view. <a href="https://github.com/scadavide55/Tacet/releases">All release notes</a>.</p>
+  </div>
+</section>
+
+<section id="features" class="band">
+  <div class="wrap">
+    <div class="head center reveal">
+      <p class="eyebrow">Features</p>
+      <h2>Safari's engine, the things Safari is missing, and <em>nothing</em> to switch off.</h2>
+    </div>
+    <div class="bento">
+      <div class="card wide reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M8 5v4"/></svg></div>
+        <h3>Tabs that tidy themselves</h3>
+        <p>Drag a tab onto another to make a group, or let Tacet group tabs from the same site. Save a group and close it, reopen it later with every tab. Spaces keep work and life apart. Tabs you haven't touched go to sleep and wake up where you left them.</p>
+        <figure class="mock"><img src="assets/groups.png" width="2410" height="88" loading="lazy" alt="Tab groups along the top of the Tacet window, each in its own colour" style="border:1px solid var(--line);border-radius:8px"></figure>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 5v14"/></svg></div>
+        <h3>Split view and Reader</h3>
+        <p>Two pages side by side with ⌥⌘S. A cluttered article becomes clean text with ⇧⌘R, and the Reading List keeps it offline.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+        <h3>Passwords with Touch ID</h3>
+        <p>Saved in the Mac's Keychain, filled after Touch ID, strong ones suggested on sign-up. Checked against known breaches. Works beside 1Password.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M10 3h4v4a2 2 0 1 0 0 4v0h4v4a2 2 0 1 1 0 4v2H6v-4a2 2 0 1 0 0-4V7h4V3z"/></svg></div>
+        <h3>Tacet Plugins <span class="tag">Beta</span></h3>
+        <p>A store of plugins checked by the developer: Cutout removes picture backgrounds offline, plus a focus timer, smart dark mode, YouTube without Shorts and more.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M14 4l6 6-10 10H4v-6z"/><path d="M12 6l6 6"/></svg></div>
+        <h3>Extensions</h3>
+        <p>Add the Safari extensions that come with your apps, or Chrome and Firefox ones from a file, on macOS 15.4 or later. You see what each can do first.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg></div>
+        <h3>Sites as apps</h3>
+        <p>Install any site as an app with its own window and Dock icon, kept apart from your browsing.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg></div>
+        <h3>Customize Site</h3>
+        <p>Give any site its own theme, font and width, hide floating bars or anything you click on, add your own CSS or JavaScript.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></div>
+        <h3>Moving in is easy</h3>
+        <p>Bookmarks, history and sign-ins from Safari, Chrome, Firefox, Brave, Edge, Opera and Arc. Guided setup in English, Italian and French.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 7h10M4 12h16M4 17h7"/><circle cx="17" cy="7" r="2"/><circle cx="14" cy="17" r="2"/></svg></div>
+        <h3>Highlights and notes</h3>
+        <p>Mark text on any page in a colour, add a note, find it again later. Search history by what pages said, not only their titles.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M14 5l-4 14"/></svg></div>
+        <h3>For developers</h3>
+        <p>Developer Mode adds the Web Inspector, page source, Responsive Design Mode and user agents. Off until you want it.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></div>
+        <h3>Updates itself</h3>
+        <p>New versions are checked, signed and installed for you. Each one opens with a short note on what changed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="command">
+  <div class="wrap">
+    <div class="two">
+      <div class="reveal">
+        <p class="eyebrow">Command bar</p>
+        <h2>Addresses, searches, tabs, history and commands, <em>in one bar</em>.</h2>
+        <p class="sub" style="margin-top:16px">Press ⌘L or ⌘K in Tacet. This is the same bar, with a few tabs and bookmarks made up for it. Type the start of a site and press Tab, a word to search, a sum or a unit, or the name of a command.</p>
+        <div class="tries" aria-label="Examples to try"><span>Try</span>
+          <button data-q="gi">gi</button><button data-q="10 km">10 km</button><button data-q="21 °C to F">21 °C to F</button><button data-q="yt lofi">yt lofi</button><button data-q="reader">reader</button><button data-q="group">group</button>
+        </div>
+      </div>
+      <div class="cmd frame reveal" id="cmd">
+        <div class="in">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <div class="field">
+            <span class="ghost" id="cmd-ghost" aria-hidden="true"><span class="t"></span><span class="r"></span></span>
+            <input id="cmd-in" type="text" placeholder="Search or enter address" autocomplete="off" spellcheck="false" aria-label="Command bar demo" aria-controls="cmd-list" aria-autocomplete="both">
+          </div>
+          <span class="tabhint">Tab to complete</span>
+        </div>
+        <div class="list" id="cmd-list" role="listbox" aria-label="Results"></div>
       </div>
     </div>
   </div>
 </section>
 
 <section id="privacy">
-  <div class="wrap grid">
-    <div class="label">Clean links</div>
-    <div>
-      <h2>Links arrive <em>without</em> their tracking tags.</h2>
-      <div class="two">
-        <div>
-          <p class="sub">Shared links carry tags that tell advertisers where you came from. Tacet strips them before the page loads, so you land on the same page, minus the tracking.</p>
-          <ul class="list">
-            <li>Removes <b>utm_</b>, <b>fbclid</b>, <b>gclid</b>, <b>msclkid</b> and dozens more</li>
-            <li>Knows the site-specific ones on YouTube, Spotify, Amazon and X</li>
-            <li>“Copy Link Without Tracking” in every page's menu</li>
-            <li>Upgrades to HTTPS, with an HTTPS-only mode if you want it strict</li>
-          </ul>
+  <div class="wrap">
+    <div class="head center reveal">
+      <p class="eyebrow">Privacy</p>
+      <h2>Ad blocking with a <em>real</em> off switch, and links without their tracking.</h2>
+      <p class="sub">Tacet Shield is on from the first launch and works offline. It has a switch for every site, so a page that breaks is one click from working.</p>
+    </div>
+    <div class="two" id="shield">
+      <div class="reveal">
+        <ul class="list" style="margin-top:0">
+          <li><b>Works offline.</b> A built-in list covers the biggest ad and tracking networks from the first launch.</li>
+          <li><b>Community lists.</b> EasyList and EasyPrivacy add tens of thousands of rules, converted to WebKit rules and refreshed weekly.</li>
+          <li><b>No cookie walls.</b> Consent banners are hidden, optional cookies rejected, and the page scrolls again.</li>
+          <li><b>Fewer YouTube ads.</b> Video ads are stripped or skipped.</li>
+          <li><b>Third-party cookies blocked</b> and <b>fingerprinting</b> made harder, so sites can't follow you around.</li>
+        </ul>
+        <p class="note">The switches on the right work. ⇧⌘B turns Shield off and on in Tacet.</p>
+      </div>
+      <div class="frame panel reveal">
+        <div class="popover" id="popover">
+          <header>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l8 3.4v5.8c0 5-3.4 9.5-8 10.8-4.6-1.3-8-5.8-8-10.8V5.4L12 2z" opacity=".35"/><path d="M12 2v20c-4.6-1.3-8-5.8-8-10.8V5.4L12 2z"/></svg>
+            <div><b>Tacet Shield</b><span>news.example.com</span></div>
+          </header>
+          <div class="tg on" id="tg-site" role="switch" aria-checked="true" tabindex="0"><span>Protection on this site</span><i class="switch"></i></div>
+          <hr>
+          <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="212"><span>Block ads and trackers</span><i class="switch"></i></div>
+          <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="18"><span>Hide cookie banners</span><i class="switch"></i></div>
+          <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="24"><span>Skip YouTube ads</span><i class="switch"></i></div>
+          <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="14"><span>Block third-party cookies</span><i class="switch"></i></div>
+          <div class="tg on" role="switch" aria-checked="true" tabindex="0" data-n="7"><span>Remove tracking from links</span><i class="switch"></i></div>
+          <div class="rules"><span id="rules-n">275</span> rules active</div>
         </div>
-        <div class="frame">
-          <div class="url-label"><span>Link you clicked</span><span id="url-state">Cleaning…</span></div>
-          <div class="url" id="url"><span class="host">https://shop.example.com/item</span><span class="keep">?id=42</span><span class="junk">&amp;utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=autumn_sale</span><span class="junk">&amp;fbclid=IwAR2xK9vQ7mT3pL</span><span class="junk">&amp;gclid=Cj0KCQjw8eTFBhCX</span></div>
-        </div>
+        <div class="counter"><b id="blocked-n">0</b> requests blocked on this page</div>
+      </div>
+    </div>
+    <div class="two privacy-split">
+      <div class="frame reveal">
+        <div class="url-label"><span>Link you clicked</span><span id="url-state">Cleaning…</span></div>
+        <div class="url" id="url"><span class="host">https://shop.example.com/item</span><span class="keep">?id=42</span><span class="junk">&amp;utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=autumn_sale</span><span class="junk">&amp;fbclid=IwAR2xK9vQ7mT3pL</span><span class="junk">&amp;gclid=Cj0KCQjw8eTFBhCX</span></div>
+      </div>
+      <div class="reveal">
+        <h3 style="font:500 26px/1.2 var(--serif)">Links arrive <em style="color:var(--accent)">without</em> their tracking tags.</h3>
+        <p class="sub" style="margin-top:12px">Shared links carry tags that tell advertisers where you came from. Tacet strips them before the page loads, so you land on the same page, minus the tracking.</p>
+        <ul class="list">
+          <li>Removes <b>utm_</b>, <b>fbclid</b>, <b>gclid</b>, <b>msclkid</b> and dozens more, including site-specific ones on YouTube, Spotify, Amazon and X</li>
+          <li>“Copy Link Without Tracking” in every page's menu</li>
+          <li>Upgrades to HTTPS, sends Global Privacy Control, and private windows lock with Touch ID</li>
+        </ul>
       </div>
     </div>
   </div>
 </section>
 
 <section id="assistant" class="band">
-  <div class="wrap grid">
-    <div class="label">Assistant <small>beta</small></div>
-    <div>
-      <h2>Ask the page <em>you're on</em>.</h2>
-      <div class="two">
-        <div>
-          <p class="sub">⇧⌘A opens a panel beside any page, and the page comes along. The assistant can read your other tabs, history and bookmarks, the transcript of a YouTube video, and look things up on the web. With Browser use turned on it clicks and types for you.</p>
-          <ul class="list">
-            <li><b>Apple's on-device model</b> on macOS 26: free, offline, no key needed. Or your own key for Anthropic, OpenAI, OpenRouter or DeepSeek, or a local model in Ollama or LM Studio.</li>
-            <li><b>Web access</b> searches the web, reads pages, and lists its sources under the answer.</li>
-            <li><b>Browser use</b> is off until you turn it on. It never touches password or card fields, and asks before sending, buying or deleting.</li>
-            <li>Select text, right-click: <b>Explain</b>, <b>Translate</b>, <b>Summarise</b> or <b>Ask About It</b>.</li>
-            <li>Chat history stays on your Mac. Text in web pages is treated as content, never as instructions.</li>
-          </ul>
+  <div class="wrap">
+    <div class="two top">
+      <div class="reveal">
+        <p class="eyebrow">Tacet Assistant</p>
+        <h2>Ask the page <em>you're on</em>.</h2>
+        <p class="sub" style="margin-top:16px">⇧⌘A opens a panel beside any page, and the page comes along. The assistant reads your other tabs, history and bookmarks, the transcript of a YouTube video, and looks things up on the web, showing each step as it works.</p>
+        <ul class="list">
+          <li><b>Apple's on-device model</b> on macOS 26: free, offline, no key. Or your own key for Anthropic, OpenAI, OpenRouter or DeepSeek, or a local model in Ollama or LM Studio.</li>
+          <li><b>Web access</b> searches and reads pages, with the sources under the answer.</li>
+          <li><b>Deep research</b> <span class="tag">Beta</span> plans, searches from several angles, reads pages in full and writes a report with its sources.</li>
+          <li><b>Browser use</b> <span class="tag">Beta</span> is off until you turn it on. It never touches password or card fields, and asks before sending, buying or deleting.</li>
+          <li>Chat history stays on your Mac. Text in web pages is treated as content, never as instructions.</li>
+        </ul>
+      </div>
+      <div class="reveal">
+        <div class="frame chat" id="chat" aria-live="polite">
+          <div class="chead"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8zM19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z"/></svg>Tacet Assistant<span class="model" id="chat-model">claude-opus-5-5</span></div>
+          <div id="chat-body"></div>
+          <div class="box"><span>Ask Tacet Assistant…</span><kbd>⇧⌘A</kbd></div>
         </div>
-        <div>
-          <div class="frame chat" id="chat" aria-live="polite">
-            <div class="head">Tacet Assistant <span class="beta">beta</span><span class="model" id="chat-model">claude-opus-5-5</span></div>
-            <div id="chat-body"></div>
-            <div class="box"><span>Ask Tacet Assistant…</span><kbd>⇧⌘A</kbd></div>
-          </div>
-          <p class="scene" id="chat-scene">Example 1 of 4</p>
-        </div>
+        <p class="scene" id="chat-scene">Example 1 of 5</p>
       </div>
     </div>
   </div>
 </section>
 
 <section id="customise">
-  <div class="wrap grid">
-    <div class="label">Appearance</div>
-    <div>
-      <h2>An accent colour, a start page, the sidebar on either side.</h2>
-      <div class="two">
-        <div>
-          <p class="sub">Pick an accent colour, put tabs in a sidebar or along the top, float the page with rounded corners, and choose what a new tab shows. Pick a colour and a background to see them on the right.</p>
-          <div class="swatches" id="swatches" aria-label="Accent colour">
-            <button class="swatch active" style="background:#e0541f" data-c="#e0541f" aria-label="Orange"></button>
-            <button class="swatch" style="background:#5b5ae0" data-c="#5b5ae0" aria-label="Indigo"></button>
-            <button class="swatch" style="background:#0a84ff" data-c="#0a84ff" aria-label="Blue"></button>
-            <button class="swatch" style="background:#30b0c7" data-c="#30b0c7" aria-label="Teal"></button>
-            <button class="swatch" style="background:#34c759" data-c="#34c759" aria-label="Green"></button>
-            <button class="swatch" style="background:#e8a33d" data-c="#e8a33d" aria-label="Amber"></button>
-            <button class="swatch" style="background:#ff375f" data-c="#ff375f" aria-label="Pink"></button>
-            <button class="swatch" style="background:#bf5af2" data-c="#bf5af2" aria-label="Purple"></button>
-          </div>
-          <div class="tiles" id="backgrounds" aria-label="Start page background">
-            <button class="tile bg-aurora active" data-bg="bg-aurora" aria-label="Aurora"></button>
-            <button class="tile bg-dusk" data-bg="bg-dusk" aria-label="Dusk"></button>
-            <button class="tile bg-ocean" data-bg="bg-ocean" aria-label="Ocean"></button>
-            <button class="tile bg-forest" data-bg="bg-forest" aria-label="Forest"></button>
-            <button class="tile bg-ember" data-bg="bg-ember" aria-label="Ember"></button>
-            <button class="tile bg-graphite" data-bg="bg-graphite" aria-label="Graphite"></button>
-          </div>
-          <ul class="list">
-            <li>Window tint that follows each site's colour</li>
-            <li>Start page with clock, greeting and favourites, on a gradient, an animated gradient, your own photo or a short video</li>
-            <li>Light, dark or system, for the whole browser and per site</li>
-            <li>Search shortcuts: <b>yt lofi</b> searches YouTube, <b>w</b> Wikipedia, <b>gh</b> GitHub</li>
-          </ul>
+  <div class="wrap">
+    <div class="two">
+      <div class="reveal">
+        <p class="eyebrow">Appearance</p>
+        <h2>Your colour, your start page, the sidebar on <em>either side</em>.</h2>
+        <p class="sub" style="margin-top:16px">Pick an accent colour, put tabs in a sidebar or along the top, float the page with rounded corners, and choose what a new tab shows. Try a colour and a background.</p>
+        <div class="swatches" id="swatches" aria-label="Accent colour">
+          <button class="swatch active" style="background:#d2452a" data-c="#d2452a" aria-label="Vermilion"></button>
+          <button class="swatch" style="background:#5b5ae0" data-c="#5b5ae0" aria-label="Indigo"></button>
+          <button class="swatch" style="background:#0a84ff" data-c="#0a84ff" aria-label="Blue"></button>
+          <button class="swatch" style="background:#30b0c7" data-c="#30b0c7" aria-label="Teal"></button>
+          <button class="swatch" style="background:#34c759" data-c="#34c759" aria-label="Green"></button>
+          <button class="swatch" style="background:#e8a33d" data-c="#e8a33d" aria-label="Amber"></button>
+          <button class="swatch" style="background:#ff375f" data-c="#ff375f" aria-label="Pink"></button>
+          <button class="swatch" style="background:#bf5af2" data-c="#bf5af2" aria-label="Purple"></button>
         </div>
-        <div class="frame mock" aria-hidden="true">
-          <div class="bar">
-            <div class="dots"><i></i><i></i><i></i></div>
-            <div class="tab on">Tacet</div><div class="tab">WebKit Blog</div><div class="tab">Trenitalia</div>
-          </div>
-          <div class="startpage bg-aurora" id="startpage">
-            <div>
-              <div class="clock" id="clock">09:41</div>
-              <div class="hi" id="hi">Good morning</div>
-              <div class="favs"><i>G</i><i>W</i><i>Y</i><i>H</i><i>M</i></div>
-            </div>
+        <div class="tiles" id="backgrounds" aria-label="Start page background">
+          <button class="tile bg-aurora active" data-bg="bg-aurora" aria-label="Aurora"></button>
+          <button class="tile bg-dusk" data-bg="bg-dusk" aria-label="Dusk"></button>
+          <button class="tile bg-ocean" data-bg="bg-ocean" aria-label="Ocean"></button>
+          <button class="tile bg-forest" data-bg="bg-forest" aria-label="Forest"></button>
+          <button class="tile bg-ember" data-bg="bg-ember" aria-label="Ember"></button>
+          <button class="tile bg-graphite" data-bg="bg-graphite" aria-label="Graphite"></button>
+        </div>
+        <ul class="list">
+          <li>Window tint that follows each site's colour, and seventeen app icons to choose from</li>
+          <li>Start page with clock, greeting and favourites, on a gradient, your own photo or a short video</li>
+          <li>Search shortcuts: <b>yt lofi</b> searches YouTube, <b>w</b> Wikipedia, <b>gh</b> GitHub</li>
+        </ul>
+      </div>
+      <div class="frame win reveal" aria-hidden="true">
+        <div class="bar">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="tb on">Tacet</div><div class="tb">WebKit Blog</div><div class="tb">Trenitalia</div>
+        </div>
+        <div class="startpage bg-aurora" id="startpage">
+          <div>
+            <div class="clock" id="clock">09:41</div>
+            <div class="hi" id="hi">Good morning</div>
+            <div class="favs"><i>G</i><i>W</i><i>Y</i><i>H</i><i>M</i></div>
           </div>
         </div>
       </div>
@@ -627,104 +947,106 @@ footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-wid
 </section>
 
 <section id="compare">
-  <div class="wrap grid">
-    <div class="label">Compared</div>
-    <div>
-      <h2>Next to Safari, Chrome and Arc, as they come out of the box.</h2>
-      <div class="compare">
-        <table>
-          <thead><tr><th>Out of the box</th><th class="tacet">Tacet</th><th>Safari</th><th>Chrome</th><th>Arc</th></tr></thead>
-          <tbody>
-            <tr><td>Ads and trackers blocked</td><td class="y tacet">Yes</td><td class="n">No</td><td class="n">No</td><td class="y">Yes</td></tr>
-            <tr><td>Blocker off per site, one click</td><td class="y tacet">Yes</td><td class="n">No</td><td class="n">No</td><td class="y">Yes</td></tr>
-            <tr><td>Tracking stripped from links</td><td class="y tacet">Yes</td><td class="p">Partly</td><td class="n">No</td><td class="n">No</td></tr>
-            <tr><td>WebKit speed and battery life</td><td class="y tacet">Yes</td><td class="y">Yes</td><td class="n">No</td><td class="n">No</td></tr>
-            <tr><td>Vertical tabs and tab groups</td><td class="y tacet">Yes</td><td class="p">Partly</td><td class="p">Partly</td><td class="y">Yes</td></tr>
-            <tr><td>AI assistant that reads the page</td><td class="y tacet">Yes</td><td class="p">Partly</td><td class="p">Partly</td><td class="y">Yes</td></tr>
-            <tr><td>Bring your own AI key, or run it offline</td><td class="y tacet">Yes</td><td class="n">No</td><td class="n">No</td><td class="n">No</td></tr>
-            <tr><td>Chrome, Firefox and Safari extensions</td><td class="y tacet">Yes</td><td class="p">Partly</td><td class="p">Partly</td><td class="p">Partly</td></tr>
-            <tr><td>No account, no analytics</td><td class="y tacet">Yes</td><td class="p">Partly</td><td class="n">No</td><td class="n">No</td></tr>
-            <tr><td>Open source</td><td class="y tacet">Yes</td><td class="p">Partly</td><td class="p">Partly</td><td class="n">No</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="note">“Partly” means with an extension or add-on, or only in some cases. Based on the default setup of each browser on macOS in October 2026.</p>
-      <p class="sub">Arc stops working on 22 December 2026. <a href="arc.html">Tacet reads your Spaces, Favorites and pinned tabs straight from Arc.</a></p>
+  <div class="wrap">
+    <div class="head center reveal">
+      <p class="eyebrow">Compared</p>
+      <h2>Next to Safari, Chrome and Arc, <em>as they come</em> out of the box.</h2>
     </div>
+    <div class="compare reveal">
+      <table>
+        <thead><tr><th scope="col">Out of the box</th><th scope="col" class="tacet">Tacet</th><th scope="col">Safari</th><th scope="col">Chrome</th><th scope="col">Arc</th></tr></thead>
+        <tbody>
+          <tr><td>Ads and trackers blocked</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="no" aria-label="No">–</i></td><td><i class="no" aria-label="No">–</i></td><td><i class="yes" aria-label="Yes">✓</i></td></tr>
+          <tr><td>Blocker off per site, one click</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="no" aria-label="No">–</i></td><td><i class="no" aria-label="No">–</i></td><td><i class="yes" aria-label="Yes">✓</i></td></tr>
+          <tr><td>Tracking stripped from links</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="no" aria-label="No">–</i></td><td><i class="no" aria-label="No">–</i></td></tr>
+          <tr><td>WebKit speed and battery life</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="yes" aria-label="Yes">✓</i></td><td><i class="no" aria-label="No">–</i></td><td><i class="no" aria-label="No">–</i></td></tr>
+          <tr><td>Vertical tabs and tab groups</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="yes" aria-label="Yes">✓</i></td></tr>
+          <tr><td>AI assistant that reads the page</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="yes" aria-label="Yes">✓</i></td></tr>
+          <tr><td>Bring your own AI key, or run it offline</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="no" aria-label="No">–</i></td><td><i class="no" aria-label="No">–</i></td><td><i class="no" aria-label="No">–</i></td></tr>
+          <tr><td>Chrome, Firefox and Safari extensions</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="part" aria-label="Partly">½</i></td></tr>
+          <tr><td>No account, no analytics</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="no" aria-label="No">–</i></td><td><i class="no" aria-label="No">–</i></td></tr>
+          <tr><td>Open source</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="part" aria-label="Partly">½</i></td><td><i class="no" aria-label="No">–</i></td></tr>
+          <tr><td>Still working in 2027</td><td class="tacet"><i class="yes" aria-label="Yes">✓</i></td><td><i class="yes" aria-label="Yes">✓</i></td><td><i class="yes" aria-label="Yes">✓</i></td><td><i class="no" aria-label="No">–</i></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend reveal"><span><i class="yes">✓</i>Yes</span><span><i class="part">½</i>Partly: with an add-on, or only in some cases</span><span><i class="no">–</i>No</span><span>Default setup on macOS, November 2026.</span></div>
   </div>
 </section>
 
 <section id="shortcuts">
-  <div class="wrap grid">
-    <div class="label">Shortcuts</div>
-    <div>
-      <h2>Everything has a shortcut. The command bar finds the rest.</h2>
-      <div class="keysearch">
-        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-        <input id="keysearch" type="search" placeholder="Filter: tab, reader, private…" aria-label="Filter shortcuts">
-      </div>
-      <div class="keys" id="keys">
-        <div class="key"><kbd>⌘ L</kbd><span>Command bar</span></div>
-        <div class="key"><kbd>⌘ K</kbd><span>Command bar, commands first</span></div>
-        <div class="key"><kbd>⌘ T</kbd><span>New tab</span></div>
-        <div class="key"><kbd>⌘ W</kbd><span>Close tab</span></div>
-        <div class="key"><kbd>⇧ ⌘ T</kbd><span>Reopen closed tab</span></div>
-        <div class="key"><kbd>⌘ N</kbd><span>New window</span></div>
-        <div class="key"><kbd>⇧ ⌘ N</kbd><span>New private window</span></div>
-        <div class="key"><kbd>⌘ S</kbd><span>Show or hide the sidebar</span></div>
-        <div class="key"><kbd>⌃ Tab</kbd><span>Next tab</span></div>
-        <div class="key"><kbd>⌘ 1 … 9</kbd><span>Go to tab</span></div>
-        <div class="key"><kbd>⌘ [ / ]</kbd><span>Back, forward</span></div>
-        <div class="key"><kbd>⌘ F</kbd><span>Find on page</span></div>
-        <div class="key"><kbd>⇧ ⌘ R</kbd><span>Reader</span></div>
-        <div class="key"><kbd>⌥ ⌘ S</kbd><span>Split view</span></div>
-        <div class="key"><kbd>⇧ ⌘ A</kbd><span>Tacet Assistant</span></div>
-        <div class="key"><kbd>⇧ ⌘ B</kbd><span>Ad blocker on or off</span></div>
-        <div class="key"><kbd>⌘ D</kbd><span>Bookmark the page</span></div>
-        <div class="key"><kbd>⌘ Y</kbd><span>History</span></div>
-        <div class="key"><kbd>⇧ ⌘ E</kbd><span>Export as PDF</span></div>
-        <div class="key"><kbd>⌃ ⌘ L</kbd><span>Lock window with Touch ID</span></div>
-      </div>
-      <p class="nokeys" id="nokeys">No shortcut matches. The command bar has it: ⌘K, then type.</p>
+  <div class="wrap">
+    <div class="head reveal">
+      <p class="eyebrow">Shortcuts</p>
+      <h2>Everything has a shortcut. The command bar <em>finds the rest</em>.</h2>
     </div>
-  </div>
-</section>
-
-<section id="release">
-  <div class="wrap grid">
-    <div class="label">Latest release</div>
-    <div class="release">
-      <h2>Tacet <span id="rel-v">1.7.1.1</span></h2>
-      <p class="meta"><span id="rel-d">Latest release</span> · <b id="rel-size">about 7 MB</b> · <b id="rel-dl">—</b> downloads · macOS 14 or later · GPL-3.0</p>
-      <div class="relnotes" id="rel-notes">
-        <ul>
-          <li><b>Developer Mode:</b> Web Inspector, page source, Responsive Design Mode, user agents and page info</li>
-          <li>Downloads with speed and time left, pause and resume, and a list that lasts</li>
-          <li>A quicker Tacet Assistant, with short answers in a voice of its own</li>
-          <li>Reopen a closed window, and fixes that make Tacet faster and steadier</li>
-        </ul>
-        <a class="more" href="https://github.com/scadavide55/Tacet/releases">All release notes</a>
-      </div>
+    <div class="keysearch reveal">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="keysearch" type="search" placeholder="Filter: tab, reader, private…" aria-label="Filter shortcuts">
     </div>
+    <div class="keys reveal" id="keys">
+      <div class="key"><kbd>⌘ L</kbd><span>Command bar</span></div>
+      <div class="key"><kbd>⌘ K</kbd><span>Command bar, commands first</span></div>
+      <div class="key"><kbd>⌘ T</kbd><span>New tab</span></div>
+      <div class="key"><kbd>⌘ W</kbd><span>Close tab</span></div>
+      <div class="key"><kbd>⇧ ⌘ T</kbd><span>Reopen closed tab</span></div>
+      <div class="key"><kbd>⌘ N</kbd><span>New window</span></div>
+      <div class="key"><kbd>⇧ ⌘ N</kbd><span>New private window</span></div>
+      <div class="key"><kbd>⌘ S</kbd><span>Show or hide the sidebar</span></div>
+      <div class="key"><kbd>⌃ Tab</kbd><span>Next tab</span></div>
+      <div class="key"><kbd>⌘ 1 … 9</kbd><span>Go to tab</span></div>
+      <div class="key"><kbd>⌘ [ / ]</kbd><span>Back, forward</span></div>
+      <div class="key"><kbd>⌘ F</kbd><span>Find on page</span></div>
+      <div class="key"><kbd>⌘ E</kbd><span>Find the selected text</span></div>
+      <div class="key"><kbd>⇧ ⌘ R</kbd><span>Reader</span></div>
+      <div class="key"><kbd>⌥ ⌘ S</kbd><span>Split view</span></div>
+      <div class="key"><kbd>⇧ ⌘ A</kbd><span>Tacet Assistant</span></div>
+      <div class="key"><kbd>⇧ ⌘ B</kbd><span>Ad blocker on or off</span></div>
+      <div class="key"><kbd>⇧ ⌘ P</kbd><span>Tacet Plugins</span></div>
+      <div class="key"><kbd>⌘ D</kbd><span>Bookmark the page</span></div>
+      <div class="key"><kbd>⌘ Y</kbd><span>History</span></div>
+      <div class="key"><kbd>⇧ ⌘ E</kbd><span>Export as PDF</span></div>
+      <div class="key"><kbd>⌃ ⌘ L</kbd><span>Lock window with Touch ID</span></div>
+      <div class="key"><kbd>⌥ ⌘ F</kbd><span>Search your tabs</span></div>
+      <div class="key"><kbd>⌥ ⌘ I</kbd><span>Web Inspector (Developer Mode)</span></div>
+    </div>
+    <p class="nokeys" id="nokeys">No shortcut matches. The command bar has it: ⌘K, then type.</p>
   </div>
 </section>
 
 <section id="download" class="band">
-  <div class="wrap grid">
-    <div class="label">Download</div>
-    <div>
-      <h2>Tacet <span id="dl-v2">1.7.1.1</span> for macOS 14 or later.</h2>
+  <div class="wrap dl">
+    <div class="reveal">
+      <svg class="corona" aria-hidden="true"><use href="#corona"/></svg>
+      <p class="eyebrow">Download</p>
+      <h2>Tacet <span class="vnum">1.8</span> for macOS 14 or later.</h2>
       <p class="sub">Free, open source, one download for Apple silicon and Intel. Tacet keeps itself up to date after that.</p>
       <div class="cta">
-        <a class="btn" id="dl-main" href="https://github.com/scadavide55/Tacet/releases/download/v1.7.1.1/Tacet-1.7.1.1.dmg">Download <span id="dl-name">Tacet-1.7.1.1.dmg</span></a>
+        <a class="btn big" id="dl-main" href="https://github.com/scadavide55/Tacet/releases/latest">Download <span id="dl-name">Tacet for Mac</span></a>
         <a href="https://github.com/scadavide55/Tacet/releases">All releases</a>
       </div>
+      <p class="meta" id="rel-meta"><span id="rel-d">Latest release</span> · <b class="size">about 11 MB</b><span id="rel-dl-wrap" hidden> · <b id="rel-dl">—</b> downloads</span> · GPL-3.0</p>
+      <div class="relnotes" id="rel-box">
+        <h3 id="rel-h">In this release</h3>
+        <div id="rel-notes">
+          <ul>
+            <li><b>Deep research</b> in Tacet Assistant, with every step shown as it happens</li>
+            <li>The command bar completes addresses, converts units and switches to open tabs</li>
+            <li>Find on Page counts every match; pop-ups say when they're blocked</li>
+            <li>Camera and microphone shown on tabs; sound from embedded players too</li>
+            <li>Sign-ins inside pages, and fingerprinting protection that can't be spotted</li>
+          </ul>
+        </div>
+        <a class="more" id="rel-more" href="https://github.com/scadavide55/Tacet/releases">All release notes</a>
+      </div>
+    </div>
+    <div class="reveal">
       <ol class="steps">
         <li><b>Open the disk image</b> and drag Tacet onto the Applications shortcut, then eject it.</li>
         <li><b>Open Tacet the first time.</b> If macOS says it is damaged, run this once in Terminal. Tacet isn't notarized by Apple yet; its own updates work normally after this.
           <div class="copy"><span>xattr -dr com.apple.quarantine /Applications/Tacet.app</span><button id="copy-btn" type="button">Copy</button></div>
         </li>
-        <li><b>Bring your things over.</b> The setup imports bookmarks, history and sign-ins from the browsers on your Mac.</li>
+        <li><b>Bring your things over.</b> The setup imports bookmarks, history and sign-ins from the browsers on your Mac, and your whole sidebar from Arc.</li>
       </ol>
       <p class="note">Prefer to build it yourself? <code>git clone https://github.com/scadavide55/Tacet && cd Tacet && ./build.sh</code> makes a universal Tacet.app with just the Xcode command line tools.</p>
     </div>
@@ -732,44 +1054,47 @@ footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-wid
 </section>
 
 <section id="faq">
-  <div class="wrap grid">
-    <div class="label">Questions</div>
-    <div class="faq">
+  <div class="wrap">
+    <div class="head center reveal">
+      <p class="eyebrow">Questions</p>
+      <h2>Before you <em>download</em>.</h2>
+    </div>
+    <div class="faq reveal">
       <details>
-        <summary>What are Tacet Plugins?</summary>
-        <p>Small plugins made for Tacet and checked by its developer, in a store inside the browser (⇧⌘P). They work on every Mac, are signed and checked file by file before they install, and run in a space of their own that pages can't reach. Cutout removes picture backgrounds on your Mac, offline; others hide YouTube Shorts, copy pages as Markdown, add a focus timer, darken light sites and more. Tacet Plugins is in beta.</p>
-      </details>
-      <details>
-        <summary>Why did Lumen become Tacet?</summary>
-        <p>There were already other browsers called Lumen, and the name sounded too much like an AI product. Tacet is the mark in music for silence, where an instrument stays quiet. It's the same browser: updating from Lumen keeps your tabs, passwords, settings and extensions.</p>
+        <summary>I use Arc. What comes over, and when should I move?</summary>
+        <p>Your Spaces become tab groups, Favorites become pinned tabs and folders become groups of their own, along with history, bookmarks and sign-ins. Passwords come over from a CSV you export in Arc. Arc stops working on 22 December 2026 and won't open after that, so import before then. <a href="arc.html">The full guide</a> lists everything, including what Tacet doesn't have.</p>
       </details>
       <details>
         <summary>Is Tacet free?</summary>
-        <p>Yes. Tacet is free to download and use, and open source under the GPL-3.0 license.</p>
+        <p>Yes. Tacet is free to download and use, and open source under the GPL-3.0 license. It's made by one person.</p>
       </details>
       <details>
         <summary>Does Tacet collect any data?</summary>
-        <p>No. There are no analytics and no accounts. Tacet only talks to the sites you visit. If you turn them on, it also downloads filter lists from easylist.to and fetches search suggestions from your search engine. Suggestions are off by default. Tacet Assistant (beta) is off too; if you turn it on, your questions and the page you attach go only to the AI provider you chose, with your own key. When it searches the web for you, the search goes to your provider (Anthropic) or to DuckDuckGo (other providers). With Apple's on-device model, nothing leaves your Mac.</p>
+        <p>No. There are no analytics and no accounts. Tacet only talks to the sites you visit. If you turn them on, it also downloads filter lists from easylist.to and fetches search suggestions from your search engine; suggestions are off by default. Tacet Assistant is off too. If you turn it on, your questions and the page you attach go only to the AI provider you chose, with your own key. When it searches the web for you, the search goes to your provider (Anthropic) or to DuckDuckGo (other providers). With Apple's on-device model, nothing leaves your Mac.</p>
       </details>
       <details>
         <summary>Why does macOS warn me when I open it?</summary>
-        <p>Tacet isn't notarized by Apple yet, so macOS may say Tacet “is damaged and can't be opened”. The download is fine. Open Terminal and run <code>xattr -dr com.apple.quarantine /Applications/Tacet.app</code> once, then open Tacet as usual. Tacet's own updates keep working after that.</p>
+        <p>Tacet isn't notarized by Apple yet, so macOS may say Tacet “is damaged and can't be opened”. The download is fine. Open Terminal and run <code>xattr -dr com.apple.quarantine /Applications/Tacet.app</code> once, then open Tacet as usual. Tacet's own updates keep working after that, and each one is checked against its signature.</p>
       </details>
       <details>
         <summary>Which engine does Tacet use?</summary>
-        <p>WebKit, the same engine as Safari. Sites look and behave the way they do in Safari, and you get its speed and battery life.</p>
+        <p>WebKit, the same engine as Safari. Sites look and behave the way they do in Safari, and you get its speed and battery life. It's not built on Chromium.</p>
       </details>
       <details>
-        <summary>Can I bring my bookmarks and passwords?</summary>
-        <p>Yes. Tacet imports bookmarks, history and sign-ins straight from Safari, Chrome, Firefox, Opera, Brave, Edge and Arc. Passwords come across from a CSV exported by the Passwords app or your old browser, and are kept in your Mac's Keychain behind Touch ID.</p>
+        <summary>What does the assistant cost? Is it still a beta?</summary>
+        <p>Nothing from Tacet. With Apple's on-device model on macOS 26 it's free and offline. With Anthropic, OpenAI, OpenRouter or DeepSeek you pay the provider for what you use with your own key. With Ollama or LM Studio the model runs on your Mac. The assistant itself isn't a beta any more; Deep research and Browser use still are.</p>
       </details>
       <details>
         <summary>Does Tacet support extensions?</summary>
         <p>Yes, on macOS 15.4 or later. Tacet runs web extensions, the same kind Safari, Chrome and Firefox use. Add the Safari extensions that come with apps on your Mac in one click from Settings › Extensions, or add a Chrome (.crx), Firefox (.xpi) or unpacked extension from a file. Most work; a few features only Chrome or Firefox have may not. Extensions never run in private windows.</p>
       </details>
       <details>
-        <summary>What does the assistant cost?</summary>
-        <p>Nothing from Tacet. With Apple's on-device model on macOS 26 it's free and offline. With Anthropic, OpenAI, OpenRouter or DeepSeek you pay the provider for what you use with your own key. With Ollama or LM Studio the model runs on your Mac.</p>
+        <summary>What are Tacet Plugins?</summary>
+        <p>Small plugins made for Tacet and checked by its developer, in a store inside the browser (⇧⌘P). They work on every Mac, are signed and checked file by file before they install, and run in a space of their own that pages can't reach. Tacet Plugins is in beta.</p>
+      </details>
+      <details>
+        <summary>Why did Lumen become Tacet?</summary>
+        <p>There were already other browsers called Lumen, and the name sounded too much like an AI product. Tacet is the mark in music for silence, where an instrument stays quiet. It's the same browser: updating from Lumen keeps your tabs, passwords, settings and extensions.</p>
       </details>
       <details>
         <summary>Does it block every YouTube ad?</summary>
@@ -778,6 +1103,20 @@ footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-wid
     </div>
   </div>
 </section>
+
+<section class="final">
+  <div class="wrap reveal">
+    <svg class="corona spin" aria-hidden="true"><use href="#corona"/></svg>
+    <h2>Less noise. <em>More web.</em></h2>
+    <p class="sub" style="margin:16px auto 0">Free, open source and about <span class="size">11 MB</span>. Bring your tabs, or your whole Arc sidebar.</p>
+    <div class="cta">
+      <a class="btn big" href="#download">Download Tacet</a>
+      <a class="btn quiet big" href="https://github.com/scadavide55/Tacet">Source on GitHub</a>
+    </div>
+  </div>
+</section>
+
+</main>
 
 <footer>
   <div class="wrap">
@@ -792,7 +1131,7 @@ footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-wid
         <li><a href="arc.html">Switching from Arc</a></li>
       </ul>
     </div>
-    <p class="bottom">© 2026 Tacet. This site sets no cookies and runs no analytics. The only request it makes is to GitHub, for the latest release.</p>
+    <p class="bottom">© 2026 Tacet. This site sets no cookies and runs no analytics. The only request it makes is to GitHub, for the latest release. Arc is a trademark of The Browser Company, which has nothing to do with Tacet.</p>
   </div>
 </footer>
 
@@ -801,6 +1140,12 @@ footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-wid
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const whenSeen = (el, fn, threshold = 0.35) => {
+    if (!el) return;
+    if (!('IntersectionObserver' in window)) { fn(); return; }
+    new IntersectionObserver((en, obs) => { if (en[0].isIntersecting) { obs.disconnect(); fn(); } }, { threshold }).observe(el);
+  };
 
   // Theme: the system's until the switch is used, then remembered.
   const root = document.documentElement;
@@ -812,13 +1157,73 @@ footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-wid
     try { localStorage.setItem('theme', next); } catch (e) {}
   });
 
-  // Mobile menu
+  // Nav: a hairline once the page scrolls; the menu sheet on small screens.
+  const nav = $('#nav');
+  const onScroll = () => nav.classList.toggle('scrolled', scrollY > 8);
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
   const menu = $('#menu'), sheet = $('#sheet');
-  menu.addEventListener('click', () => {
-    const open = sheet.classList.toggle('open');
-    menu.setAttribute('aria-expanded', open);
-  });
+  menu.addEventListener('click', () => { const open = sheet.classList.toggle('open'); menu.setAttribute('aria-expanded', open); });
   sheet.addEventListener('click', () => { sheet.classList.remove('open'); menu.setAttribute('aria-expanded', false); });
+
+  // Content fades in as it scrolls into view.
+  const reveals = $$('.reveal');
+  if (reduced || !('IntersectionObserver' in window)) reveals.forEach((el) => el.classList.add('in'));
+  else {
+    const io = new IntersectionObserver((en) => en.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    reveals.forEach((el) => io.observe(el));
+  }
+
+  // Arc: days left until 22 December 2026, counted on this Mac's calendar.
+  (() => {
+    const end = new Date(2026, 11, 22), start = new Date(2026, 9, 22);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const days = Math.round((end - today) / 86400000);
+    const total = Math.round((end - start) / 86400000);
+    const ring = $('#arc-ring');
+    if (days > 0) {
+      $('#arc-days').textContent = days;
+      $('#arc-unit').textContent = days === 1 ? 'day left' : 'days left';
+      $('#arc-pill').textContent = days === 1 ? 'Arc stops working tomorrow' : `Arc stops working in ${days} days`;
+      const frac = Math.min(1, days / total);
+      whenSeen($('.countdown'), () => { ring.style.strokeDashoffset = String(339.3 * (1 - frac)); });
+    } else {
+      $('#arc-days').textContent = '0';
+      $('#arc-unit').textContent = 'Arc has stopped';
+      $('#arc-when').textContent = 'Arc stopped working on 22 December 2026';
+      $('#arc-pill').textContent = 'Arc has stopped working: bring your sidebar';
+    }
+  })();
+
+  // Deep research card: the activity line fills in, step by step, while it's on screen.
+  (() => {
+    const box = $('#dr'); if (!box) return;
+    const rows = $$('.act-row', box);
+    const final = rows.map((r) => $('.tm', r).textContent);
+    if (reduced) { rows.forEach((r) => r.classList.add('done')); return; }
+    let visible = false, running = false;
+    new IntersectionObserver((en) => { visible = en[0].isIntersecting; if (visible && !running) loop(); }, { threshold: 0.3 }).observe(box);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const loop = async () => {
+      running = true;
+      while (visible) {
+        rows.forEach((r) => { r.className = 'act-row wait'; $('.tm', r).textContent = ''; });
+        for (let i = 0; i < rows.length && visible; i++) {
+          const r = rows[i], tm = $('.tm', r);
+          r.className = 'act-row run';
+          const secs = parseInt(final[i], 10), t0 = Date.now();
+          const tick = setInterval(() => { tm.textContent = Math.floor((Date.now() - t0) / 1000 * 4) + 's'; }, 125);
+          await wait(Math.max(700, secs * 250));
+          clearInterval(tick);
+          tm.textContent = final[i];
+          r.className = i === rows.length - 1 ? 'act-row run' : 'act-row done';
+        }
+        await wait(2600);
+        rows[rows.length - 1].className = 'act-row done';
+        await wait(2200);
+      }
+      running = false;
+    };
+  })();
 
   // Command bar demo
   const site = (host, color, letter) => ({ host, color, letter });
@@ -829,7 +1234,7 @@ footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-wid
     maps: site('maps.apple.com', '#34c759', 'M')
   };
   const items = [
-    { k: 'tab', t: 'Tacet: a quiet browser for the Mac', s: 'github.com/scadavide55/Tacet', site: sites.github, badge: 'Switch to tab' },
+    { k: 'tab', t: 'Tacet: the quiet browser for the Mac', s: 'github.com/scadavide55/Tacet', site: sites.github, badge: 'Switch to tab' },
     { k: 'tab', t: 'WebKit Blog', s: 'webkit.org/blog', site: sites.webkit, badge: 'Switch to tab' },
     { k: 'tab', t: 'Tacet – Wikipedia', s: 'en.wikipedia.org/wiki/Tacet', site: sites.wiki, badge: 'Switch to tab' },
     { k: 'bookmark', t: 'Hacker News', s: 'news.ycombinator.com', site: sites.hn, badge: 'Bookmark' },
@@ -854,133 +1259,194 @@ footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-wid
     { k: 'cmd', t: 'Lock Window with Touch ID', s: 'Hides every tab until you unlock', key: '⌃⌘L' },
     { k: 'cmd', t: 'Clear Browsing Data…', s: 'History, cookies and cache' },
   ];
+  // Hosts the demo "visits often", in order of preference for completing.
+  const frequent = ['github.com', 'webkit.org', 'en.wikipedia.org', 'news.ycombinator.com', 'developer.apple.com', 'developer.mozilla.org', 'swift.org', 'youtube.com', 'reddit.com'];
+  const openTabs = { 'github.com': 'Tacet: the quiet browser for the Mac', 'webkit.org': 'WebKit Blog', 'en.wikipedia.org': 'Tacet – Wikipedia' };
   const shortcuts = { yt: ['YouTube', sites.yt], w: ['Wikipedia', sites.wiki], gh: ['GitHub', sites.github], r: ['Reddit', sites.reddit], maps: ['Maps', sites.maps] };
-  const cmdIn = $('#cmd-in'), cmdList = $('#cmd-list');
-  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const siteIcon = (s) => `<span class="ic site" style="background:${s.color}">${s.letter}</span>`;
-  const glyph = { cmd: '<span class="ic">⌘</span>', search: '<span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>', go: '<span class="ic"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>' };
+  const hostSite = (h) => Object.values(sites).find((s) => s.host === h) || site(h, '#777', h[0].toUpperCase());
+  const cmd = $('#cmd'), cmdIn = $('#cmd-in'), cmdList = $('#cmd-list'), ghost = $('#cmd-ghost');
+  const siteIcon = (s) => `<span class="ic site" style="background:${s.color}">${esc(s.letter)}</span>`;
+  const glyph = {
+    cmd: '<span class="ic">⌘</span>', eq: '<span class="ic">=</span>',
+    search: '<span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>',
+    go: '<span class="ic"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>'
+  };
   const hit = (ic, t, s, badge) => `<div class="hit" role="option">${ic}<span class="t"><b>${esc(t)}</b><span>${esc(s)}</span></span>${badge ? `<span class="bd">${esc(badge)}</span>` : ''}</div>`;
+
+  // Units, as the command bar works them out: "10 km", "21 °C to F", "70 kg".
+  const units = {
+    km: ['mi', (x) => x * 0.621371], mi: ['km', (x) => x * 1.609344], kg: ['lb', (x) => x * 2.204623], lb: ['kg', (x) => x * 0.453592],
+    lbs: ['kg', (x) => x * 0.453592], cm: ['in', (x) => x / 2.54], in: ['cm', (x) => x * 2.54], m: ['ft', (x) => x * 3.28084], ft: ['m', (x) => x * 0.3048],
+    c: ['°F', (x) => x * 9 / 5 + 32], f: ['°C', (x) => (x - 32) * 5 / 9],
+  };
+  const convert = (q) => {
+    const m = q.match(/^(-?\d+(?:[.,]\d+)?)\s*°?\s*(km|mi|kg|lbs|lb|cm|in|m|ft|c|f)(?:\s+(?:to|in)\s+°?\s*[a-z]+)?$/i);
+    if (!m) return null;
+    const x = parseFloat(m[1].replace(',', '.')), u = m[2].toLowerCase(), [to, fn] = units[u];
+    const n = Math.round(fn(x) * 100) / 100;
+    const from = u === 'c' ? '°C' : u === 'f' ? '°F' : u;
+    return { from: `${m[1]} ${from}`, to: `${n.toLocaleString('en-GB')} ${to}` };
+  };
+
+  let suppress = false;
+  const completion = (raw) => {
+    if (suppress || !raw || /\s/.test(raw) || raw.length < 1) return null;
+    const q = raw.toLowerCase().replace(/^www\./, '');
+    const h = frequent.find((f) => f.startsWith(q) && f !== q);
+    return h ? { host: h, rest: h.slice(q.length) } : null;
+  };
+  let pending = null;
   const render = () => {
-    const raw = cmdIn.value.trim(), q = raw.toLowerCase();
+    const raw = cmdIn.value, trimmed = raw.trim(), q = trimmed.toLowerCase();
     let out = [];
+    pending = cmdIn.selectionStart === raw.length ? completion(raw) : null;
+    $('.t', ghost).textContent = pending ? raw : '';
+    $('.r', ghost).textContent = pending ? pending.rest : '';
+    cmd.classList.toggle('completing', !!pending);
     if (!q) {
       out = items.filter((i) => i.k === 'tab').map((i) => hit(siteIcon(i.site), i.t, i.s, i.badge));
       out.push(hit(glyph.cmd, 'Type a command, an address or a search', 'Commands, tabs, bookmarks, history, Reading List', ''));
     } else {
-      const first = q.split(' ')[0], rest = raw.slice(first.length).trim();
+      const conv = convert(trimmed);
+      const first = q.split(' ')[0], rest = trimmed.slice(first.length).trim();
+      const host = pending ? pending.host : (/^[a-z0-9-]+(\.[a-z]{2,})+(\/|$)/.test(q) ? q.replace(/^www\./, '') : null);
+      if (conv) out.push(hit(glyph.eq, conv.to, conv.from, 'Copy'));
       if (shortcuts[first] && rest) {
         const [name, s] = shortcuts[first];
         out.push(hit(siteIcon(s), rest, 'Search ' + name, 'Search ' + name));
-      } else if (/^[a-z0-9-]+(\.[a-z]{2,})+(\/|$)/.test(q)) {
-        out.push(hit(glyph.go, raw, 'Open address', 'Open'));
+      } else if (host) {
+        out.push(openTabs[host] ? hit(siteIcon(hostSite(host)), openTabs[host], host, 'Switch to tab') : hit(siteIcon(hostSite(host)), host, 'Open address', 'Open'));
       }
-      const words = q.split(/\s+/);
-      const hits = items.filter((i) => words.every((w) => (i.t + ' ' + i.s).toLowerCase().includes(w)));
-      const order = { tab: 0, cmd: 1, bookmark: 2, reading: 3, history: 4 };
-      hits.sort((a, b) => order[a.k] - order[b.k]);
-      out.push(...hits.slice(0, 8).map((i) => i.site ? hit(siteIcon(i.site), i.t, i.s, i.badge) : hit(glyph.cmd, i.t, i.s, i.key || 'Command')));
-      if (!shortcuts[first]) out.push(hit(glyph.search, raw, 'Search DuckDuckGo', 'Search'));
+      if (!conv) {
+        const words = q.split(/\s+/);
+        const hits = items.filter((i) => words.every((w) => (i.t + ' ' + i.s).toLowerCase().includes(w)) && !(host && i.k === 'tab' && i.s.startsWith(host)));
+        const order = { tab: 0, cmd: 1, bookmark: 2, reading: 3, history: 4 };
+        hits.sort((a, b) => order[a.k] - order[b.k]);
+        out.push(...hits.slice(0, 7).map((i) => i.site ? hit(siteIcon(i.site), i.t, i.s, i.badge) : hit(glyph.cmd, i.t, i.s, i.key || 'Command')));
+        if (!shortcuts[first]) out.push(hit(glyph.search, trimmed, 'Search DuckDuckGo', 'Search'));
+      }
     }
     cmdList.innerHTML = out.join('') || '<div class="empty">Nothing here</div>';
     cmdList.firstElementChild?.classList.add('sel');
   };
   render();
-  cmdIn.addEventListener('input', render);
+  cmdIn.addEventListener('input', (e) => { suppress = (e.inputType || '').startsWith('delete'); render(); });
   cmdIn.addEventListener('keydown', (e) => {
     const sel = $('.hit.sel', cmdList), all = $$('.hit', cmdList);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if ((e.key === 'Tab' || e.key === 'ArrowRight') && pending) {
+      e.preventDefault();
+      cmdIn.value = pending.host; suppress = true; render();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       const i = all.indexOf(sel), n = (i + (e.key === 'ArrowDown' ? 1 : all.length - 1)) % all.length;
       sel?.classList.remove('sel'); all[n]?.classList.add('sel'); all[n]?.scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Escape') { cmdIn.value = ''; render(); cmdIn.blur(); }
   });
-  $$('.tries button').forEach((b) => b.addEventListener('click', () => { cmdIn.value = b.dataset.q; render(); cmdIn.focus(); }));
+  cmdIn.addEventListener('blur', () => { $('.t', ghost).textContent = ''; $('.r', ghost).textContent = ''; cmd.classList.remove('completing'); });
+  cmdIn.addEventListener('focus', render);
+  $$('.tries button').forEach((b) => b.addEventListener('click', () => {
+    cmdIn.value = b.dataset.q; suppress = false; cmdIn.focus();
+    cmdIn.setSelectionRange(cmdIn.value.length, cmdIn.value.length); render();
+  }));
 
-  // Shield popover: switches change the rule count and the blocked counter
+  // Shield popover: switches change the rule count and the blocked counter.
   const pop = $('#popover'), rulesN = $('#rules-n'), blockedN = $('#blocked-n');
   let blocked = 0, timer;
-  const rate = () => {
-    if (!$('#tg-site').classList.contains('on')) return 0;
-    return $$('.tg[data-n].on', pop).reduce((n, t) => n + +t.dataset.n, 0) / 275;
-  };
-  const refresh = () => {
-    const on = $('#tg-site').classList.contains('on');
-    pop.classList.toggle('off', !on);
-    rulesN.textContent = on ? $$('.tg[data-n].on', pop).reduce((n, t) => n + +t.dataset.n, 0) : 0;
-  };
+  const on = () => $('#tg-site').classList.contains('on');
+  const ruleSum = () => $$('.tg[data-n].on', pop).reduce((n, t) => n + +t.dataset.n, 0);
+  const rate = () => on() ? ruleSum() / 275 : 0;
+  const refresh = () => { pop.classList.toggle('off', !on()); rulesN.textContent = on() ? ruleSum() : 0; };
   $$('.tg', pop).forEach((t) => {
     const flip = () => { t.classList.toggle('on'); t.setAttribute('aria-checked', t.classList.contains('on')); refresh(); };
     t.addEventListener('click', flip);
     t.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); } });
   });
-  new IntersectionObserver((en) => {
-    if (en[0].isIntersecting && !timer) {
-      timer = setInterval(() => { if (Math.random() < rate() * 0.9) blockedN.textContent = ++blocked; }, 350);
-    } else if (!en[0].isIntersecting && timer) { clearInterval(timer); timer = null; }
+  if ('IntersectionObserver' in window) new IntersectionObserver((en) => {
+    if (en[0].isIntersecting && !timer) timer = setInterval(() => { if (Math.random() < rate() * 0.9) blockedN.textContent = ++blocked; }, 350);
+    else if (!en[0].isIntersecting && timer) { clearInterval(timer); timer = null; }
   }, { threshold: 0.3 }).observe(pop);
 
-  // Clean link demo: alternates between the tracked and the clean link
+  // Clean link demo: alternates between the tracked and the clean link.
   const url = $('#url'), state = $('#url-state');
   let clean = false;
-  const tick = () => { clean = !clean; url.classList.toggle('clean', clean); state.textContent = clean ? 'Cleaned by Tacet' : 'Cleaning…'; };
-  new IntersectionObserver((entries, obs) => {
-    if (entries[0].isIntersecting) { setTimeout(tick, 900); setInterval(tick, 3200); obs.disconnect(); }
-  }, { threshold: 0.6 }).observe(url);
+  const tick = () => { clean = !clean; url.classList.toggle('clean', clean); state.textContent = clean ? 'Cleaned by Tacet' : 'Cleaning…'; state.classList.toggle('ok', clean); };
+  whenSeen(url, () => { setTimeout(tick, 900); setInterval(tick, 3200); }, 0.6);
 
-  // Assistant: scripted conversations, typed out one after another
+  // Assistant: example conversations, with each step and how long it took.
   const scenes = [
     { model: 'claude-opus-5-5', page: 'Tacet – Wikipedia', you: 'Summarise this page', steps: [
+      { tool: 'Reading the page', ms: 900 },
       { ai: '<b>Tacet</b> is Latin for “it is silent”. In a score it tells a player to stay quiet for a whole movement or section, and it’s why John Cage’s <i>4′33″</i> has three movements all marked tacet.' }
     ]},
     { model: 'Apple on-device', page: 'WWDC: What’s new in WebKit – YouTube', you: 'What are the three main points of this video?', steps: [
-      { tool: 'Reading the transcript (48:12)' },
+      { tool: 'Reading the transcript (48:12)', ms: 1600 },
       { ai: '1. <b>Faster page loads</b> from a new speculative loading pass.<br>2. <b>Lower memory</b> for background tabs.<br>3. <b>New CSS</b>: anchor positioning and scroll-driven animations.' }
     ]},
     { model: 'gpt-5.2', page: 'Trenitalia · Rome → Florence', you: 'Is there a cheaper train on Friday morning? Check my other tabs too', steps: [
-      { tool: 'Reading tab “Italo · Rome → Florence”' },
-      { tool: 'Searching the web' },
+      { tool: 'Reading tab “Italo · Rome → Florence”', ms: 1100 },
+      { tool: 'Searching the web', ms: 1700 },
       { ai: 'Yes. <b>Italo at 08:15</b> is €19.90 in your other tab, against €34 for the Frecciarossa here. Both take about 1 h 30. The Italo fare is non-refundable.', src: ['italotreno.com', 'trenitalia.com'] }
     ]},
+    { model: 'claude-opus-5-5', page: 'New Tab', you: 'Deep research: how did composers write rests for whole movements before 1900?', steps: [
+      { tool: 'Planned 3 questions', ms: 900 },
+      { tool: 'Searched the web, 4 searches', ms: 1500 },
+      { tool: 'Read 6 pages', ms: 2100 },
+      { tool: 'Checked the facts', ms: 1000 },
+      { ai: '<b>Short answer:</b> with the word <i>tacet</i> in the player’s part, rather than bars of rests. Longer stretches inside a movement used multirests, numbered over a single bar. Sources disagree on when the H-bar became standard.', src: ['en.wikipedia.org', 'imslp.org', 'oxfordmusiconline.com'] }
+    ]},
     { model: 'claude-opus-5-5', page: 'GitHub · Issues', you: 'Open the first issue and scroll to the last comment', steps: [
-      { tool: 'Browser use · clicking “Reader mode skips headings”' },
-      { tool: 'Scrolling to the end' },
-      { ai: 'Done. The last comment, from 3 hours ago, says the fix is in <b>1.6.1</b> and asks you to confirm.' }
+      { tool: 'Browser use · clicking “Reader mode skips headings”', ms: 1300 },
+      { tool: 'Scrolling to the end', ms: 900 },
+      { ai: 'Done. The last comment, from 3 hours ago, says the fix is in <b>1.8</b> and asks you to confirm.' }
     ]},
   ];
   const body = $('#chat-body'), sceneEl = $('#chat-scene'), modelEl = $('#chat-model');
   const sleep = (ms) => new Promise((r) => setTimeout(r, reduced ? 0 : ms));
-  const add = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; body.appendChild(d); return d; };
+  const add = (parent, cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; parent.appendChild(d); return d; };
   const typeInto = async (el, html) => {
     if (reduced) { el.innerHTML = html; return; }
     el.classList.add('caret');
-    // Type by visible characters, keeping tags whole.
-    const parts = html.match(/<[^>]+>|./gs) || [];
+    const parts = html.match(/<[^>]+>|&[a-z#0-9]+;|./gis) || [];
     let out = '';
-    for (const p of parts) { out += p; el.innerHTML = out; if (!p.startsWith('<')) await sleep(14); }
+    for (const p of parts) { out += p; el.innerHTML = out; if (!p.startsWith('<')) await sleep(13); }
     el.classList.remove('caret');
   };
-  let running = false;
+  let chatVisible = false;
   const play = async () => {
-    if (running) return; running = true;
     for (let n = 0; ; n = (n + 1) % scenes.length) {
+      while (!chatVisible) await new Promise((r) => setTimeout(r, 400));
       const sc = scenes[n];
       sceneEl.textContent = `Example ${n + 1} of ${scenes.length}`;
       body.innerHTML = ''; modelEl.textContent = sc.model;
-      add('page', sc.page);
+      add(body, 'page', esc(sc.page));
+      await sleep(450);
+      const you = add(body, 'you', ''); await typeInto(you, esc(sc.you));
       await sleep(500);
-      const you = add('you', ''); await typeInto(you, esc(sc.you));
-      await sleep(600);
+      let steps = null;
       for (const st of sc.steps) {
-        if (st.tool) { const t = add('tool', st.tool); await sleep(1300); t.classList.add('done'); continue; }
-        const ai = add('ai', ''); await typeInto(ai, st.ai);
-        if (st.src) add('src', st.src.map((s) => `<span>${s}</span>`).join(''));
+        if (st.tool) {
+          if (!steps) steps = add(body, 'steps', '');
+          const row = add(steps, 'step', `<span class="st"><i></i></span><span>${esc(st.tool)}</span><span class="tm">0s</span>`);
+          const tm = $('.tm', row), t0 = Date.now();
+          const iv = setInterval(() => { tm.textContent = Math.floor((Date.now() - t0) / 1000) + 's'; }, 250);
+          await sleep(st.ms);
+          clearInterval(iv);
+          tm.textContent = Math.max(1, Math.round((Date.now() - t0) / 1000)) + 's';
+          row.classList.add('done');
+          continue;
+        }
+        const ai = add(body, 'ai', ''); await typeInto(ai, st.ai);
+        if (st.src) add(body, 'src', st.src.map((s) => `<span>${esc(s)}</span>`).join(''));
       }
       await sleep(5200);
     }
   };
-  new IntersectionObserver((en, obs) => { if (en[0].isIntersecting) { play(); obs.disconnect(); } }, { threshold: 0.4 }).observe($('#chat'));
+  if ('IntersectionObserver' in window) {
+    let started = false;
+    new IntersectionObserver((en) => { chatVisible = en[0].isIntersecting; if (chatVisible && !started) { started = true; play(); } }, { threshold: 0.3 }).observe($('#chat'));
+  } else { chatVisible = true; play(); }
 
-  // Accent swatches recolour the page; backgrounds change the start page preview
+  // Accent swatches recolour the page; backgrounds change the start page preview.
   $$('.swatch').forEach((s) => s.addEventListener('click', () => {
     $$('.swatch').forEach((x) => x.classList.remove('active'));
     s.classList.add('active');
@@ -1016,32 +1482,49 @@ footer .bottom { margin-top: 28px; color: var(--faint); font-size: 13px; max-wid
     setTimeout(() => { b.textContent = 'Copy'; }, 1800);
   });
 
-  // Latest release from GitHub, with the page's own text as the fallback
+  // Latest release from GitHub, with the page's own text as the fallback. Downloads are counted across every
+  // release's disk images (not the update signatures), and only shown once the number means something.
   const relNotes = (md) => {
     // Only the bullet lines, as plain text with bold kept, so nothing from the release body is rendered as HTML.
     const lines = md.split('\n').map((l) => l.trim()).filter((l) => /^[-*] /.test(l)).slice(0, 5);
     return lines.map((l) => '<li>' + esc(l.replace(/^[-*] /, '')).replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, '$1').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>') + '</li>').join('');
   };
-  fetch('https://api.github.com/repos/scadavide55/Tacet/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+  fetch('https://api.github.com/repos/scadavide55/Tacet/releases?per_page=50', { headers: { Accept: 'application/vnd.github+json' } })
     .then((r) => r.ok ? r.json() : Promise.reject(r.status))
-    .then((rel) => {
+    .then((list) => {
+      if (!Array.isArray(list)) return;
+      const rel = list.find((r) => !r.draft && !r.prerelease);
+      if (!rel) return;
       const v = String(rel.tag_name || '').replace(/^v/, '');
       const dmg = (rel.assets || []).find((a) => /\.dmg$/i.test(a.name));
       if (!/^\d+(\.\d+)+$/.test(v) || !dmg || !/^https:\/\/github\.com\//.test(dmg.browser_download_url)) return;
       const date = new Date(rel.published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-      const total = (rel.assets || []).reduce((n, a) => n + (a.download_count || 0), 0);
+      const mb = dmg.size / 1048576;
       $('#rel-d').textContent = 'Released ' + date;
-      $('#rel-dl').textContent = total.toLocaleString('en-GB');
-      $('#rel-size').textContent = (dmg.size / 1048576).toFixed(1) + ' MB';
-      $$('#rel-v, #dl-v, #dl-v2').forEach((el) => el.textContent = v);
+      $$('.size').forEach((el) => { el.textContent = (el.tagName === 'B' ? 'about ' : '') + Math.round(mb) + ' MB'; });
+      $$('.vnum').forEach((el) => el.textContent = v);
+      $$('.vname').forEach((el) => el.textContent = 'Version ' + v);
       $('#dl-name').textContent = dmg.name;
       $$('#dl-top, #dl-main').forEach((a) => a.href = dmg.browser_download_url);
+      const total = list.flatMap((r) => r.assets || []).filter((a) => /\.dmg$/i.test(a.name)).reduce((n, a) => n + (a.download_count || 0), 0);
+      if (total >= 250) { $('#rel-dl').textContent = total.toLocaleString('en-GB'); $('#rel-dl-wrap').hidden = false; }
+      // The page describes 1.8. Until that release is out, say so instead of listing its features under an older version.
+      const older = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
+      if (older(v, '1.8')) { $('#rel-h').textContent = 'Coming in Tacet 1.8'; $('#new-tag').textContent = 'Soon'; $('#rel-more').textContent = 'Notes for ' + v; $('#rel-more').href = rel.html_url; return; }
       const bullets = relNotes(rel.body || '');
-      if (bullets) {
-        $('#rel-notes').innerHTML = `<ul>${bullets}</ul><a class="more" href="${esc(rel.html_url)}">Full release notes</a>`;
-      }
+      if (bullets) { $('#rel-notes').innerHTML = `<ul>${bullets}</ul>`; $('#rel-more').href = rel.html_url; $('#rel-more').textContent = 'Full release notes'; }
     })
     .catch(() => {});
+
+  // Opened at an address with #section: line it up again once scripts and pictures have filled the page, then
+  // let in-page links scroll smoothly.
+  const settle = () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const target = id && document.getElementById(id);
+    if (target && scrollY > 0) target.scrollIntoView();
+    if (!reduced) root.classList.add('smooth');
+  };
+  if (document.readyState === 'complete') settle(); else addEventListener('load', settle, { once: true });
 })();
 </script>
 </body>
