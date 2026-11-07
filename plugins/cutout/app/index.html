@@ -6,7 +6,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cutout — remove image backgrounds, free and private</title>
 <meta name="description" content="Remove image backgrounds in your browser. No account, no upload, no cost.">
-<meta name="theme-color" content="#0d0e14">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0c0d13" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f6fc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c0d13">
+<link rel="canonical" href="https://scadavide55.github.io/cutout/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Cutout">
 <meta property="og:title" content="Cutout — remove image backgrounds, free and private">
@@ -19,377 +23,444 @@
 <meta name="twitter:title" content="Cutout — remove image backgrounds, free and private">
 <meta name="twitter:description" content="No account, no upload, no watermark. The AI runs on your own device.">
 <meta name="twitter:image" content="https://scadavide55.github.io/cutout/og.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Cutout","url":"https://scadavide55.github.io/cutout/","description":"Remove image backgrounds in your browser. No account, no upload, no watermark. The AI runs on your own device.","applicationCategory":"MultimediaApplication","operatingSystem":"Any modern web browser","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"license":"https://www.apache.org/licenses/LICENSE-2.0","author":{"@type":"Person","name":"scadavide55","url":"https://github.com/scadavide55"}}
+</script>
+<script>
+/* Pages cannot send the headers that let WebAssembly use several threads, so a tiny
+   service worker adds them. It touches nothing else and only ever runs on this site. */
+if ('serviceWorker' in navigator && !crossOriginIsolated && window.isSecureContext){
+  navigator.serviceWorker.register('sw.js').then(r => {
+    if (r.active && !navigator.serviceWorker.controller && !sessionStorage.getItem('cutout.coi')){
+      sessionStorage.setItem('cutout.coi', '1'); location.reload();
+    }
+    r.addEventListener('updatefound', () => {
+      const w = r.installing;
+      w && w.addEventListener('statechange', () => {
+        if (w.state === 'activated' && !sessionStorage.getItem('cutout.coi')){ sessionStorage.setItem('cutout.coi', '1'); location.reload(); }
+      });
+    });
+  }).catch(() => {});
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='3' y='3' width='12' height='12' rx='3.5' fill='%239a87ff'/><rect x='9' y='9' width='12' height='12' rx='3.5' fill='none' stroke='%239a87ff' stroke-width='1.8'/></svg>">
 <style>
-  /* System fonts, inline icons, no filters or decorative animation. */
+  /* One stylesheet, system fonts, inline icons. Nothing here loads from the network. */
   :root{
     color-scheme:dark light;
-    --bg:#0d0e14; --panel:#151722; --panel-2:#1b1e2c; --panel-3:#262b3f;
-    --line:#2a2f45; --line-2:#474f70; --text:#eef0f9; --dim:#b0b6cd; --dim-2:#8f96b2;
+    --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --max:1120px;
+    --bg:#0c0d13; --panel:#14161f; --panel-2:#1a1c28; --panel-3:#252a3d;
+    --line:#262b3e; --line-2:#424a6a; --text:#eef0f9; --dim:#b0b6cd; --dim-2:#9097b2;
     --accent:#9a87ff; --accent-hi:#b0a1ff; --accent-ink:#0f0a2b;
-    --good:#7ee3c4; --warn:#f2c97d; --bad:#ff9fae; --r:20px;
     --brand:#b3a5ff; --brand-2:#ff9ec7;
-    --chk-a:#252a3c; --chk-b:#1e2232; --swchk-a:#69708f; --swchk-b:#434a66;
-    --sel-bg:#211f3d; --over-bg:#1d1b38;
-    --done-bg:#12302b; --done-line:#2a6556; --warn-bg:#30281a; --warn-line:#675331;
-    --danger-bg:#35202a; --danger-line:#6a3b4b; --scrim:rgba(6,6,14,.74);
-    --shadow:0 20px 70px rgba(0,0,0,.35); --glow:rgba(154,135,255,.16);
+    --good:#7ee3c4; --good-soft:rgba(126,227,196,.16); --warn:#f2c97d; --bad:#ff9fae;
+    --chk-a:#252a3c; --chk-b:#1d2131; --swchk-a:#69708f; --swchk-b:#434a66;
+    --sel-bg:#1f1d3a; --over-bg:#1b1a33; --dots:rgba(255,255,255,.055);
+    --done-bg:#12302b; --done-line:#2a6556; --warn-bg:#2e2619; --warn-line:#675331;
+    --danger-bg:#33202a; --danger-line:#6a3b4b; --scrim:rgba(6,6,14,.72);
+    --shadow:0 24px 80px rgba(0,0,0,.38); --shadow-sm:0 10px 34px rgba(0,0,0,.26);
+    --glow:rgba(154,135,255,.17); --glow-2:rgba(255,158,199,.07);
   }
   @media(prefers-color-scheme:light){
     :root{
-      --bg:#f6f5fc; --panel:#fff; --panel-2:#f2f0fb; --panel-3:#e6e2f6;
-      --line:#e0dcf0; --line-2:#b4aed3; --text:#1c1936; --dim:#525071; --dim-2:#645f86;
+      --bg:#f7f6fc; --panel:#ffffff; --panel-2:#f4f2fb; --panel-3:#e8e4f7;
+      --line:#e3dff2; --line-2:#b9b3d8; --text:#1c1936; --dim:#524f72; --dim-2:#625d84;
       --accent:#6a4df0; --accent-hi:#5a3cdc; --accent-ink:#ffffff;
-      --good:#0b7a63; --warn:#7d5314; --bad:#b0304a;
       --brand:#5b3fe0; --brand-2:#d6336c;
-      --chk-a:#e6e3f4; --chk-b:#f4f2fb; --swchk-a:#cbc7e2; --swchk-b:#f4f2fb;
-      --sel-bg:#efebff; --over-bg:#ece7ff;
+      --good:#0b7a63; --good-soft:rgba(11,122,99,.13); --warn:#7d5314; --bad:#b0304a;
+      --chk-a:#e7e4f4; --chk-b:#f5f3fb; --swchk-a:#cbc7e2; --swchk-b:#f5f3fb;
+      --sel-bg:#f0ecff; --over-bg:#ede8ff; --dots:rgba(40,20,120,.07);
       --done-bg:#e3f6f0; --done-line:#aedccd; --warn-bg:#fbf3e3; --warn-line:#e6cf9c;
-      --danger-bg:#fff0f3; --danger-line:#f0c4cd; --scrim:rgba(20,16,50,.5);
-      --shadow:0 20px 70px rgba(60,40,140,.14); --glow:rgba(106,77,240,.12);
+      --danger-bg:#fff0f3; --danger-line:#f0c4cd; --scrim:rgba(20,16,50,.6);
+      --shadow:0 24px 70px rgba(60,40,140,.13); --shadow-sm:0 10px 30px rgba(60,40,140,.10);
+      --glow:rgba(106,77,240,.12); --glow-2:rgba(214,51,108,.06);
     }
   }
+
+  /* ---------- base ---------- */
   *{box-sizing:border-box;margin:0;padding:0}
   [hidden]{display:none!important}
-  html{scroll-behavior:smooth}
-  body{min-height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--text);
-    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased}
+  html{scroll-behavior:smooth;scroll-padding-top:20px;-webkit-text-size-adjust:100%}
+  body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;color:var(--text);
+    background:radial-gradient(1000px 520px at 50% -140px,var(--glow),transparent 70%) no-repeat,
+               radial-gradient(620px 380px at 88% -80px,var(--glow-2),transparent 70%) no-repeat,var(--bg);
+    font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   a{color:inherit;text-underline-offset:3px}
   svg{display:block;width:100%;height:100%}
   button,input{font:inherit}
-  :focus-visible{outline:2px solid var(--good);outline-offset:4px}
+  button,summary,.opt,#drop,.sw{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  ::selection{background:var(--accent);color:var(--accent-ink)}
+  :focus-visible{outline:2px solid var(--brand);outline-offset:3px}
   .spacer{flex:1}
-  header{width:100%;max-width:1180px;margin:auto;display:flex;align-items:center;gap:28px;padding:26px 36px}
-  .brand{display:flex;align-items:center;gap:11px;text-decoration:none}
-  .mark{width:34px;height:34px;flex:none;color:var(--good)}
-  .brand b{font-size:23px;font-weight:730;letter-spacing:-1px}
-  .brand .version{font-size:10px;font-weight:640;letter-spacing:.09em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent);border-radius:6px;padding:2px 6px;margin-left:-2px;translate:0 -7px}
-  .header-link{font-size:13px;color:var(--dim);text-decoration:none}
-  .header-link:hover{color:var(--text)}
-  .chip{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:12px;color:var(--dim)}
-  .dot,.device-status .d{width:6px;height:6px;border-radius:50%;background:var(--dim-2);flex:none}
-  .dot,.device-status .d.good{background:var(--good)} .device-status .d.warn{background:var(--warn)}
-  main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:42px 36px 64px}
-  .hero{max-width:800px;margin:0 auto 35px;text-align:center}
-  .eyebrow{font-size:11px;font-weight:650;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:16px}
-  .hero h1{font-size:clamp(38px,5.6vw,68px);line-height:1.05;letter-spacing:-.055em;font-weight:740}
-  .hero h1 span{color:var(--good)}
-  .hero p{max-width:490px;margin:19px auto 0;font-size:16px;color:var(--dim);line-height:1.7}
-  .studio{max-width:820px;margin:auto;border:1px solid var(--line);border-radius:26px;background:var(--panel);padding:10px}
-  #drop{position:relative;border:1px dashed var(--line-2);border-radius:18px;background:var(--panel-2);
-    padding:35px 20px 28px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
-  #drop:hover,#drop.over{border-color:var(--good);background:var(--over-bg)}
-  .dz-art{width:106px;height:71px;margin:0 auto 22px;position:relative}
-  .art-photo{position:absolute;left:3px;top:3px;width:58px;height:63px;border:1px solid var(--line-2);border-radius:11px;
-    background:var(--panel);transform:rotate(-10deg);padding:14px;color:var(--dim-2)}
-  .art-cutout{position:absolute;right:2px;top:0;width:62px;height:68px;border:1px solid var(--line-2);border-radius:11px;
-    background:repeating-conic-gradient(var(--chk-a) 0% 25%,var(--chk-b) 0% 50%) 0 0/12px 12px;
-    transform:rotate(8deg);padding:12px;color:var(--good)}
-  #drop .dz-title{font-size:19px;font-weight:650;letter-spacing:-.03em;margin-bottom:5px}
-  #drop .dz-sub{font-size:13px;color:var(--dim)}
-  .choose{display:inline-flex;align-items:center;justify-content:center;gap:10px;margin:20px 0 13px;padding:12px 24px;
-    min-height:46px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:650;font-size:14px}
-  .choose svg{width:17px;height:17px}
-  #drop kbd{border:1px solid var(--line-2);border-radius:4px;padding:1px 5px;font:11px inherit}
-  #drop .dz-note{font-size:11px;color:var(--dim-2);margin-top:19px}
-  #drop input{display:none}
-  .studio-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 13px 3px;font-size:11px;color:var(--dim)}
-  .studio-foot>span{display:inline-flex;align-items:center;gap:7px}
-  .studio-foot svg{width:14px;height:14px}
-  .device-status{display:flex;justify-content:center;gap:6px;align-items:center;font-size:11px;color:var(--dim-2);margin-top:16px}
-  #capHint{max-width:680px;text-align:center;margin:7px auto 0;font-size:11px;color:var(--dim)}
-  .how{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;max-width:820px;margin:42px auto 0}
-  .how article{position:relative;padding-left:32px}
-  .how .step-no{position:absolute;top:0;left:0;font:11px/25px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--dim-2)}
-  .how h2{font-size:13px;font-weight:650;letter-spacing:-.01em}
-  .how p{font-size:12px;color:var(--dim);margin-top:4px}
-  .workspace{margin-top:40px}
-  .workspace-head{display:flex;align-items:center;gap:12px;margin-bottom:18px}
-  .workspace-head h2{font-size:21px;letter-spacing:-.04em;font-weight:650}
-  .workspace-head p{font-size:12px;color:var(--dim);margin-top:3px}
-  body.has-images .hero{margin:0 auto 24px}
-  body.has-images .hero .eyebrow,body.has-images .hero p,body.has-images .how{display:none}
-  body.has-images .hero h1{font-size:32px}
-  body.has-images #drop{padding:17px 20px}
-  body.has-images .dz-art,body.has-images .dz-note,body.has-images .dz-title{display:none}
-  body.has-images .choose{margin:0 0 8px;padding:9px 20px;min-height:40px}
-  .alert{display:flex;align-items:center;gap:11px;font-size:13px;background:var(--danger-bg);border:1px solid var(--danger-line);
-    color:var(--bad);border-radius:12px;padding:13px 16px;margin-bottom:22px}
+  .skip{position:absolute;left:12px;top:-60px;z-index:100;background:var(--accent);color:var(--accent-ink);
+    padding:10px 16px;border-radius:10px;font-weight:650;text-decoration:none;transition:top .15s}
+  .skip:focus{top:12px}
+
+  /* ---------- header ---------- */
+  body>header{width:100%;max-width:var(--max);margin:0 auto;display:flex;align-items:center;gap:18px;padding:22px 32px}
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;border-radius:10px}
+  .mark{width:32px;height:32px;flex:none;color:var(--brand)}
+  .brand b{font-size:21px;font-weight:730;letter-spacing:-.035em}
+  .brand .version{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);
+    background:var(--panel-3);border:1px solid var(--line-2);border-radius:6px;padding:2px 6px;translate:0 -7px}
+  .nav{display:flex;align-items:center;gap:2px;margin-left:auto}
+  .header-link{font-size:13px;color:var(--dim);text-decoration:none;padding:7px 11px;border-radius:9px;transition:color .15s,background .15s}
+  .header-link:hover{color:var(--text);background:var(--panel-2)}
+  body.has-images .nav a[href^="#"]{display:none}
+  .chip{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:12px;color:var(--dim);
+    background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:6px 12px 6px 10px}
+  .chip svg{width:13px;height:13px;color:var(--good)}
+
+  /* ---------- layout ---------- */
+  main{flex:1;width:100%;max-width:var(--max);margin:0 auto;padding:34px 32px 72px}
+
+  .alert{display:flex;align-items:center;gap:12px;max-width:820px;margin:0 auto 24px;font-size:13px;line-height:1.5;
+    background:var(--danger-bg);border:1px solid var(--danger-line);color:var(--bad);border-radius:14px;padding:12px 14px 12px 16px}
   .alert.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn)}
-  .alert .ai{font-weight:750;font-size:16px;flex:none}
-  .alert .btn{background:transparent;color:inherit;border-color:currentColor;font-size:12px;padding:7px 10px}
-  #queue{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));align-items:start}
-  #queue.single{max-width:700px;margin:auto}
+  .alert .ai{width:24px;height:24px;flex:none;display:grid;place-items:center;border:1.6px solid currentColor;border-radius:50%;
+    font-weight:800;font-size:13px;line-height:1}
+  .alert .btn{background:transparent;color:inherit;border-color:currentColor;font-size:12px;padding:7px 12px;min-height:34px}
+  .alert .btn:hover:not(:disabled){background:transparent;border-color:currentColor;opacity:.8}
+
+  /* ---------- hero ---------- */
+  .hero{max-width:780px;margin:0 auto 34px;text-align:center}
+  .eyebrow{font-size:11px;font-weight:650;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+  .hero .eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;background:var(--panel);
+    border:1px solid var(--line);border-radius:99px;padding:7px 14px}
+  .hero .eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--brand-2)}
+  .hero h1{font-size:clamp(38px,5.4vw,64px);line-height:1.04;letter-spacing:-.045em;font-weight:760;text-wrap:balance}
+  .hero h1 span{background:linear-gradient(95deg,var(--brand),var(--brand-2));-webkit-background-clip:text;background-clip:text;
+    color:transparent;-webkit-text-fill-color:transparent}
+  .hero p{max-width:470px;margin:18px auto 0;font-size:16.5px;line-height:1.65;color:var(--dim)}
+
+  /* ---------- drop zone ---------- */
+  .studio{max-width:820px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:12px;box-shadow:var(--shadow)}
+  #drop{position:relative;display:block;text-align:center;cursor:pointer;border:2px dashed var(--line-2);border-radius:20px;
+    background:radial-gradient(var(--dots) 1px,transparent 1.6px) 0 0/18px 18px,var(--panel-2);
+    padding:42px 24px 32px;transition:border-color .2s,background-color .2s,box-shadow .2s}
+  #drop:hover,#drop:focus-visible,#drop.over{border-color:var(--brand);background-color:var(--over-bg)}
+  #drop:focus-visible{outline-offset:4px}
+  #drop.over{box-shadow:inset 0 0 0 6px var(--glow)}
+  #drop.over .dz-title{color:var(--brand)}
+  #drop:active{border-color:var(--brand);background-color:var(--over-bg)}
+
+  .dz-art{position:relative;width:156px;height:98px;margin:0 auto 22px}
+  .art-photo,.art-cutout{position:absolute;top:4px;width:66px;height:80px;border-radius:13px;overflow:hidden;
+    border:1px solid var(--line-2);box-shadow:var(--shadow-sm);transition:transform .3s ease}
+  .art-photo{left:10px;transform:rotate(-8deg)}
+  .art-cutout{right:10px;transform:rotate(7deg);color:var(--brand);
+    background:repeating-conic-gradient(var(--chk-a) 0% 25%,var(--chk-b) 0% 50%) 0 0/12px 12px}
+  .art-photo .sky{fill:url(#dzSky)}
+  .art-photo .sun{fill:#fff;opacity:.78}
+  .art-photo .hill{fill:#2b2152;opacity:.35}
+  .art-photo .who{fill:#241c48}
+  .art-cutout .who{fill:currentColor}
+  .art-arrow{position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-14px 0 0 -14px;z-index:2;display:grid;place-items:center;
+    border-radius:50%;background:var(--panel);border:1px solid var(--line-2);color:var(--brand);box-shadow:var(--shadow-sm);transition:transform .3s ease}
+  .art-arrow svg{width:14px;height:14px}
+  #drop:hover .art-photo,#drop.over .art-photo{transform:rotate(-12deg) translateX(-6px)}
+  #drop:hover .art-cutout,#drop.over .art-cutout{transform:rotate(11deg) translateX(6px)}
+  #drop:hover .art-arrow,#drop.over .art-arrow{transform:scale(1.08)}
+
+  #drop .dz-title{font-size:22px;font-weight:680;letter-spacing:-.03em;margin-bottom:4px;transition:color .2s}
+  #drop .dz-sub{font-size:13px;color:var(--dim)}
+  .choose{display:inline-flex;align-items:center;justify-content:center;gap:10px;margin:22px 0 12px;padding:14px 28px;min-height:50px;
+    border-radius:13px;background:linear-gradient(95deg,var(--accent),var(--accent-hi));color:var(--accent-ink);
+    font-weight:650;font-size:15px;box-shadow:0 6px 22px var(--glow);transition:transform .15s,box-shadow .15s,opacity .15s}
+  .choose svg{width:17px;height:17px}
+  #drop:hover .choose{transform:translateY(-1px);box-shadow:0 10px 28px var(--glow)}
+  #drop:active .choose{transform:none}
+  #drop kbd{display:inline-block;border:1px solid var(--line-2);border-bottom-width:2px;border-radius:5px;padding:0 5px;
+    font:600 11px/1.6 var(--mono);color:var(--text);background:var(--panel)}
+  #drop .dz-note{font-size:11.5px;color:var(--dim-2);margin-top:20px}
+  #drop input{display:none}
+
+  body.busy #drop{cursor:progress}
+  body.busy #drop:hover{border-color:var(--line-2);background-color:var(--panel-2)}
+  body.busy #drop:hover .choose{transform:none}
+  body.busy .choose{opacity:.8}
+  body.busy .choose svg{display:none}
+  body.busy .choose::before{content:'';width:16px;height:16px;flex:none;border-radius:50%;
+    border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite}
+
+  .studio-foot{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 22px;padding:14px 12px 4px;font-size:12px;color:var(--dim)}
+  .studio-foot>span{display:inline-flex;align-items:center;gap:7px}
+  .studio-foot svg{width:14px;height:14px;color:var(--good)}
+
+  .device-status{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;font-size:12px;color:var(--dim-2)}
+  .dot,.device-status .d{width:7px;height:7px;border-radius:50%;flex:none;background:var(--dim-2)}
+  .dot,.device-status .d.good{background:var(--good);box-shadow:0 0 0 3px var(--good-soft)}
+  .device-status .d.warn{background:var(--warn)}
+  #capHint{max-width:640px;text-align:center;margin:8px auto 0;font-size:12px;color:var(--dim)}
+
+  /* compact intake once images are in */
+  body.has-images .hero{margin-bottom:20px}
+  body.has-images .hero .eyebrow,body.has-images .hero p,body.has-images .how,body.has-images .faq,body.has-images .studio-foot{display:none}
+  body.has-images .hero h1{font-size:28px;letter-spacing:-.035em}
+  body.has-images .hero h1 br{display:none}
+  body.has-images .studio{border-radius:22px;padding:8px}
+  body.has-images #drop{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 16px;padding:12px 18px;border-radius:16px}
+  body.has-images .dz-art,body.has-images .dz-title,body.has-images .dz-note,body.has-images #drop>.dz-sub:not(.dz-hint){display:none}
+  body.has-images .choose{margin:0;min-height:44px;padding:10px 22px;font-size:14px}
+  body.has-images .device-status{margin-top:12px}
+
+  /* ---------- sections ---------- */
+  .section-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+  .section-head h2{font-size:12px;font-weight:650;letter-spacing:.13em;text-transform:uppercase;color:var(--dim-2)}
+
+  .how{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:820px;margin:64px auto 0}
+  .how .section-head{grid-column:1/-1;margin-bottom:0}
+  .how article{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px 20px 22px}
+  .how .step-no{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:9px;margin-bottom:12px;
+    background:var(--sel-bg);color:var(--brand);font:650 11.5px/1 var(--mono)}
+  .how h3{font-size:15px;font-weight:650;letter-spacing:-.01em}
+  .how p{font-size:13px;line-height:1.6;color:var(--dim);margin-top:5px}
+
+  .faq{max-width:820px;margin:56px auto 0}
+  .faq-list{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .faq details+details{border-top:1px solid var(--line)}
+  .faq summary{display:flex;align-items:center;gap:14px;padding:16px 20px;cursor:pointer;list-style:none;
+    font-size:14.5px;font-weight:600;letter-spacing:-.01em;transition:background .15s}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:'';flex:none;margin-left:auto;width:8px;height:8px;border-right:1.8px solid var(--dim);
+    border-bottom:1.8px solid var(--dim);transform:translateY(-2px) rotate(45deg);transition:transform .2s}
+  .faq details[open] summary::after{transform:translateY(2px) rotate(-135deg)}
+  .faq summary:hover{background:var(--panel-2)}
+  .faq summary:focus-visible{outline-offset:-3px;border-radius:18px}
+  .faq details p{max-width:680px;padding:0 20px 18px;font-size:13.5px;line-height:1.7;color:var(--dim)}
+  .faq details p a{color:var(--text)}
+
+  /* ---------- workspace ---------- */
+  .workspace{margin-top:34px}
+  .workspace-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px}
+  .workspace-head h2{font-size:20px;font-weight:680;letter-spacing:-.035em}
+  .workspace-head p{font-size:12.5px;color:var(--dim);margin-top:2px}
+  #queue{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));align-items:start}
+  #queue.single{max-width:720px;margin:0 auto}
   #queue.single .stage{aspect-ratio:16/10}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+
+  .card{min-width:0;display:flex;flex-direction:column;overflow:hidden;background:var(--panel);border:1px solid var(--line);
+    border-radius:20px;transition:border-color .2s,box-shadow .2s;animation:rise .35s ease both}
+  .card:hover{border-color:var(--line-2);box-shadow:var(--shadow-sm)}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}}
   .stage{position:relative;aspect-ratio:4/3;overflow:hidden;display:flex;align-items:center;justify-content:center;
     background:repeating-conic-gradient(var(--chk-a) 0% 25%,var(--chk-b) 0% 50%) 0 0/20px 20px}
-  .stage img{position:absolute;inset:0;margin:auto;width:100%;height:100%;object-fit:contain}
+  .stage img{position:absolute;inset:0;margin:auto;width:100%;height:100%;object-fit:contain;transition:opacity .18s ease}
   .stage .orig{opacity:1}
   .stage.ready .orig{opacity:0}
   .stage.compare .orig{opacity:1;z-index:2}
-  .stage .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:11px;
-    padding:24px;text-align:center;background:var(--scrim);color:#f4f3ff;font-size:13px}
-  .stage .spinner{width:23px;height:23px;border:2px solid #5d5a80;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+  .stage .placeholder{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;
+    padding:24px;text-align:center;background:var(--scrim);color:#f4f3ff;font-size:13px;font-weight:550;line-height:1.5}
+  .stage .placeholder span:last-child{max-width:280px}
+  .stage .spinner{width:24px;height:24px;border:2px solid rgba(255,255,255,.22);border-top-color:#c9bfff;border-radius:50%;animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
   .stage-tools{position:absolute;top:12px;right:12px;display:flex;gap:6px;z-index:3}
-  .card-body{padding:19px;display:flex;flex-direction:column;gap:12px;flex:1}
+  button.mini{width:38px;height:38px;display:grid;place-items:center;cursor:pointer;border-radius:11px;
+    background:var(--scrim);color:#fff;border:1px solid rgba(255,255,255,.26);transition:background .15s,color .15s}
+  button.mini svg{width:18px;height:18px}
+  button.mini:hover{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+  button.mini.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+
+  .card-body{flex:1;display:flex;flex-direction:column;gap:12px;padding:16px 18px 18px}
   .card-head{display:flex;align-items:center;gap:10px}
-  .name{font-size:14px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pill{font-size:10px;font-weight:650;padding:4px 8px;border-radius:6px;background:var(--panel-3);color:var(--dim);flex:none}
-  .pill.fast{background:var(--done-bg);color:var(--good)}
-  .pill.pro{background:var(--sel-bg);color:var(--good)}
-  .meta{font-size:11px;color:var(--dim-2);display:flex;gap:13px;flex-wrap:wrap;overflow-wrap:anywhere}
-  .meta .err{color:var(--bad)}
-  .progress{height:3px;background:var(--panel-3);border-radius:2px;overflow:hidden}
-  .progress i{display:block;height:100%;width:0;background:var(--good);transition:width .2s}
+  .name{flex:1;min-width:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pill{flex:none;font-size:10.5px;font-weight:650;letter-spacing:.02em;padding:3px 9px;border-radius:99px;
+    background:var(--panel-3);color:var(--dim);border:1px solid var(--line)}
+  .pill.low,.pill.medium,.pill.high,.pill.ultra{color:var(--brand);background:var(--sel-bg);border-color:var(--line-2)}
+  .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--dim-2);overflow-wrap:anywhere}
+  .meta>span:not(.err)~span:not(.err)::before{content:'·';margin-right:10px;color:var(--line-2)}
+  .meta .err{flex-basis:100%;margin-top:2px;padding:8px 10px;font-size:12px;line-height:1.5;color:var(--bad);
+    background:var(--danger-bg);border:1px solid var(--danger-line);border-radius:10px}
+  .progress{height:4px;background:var(--panel-3);border-radius:2px;overflow:hidden}
+  .progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--brand-2));transition:width .2s}
   .progress.hide{display:none}
-  .row-label{font-size:11px;color:var(--dim);width:100%;margin-bottom:3px}
-  .bgs{display:flex;gap:9px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);padding-top:12px}
-  .sw{width:29px;height:29px;border-radius:50%;border:1px solid var(--line-2);cursor:pointer;position:relative;padding:0;flex:none;background:var(--panel-2)}
-  .sw.sel{box-shadow:0 0 0 2px var(--panel),0 0 0 3.5px var(--good)}
+
+  .bgs{display:flex;flex-wrap:wrap;align-items:center;gap:9px;border-top:1px solid var(--line);padding-top:13px}
+  .row-label{width:100%;margin-bottom:2px;font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--dim)}
+  .sw{position:relative;flex:none;width:30px;height:30px;padding:0;cursor:pointer;border-radius:50%;border:1px solid var(--line-2);
+    background:var(--panel-2);transition:transform .15s,box-shadow .15s}
+  .sw:hover{transform:scale(1.1)}
+  .sw.sel{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--brand)}
   .sw.t{background:repeating-conic-gradient(var(--swchk-a) 0% 25%,var(--swchk-b) 0% 50%) 0 0/10px 10px}
   .sw[data-c="custom"]{overflow:hidden}
   .sw[data-c="custom"] input{position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;cursor:pointer;opacity:0}
   .sw.img{display:grid;place-items:center;overflow:hidden;background-size:cover;background-position:center;color:var(--dim)}
   .sw.img svg{width:14px;height:14px}
-  .acts{display:flex;gap:7px;margin-top:auto;padding-top:5px}
-  button.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:12px;font-weight:600;white-space:nowrap;
-    color:var(--text);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:10px 13px;min-height:40px;cursor:pointer;
-    transition:background .15s,border-color .15s}
+
+  .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:4px}
+  button.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;cursor:pointer;
+    font-size:12.5px;font-weight:600;color:var(--text);background:var(--panel-2);border:1px solid var(--line);
+    border-radius:11px;padding:10px 14px;min-height:40px;transition:background .15s,border-color .15s,transform .1s}
   button.btn svg{width:15px;height:15px;flex:none}
   button.btn:hover:not(:disabled){background:var(--panel-3);border-color:var(--line-2)}
+  button.btn:active:not(:disabled){transform:scale(.97)}
   button.btn:disabled{opacity:.45;cursor:default}
-  button.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-  button.btn.pri:hover:not(:disabled){background:var(--accent-hi);border-color:var(--accent-hi)}
+  button.btn.pri{background:linear-gradient(95deg,var(--accent),var(--accent-hi));border-color:transparent;color:var(--accent-ink)}
+  button.btn.pri:hover:not(:disabled){background:var(--accent-hi);border-color:transparent}
   button.btn.done{background:var(--done-bg);border-color:var(--done-line);color:var(--good)}
   button.btn.wide{flex:1;min-width:0}
   button.btn.ghost{background:transparent}
-  button.mini{width:38px;height:38px;border-radius:10px;cursor:pointer;background:var(--panel);border:1px solid var(--line-2);
-    color:var(--text);display:grid;place-items:center}
-  button.mini svg{width:18px;height:18px}
-  button.mini:hover{background:var(--panel-3)}
-  button.mini.on{background:var(--accent);color:var(--accent-ink)}
-  #batch{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:13px;
-    padding:12px 15px;position:sticky;bottom:12px;z-index:5;margin-top:22px;box-shadow:0 4px 18px rgba(0,0,0,.1)}
-  #batch .txt{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:8px}
-  #batch .txt b{color:var(--text)}
-  #overlay{position:fixed;inset:0;background:var(--scrim);display:none;align-items:center;justify-content:center;padding:20px;z-index:60}
-  #overlay.on{display:flex}
-  body.modal-open{overflow:hidden}
-  .modal{background:var(--panel);border:1px solid var(--line);border-radius:24px;max-width:550px;width:100%;padding:30px;
-    box-shadow:var(--shadow);max-height:calc(100dvh - 40px);overflow:auto}
-  .modal .eyebrow{margin-bottom:9px}
-  .modal h2{font-size:27px;font-weight:680;letter-spacing:-.04em;line-height:1.2;margin-bottom:10px}
-  .modal .lead{font-size:13px;color:var(--dim);margin-bottom:23px}
-  .opts{display:flex;flex-direction:column;gap:10px}
-  .opt{display:flex;gap:13px;align-items:flex-start;text-align:left;width:100%;background:var(--panel-2);border:1px solid var(--line);
-    border-radius:14px;padding:17px;cursor:pointer;font:inherit;color:inherit}
-  .opt:hover{border-color:var(--line-2)}
-  .opt[aria-checked="true"]{border-color:var(--good);background:var(--sel-bg)}
-  .opt .ico{width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--panel-3);color:var(--dim)}
-  .opt[aria-checked="true"] .ico{background:var(--accent);color:var(--accent-ink)}
-  .opt .t{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:650;margin-bottom:5px}
-  .opt .tag{font-size:9px;letter-spacing:.04em;padding:2px 6px;border-radius:4px;background:var(--panel-3);color:var(--dim)}
-  .opt .tag.rec{background:var(--done-bg);color:var(--good)}
-  .opt .d{display:block;font-size:12px;line-height:1.65;color:var(--dim)}
-  .opt .cost{display:flex;gap:10px;margin-top:9px;flex-wrap:wrap;font-size:10px;color:var(--dim-2)}
-  .opt .nofit{display:block;margin-top:8px;font-size:11px;line-height:1.5;color:var(--bad)}
-  .opt:disabled{opacity:.55;cursor:not-allowed}
-  .opt:disabled:hover{border-color:var(--line)}
-  .modal .foot{display:flex;gap:9px;margin-top:23px;align-items:center}
-  .modal .hint{font-size:11px;color:var(--dim-2);max-width:150px}
-  .guide{margin:15px 0 0;font-size:12px;color:var(--dim);text-align:center}
-  .guide a{color:var(--dim);text-underline-offset:3px}
-  .guide a:hover{color:var(--text)}
-  .warnbox{margin-top:14px;font-size:12px;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:10px;padding:12px;line-height:1.6}
-  .warnbox.danger{color:var(--bad);background:var(--danger-bg);border-color:var(--danger-line)}
-  footer{width:100%;max-width:1108px;margin:auto;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:15px;
-    padding:21px 0 25px;font-size:11px;color:var(--dim-2)}
-  footer b{color:var(--dim);font-weight:550}
-  @media(max-width:650px){
-    header{padding:21px 20px;gap:16px} .brand b{font-size:21px} .header-link{display:none}
-    main{padding:27px 20px 38px} .hero{margin-bottom:26px} .hero h1{font-size:43px}
-    .hero p{font-size:14px;max-width:330px} .eyebrow{font-size:10px;margin-bottom:13px}
-    .studio{border-radius:22px;padding:7px} #drop{padding:28px 15px 23px}
-    .studio-foot{font-size:10px;padding:11px 7px 4px;gap:6px}
-    .how{gap:15px;margin-top:30px} .how article{padding-left:0} .how .step-no{position:static;display:block;margin-bottom:4px}
-    .how h2{font-size:12px} .how p{font-size:11px} .workspace{margin-top:28px}
-    .card-body{padding:16px} #queue.single .stage{aspect-ratio:4/3}
-    #batch{position:static;padding:12px;gap:8px} #batch .txt{width:100%} #batch .spacer{display:none}
-    #batch button{flex:1} .modal{padding:22px;border-radius:20px} .modal h2{font-size:24px}
-    .modal .foot{flex-wrap:wrap} .modal .hint{width:100%;max-width:none} .modal .hint:empty{display:none}
-    footer{width:calc(100% - 40px);flex-direction:column;gap:5px;padding:19px 0}
-  }
-  @media(max-width:360px){header,main{padding-left:14px;padding-right:14px}.hero h1{font-size:36px}.chip{font-size:10px}.studio-foot{flex-wrap:wrap;justify-content:center}}
-  @media(pointer:coarse){.sw{width:34px;height:34px}.bgs{gap:10px}}
-  /* Lightweight visual polish: no fonts, image downloads or blur effects. */
-  .hero .eyebrow{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:7px 13px;letter-spacing:.1em}
-  .hero .eyebrow::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--good)}
-  .studio{box-shadow:var(--shadow)}
-  .choose{box-shadow:0 2px 0 rgba(0,0,0,.1);transition:background .15s,transform .15s}
-  #drop:hover .choose{background:var(--accent-hi);transform:translateY(-1px)}
-  .how article{padding-top:4px}
-  .card-head .pill{border:1px solid var(--line)}
-  .pill.medium,.pill.high,.pill.ultra{color:var(--good);background:var(--done-bg);border-color:var(--done-line)}
-  .acts{flex-wrap:wrap}
-  .acts .refine{flex-basis:100%;font-size:11px;color:var(--dim);min-height:34px;padding:6px;border-style:dashed}
-  .modal{max-width:560px}
-  .opt{padding:13px 15px;gap:12px}
-  .opt .ico{width:36px;height:36px;margin-top:2px}
-  .opt .cost{margin-top:6px;gap:8px}
-  .opt .cost span{background:var(--panel-3);padding:2px 7px;border-radius:5px}
-  .opt .t{margin-bottom:3px}
-  .opt:disabled .d,.opt:disabled .cost{display:none}
-  .opt:disabled .nofit{margin-top:4px;font-size:10px}
-  .opt[aria-checked="true"]::after{content:'✓';margin-left:auto;color:var(--good);font-size:18px}
-  .modal .lead{margin-bottom:16px}
-  .modal .foot{position:sticky;bottom:-30px;background:var(--panel);padding:12px 0 0;margin-top:12px}
-  .modal .guide{margin-top:12px;font-size:11px}
-  @media(max-width:650px){
-    .modal .foot{bottom:-22px;padding-bottom:2px}
-    .opt .tag{font-size:8px}
-    .opt .d{font-size:11px}
-    .modal .eyebrow{font-size:9px}
-    .acts .btn{min-height:44px}
-    .acts .refine{min-height:40px}
-  }
+  .acts .refine{flex-basis:100%;min-height:34px;padding:6px;font-size:11.5px;color:var(--dim);border-style:dashed}
+  .acts .refine:hover:not(:disabled){color:var(--text)}
 
-  /* ---- UX polish v2: violet palette, clearer states, calmer motion ---- */
-  :focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:6px}
-  body{background:radial-gradient(900px 480px at 50% -80px,var(--glow),transparent 70%) no-repeat,var(--bg)}
-  .skip{position:absolute;left:12px;top:-60px;z-index:100;background:var(--accent);color:var(--accent-ink);padding:10px 16px;border-radius:10px;font-weight:650;text-decoration:none;transition:top .15s}
-  .skip:focus{top:12px}
-  .mark{color:var(--brand)}
-  .brand .version{background:var(--panel-3);color:var(--brand);border:1px solid var(--line-2)}
-  .chip{background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:6px 12px}
-  .header-link{padding:6px 2px;border-bottom:1px solid transparent}
-  .header-link:hover{border-color:var(--brand)}
-  .hero h1 span{background:linear-gradient(95deg,var(--brand),var(--brand-2));-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
-  .hero .eyebrow::before{background:var(--brand-2)}
-  .studio{border-radius:28px;padding:12px}
-  #drop{border-width:2px;border-style:dashed;border-radius:20px;padding:44px 20px 34px;transition:border-color .2s,background .2s,box-shadow .2s}
-  #drop:hover,#drop:focus-visible,#drop.over{border-color:var(--brand);background:var(--over-bg)}
-  #drop.over{box-shadow:inset 0 0 0 4px var(--glow)}
-  #drop.over .dz-title{color:var(--brand)}
-  .art-photo,.art-cutout{transition:transform .25s ease}
-  #drop:hover .art-photo,#drop.over .art-photo{transform:rotate(-14deg) translateX(-5px)}
-  #drop:hover .art-cutout,#drop.over .art-cutout{transform:rotate(12deg) translateX(5px)}
-  .art-cutout{color:var(--brand)}
-  #drop .dz-title{font-size:22px}
-  .choose{background:linear-gradient(95deg,var(--accent),var(--accent-hi));padding:14px 28px;min-height:50px;border-radius:12px;font-size:15px;box-shadow:0 6px 20px var(--glow)}
-  #drop:hover .choose{transform:translateY(-1px);box-shadow:0 10px 26px var(--glow)}
-  #drop:active .choose{transform:none}
-  .studio-foot{padding:14px 12px 4px}
-  .studio-foot>span:first-child{color:var(--good)}
-  .dot,.device-status .d.good{background:var(--good)}
-  .how article{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 16px 16px 16px}
-  .how .step-no{position:static;display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;background:var(--panel-3);color:var(--brand);margin-bottom:10px;font-weight:650;line-height:1}
-  .how h2{font-size:14px}.how p{font-size:12.5px}
-  .card{transition:border-color .2s,box-shadow .2s,transform .2s}
-  .card:hover{border-color:var(--line-2);box-shadow:var(--shadow);transform:translateY(-2px)}
-  .stage .placeholder{backdrop-filter:none;font-weight:550}
-  .progress{height:4px}
-  .progress i{background:linear-gradient(90deg,var(--accent),var(--brand-2))}
-  .pill.fast,.pill.pro,.pill.medium,.pill.high,.pill.ultra{color:var(--brand);background:var(--sel-bg);border-color:var(--line-2)}
-  .sw{transition:transform .15s}.sw:hover{transform:scale(1.1)}
-  .sw.sel{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--brand)}
-  button.btn{border-radius:11px;transition:background .15s,border-color .15s,transform .1s}
-  button.btn:active:not(:disabled){transform:scale(.97)}
-  button.btn.pri{background:linear-gradient(95deg,var(--accent),var(--accent-hi));border-color:transparent}
-  button.btn.pri:hover:not(:disabled){background:var(--accent-hi);border-color:transparent}
-  button.btn.done{background:var(--done-bg);border-color:var(--done-line);color:var(--good)}
-  button.mini{background:var(--scrim);color:#fff;border-color:rgba(255,255,255,.28)}
-  button.mini:hover{background:var(--accent);color:var(--accent-ink)}
-  #batch{border-color:var(--line-2);border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.28)}
-  .opt{border-width:1.5px;border-radius:16px;transition:border-color .15s,background .15s,transform .1s}
-  .opt:hover:not(:disabled){border-color:var(--brand);background:var(--panel-3)}
+  #batch{position:sticky;bottom:14px;z-index:5;display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:22px;
+    background:var(--panel);border:1px solid var(--line-2);border-radius:16px;padding:10px 10px 10px 16px;box-shadow:0 12px 40px rgba(0,0,0,.28)}
+  #batch .txt{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--dim)}
+  #batch .txt b{color:var(--text)}
+
+  /* ---------- engine dialog ---------- */
+  #overlay{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:20px;background:var(--scrim)}
+  #overlay.on{display:flex;animation:fade .18s ease both}
+  @keyframes fade{from{opacity:0}}
+  body.modal-open{overflow:hidden}
+  .modal{width:100%;max-width:560px;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);display:flex;flex-direction:column;
+    overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow);animation:pop .22s ease both}
+  @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.985)}}
+  .modal-body{overflow:auto;overscroll-behavior:contain;padding:28px 28px 8px}
+  .modal .eyebrow{margin-bottom:8px;color:var(--brand)}
+  .modal h2{font-size:26px;font-weight:700;letter-spacing:-.04em;line-height:1.2;margin-bottom:8px}
+  .modal .lead{font-size:13.5px;color:var(--dim);margin-bottom:18px}
+  .opts{display:flex;flex-direction:column;gap:9px}
+  .opt{display:flex;align-items:flex-start;gap:13px;width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit;
+    background:var(--panel-2);border:1.5px solid var(--line);border-radius:16px;padding:13px 15px;
+    transition:border-color .15s,background .15s,box-shadow .15s,transform .1s}
+  .opt:hover:not(:disabled){border-color:var(--line-2);background:var(--panel-3)}
   .opt:active:not(:disabled){transform:scale(.99)}
   .opt[aria-checked="true"]{border-color:var(--brand);background:var(--sel-bg);box-shadow:0 0 0 3px var(--glow)}
-  .opt[aria-checked="true"] .ico{background:var(--accent)}
-  .opt[aria-checked="true"]::after{color:var(--brand)}
+  .opt::after{content:'';flex:none;width:20px;height:20px;margin-top:8px;border-radius:50%;border:1.5px solid var(--line-2);
+    transition:border-color .15s,background .15s}
+  .opt[aria-checked="true"]::after{border-color:var(--brand);background:var(--brand);box-shadow:inset 0 0 0 4px var(--sel-bg)}
+  .opt:disabled{opacity:.55;cursor:not-allowed}
+  .opt .ico{width:38px;height:38px;flex:none;margin-top:1px;display:grid;place-items:center;border-radius:11px;
+    font-size:13px;font-weight:750;background:var(--panel-3);color:var(--dim)}
+  .opt[aria-checked="true"] .ico{background:linear-gradient(135deg,var(--accent),var(--accent-hi));color:var(--accent-ink)}
+  .opt-body{flex:1;min-width:0}
+  .opt .t{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:3px;font-size:15px;font-weight:650}
+  .opt .tag{font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:5px;background:var(--panel-3);color:var(--dim)}
   .opt .tag.rec{background:var(--done-bg);color:var(--good)}
-  .modal{border-radius:26px}
-  .alert .btn{border-radius:9px}
-  footer{max-width:1108px;padding:24px 0 30px;line-height:1.7}
-  footer a:hover{color:var(--text)}
-  @media(max-width:650px){
-    #drop{padding:34px 15px 26px}
-    .how{grid-template-columns:1fr}
-    .how article{display:grid;grid-template-columns:34px 1fr;column-gap:10px;padding:14px}
-    .how .step-no{grid-row:span 2;margin:0}
-    .card:hover{transform:none}
-  }
-  @media(hover:none){.card:hover,.sw:hover{transform:none}}
+  .opt .d{display:block;font-size:12.5px;line-height:1.6;color:var(--dim)}
+  .opt .cost{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:10.5px;color:var(--dim-2)}
+  .opt .cost span{background:var(--panel-3);padding:2px 7px;border-radius:6px}
+  .opt[aria-checked="true"] .cost span{background:var(--panel)}
+  .opt .nofit{display:block;margin-top:4px;font-size:11px;line-height:1.5;color:var(--bad)}
+  .opt:disabled .d,.opt:disabled .cost{display:none}
+  .guide{margin:14px 0 4px;font-size:12px;color:var(--dim);text-align:center}
+  .guide a{color:var(--dim)}
+  .guide a:hover{color:var(--text)}
+  .warnbox{margin-top:12px;font-size:12.5px;line-height:1.6;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:12px;padding:12px 14px}
+  .warnbox.danger{color:var(--bad);background:var(--danger-bg);border-color:var(--danger-line)}
+  .modal .foot{display:flex;align-items:center;gap:9px;padding:14px 28px 22px;border-top:1px solid var(--line);background:var(--panel)}
+  .modal .hint{max-width:190px;font-size:11.5px;line-height:1.45;color:var(--dim-2)}
+  #mGo{min-width:110px}
 
-  /* ---- Phone and touch polish ---- */
-  html{-webkit-text-size-adjust:100%}
-  button,.opt,#drop,.sw{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-  .card{animation:rise .35s ease both}
-  @keyframes rise{from{opacity:0;transform:translateY(8px)}}
-  #drop:active{background:var(--over-bg);border-color:var(--brand)}
-  @media(pointer:coarse){
-    .dz-hint{display:none}
-    #drop .dz-title{margin-bottom:4px}
-    button.mini{width:44px;height:44px}
-    .stage-tools{top:10px;right:10px;gap:8px}
-    button.btn{min-height:44px}
-    .header-link{padding:12px 4px}
-  }
+  /* ---------- footer ---------- */
+  body>footer{width:100%;max-width:var(--max);margin:0 auto;padding:0 32px}
+  .site-foot{display:grid;gap:14px;border-top:1px solid var(--line);padding:26px 0 32px;font-size:12px;color:var(--dim-2)}
+  .foot-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px 24px}
+  .foot-brand{display:flex;align-items:center;gap:10px;color:var(--text);font-size:13px;font-weight:600}
+  .foot-brand .mark{width:20px;height:20px}
+  .foot-links{display:flex;flex-wrap:wrap;gap:4px 18px}
+  .site-foot a{color:var(--dim);text-decoration:none}
+  .site-foot a:hover{color:var(--text);text-decoration:underline}
+  .foot-row.sub{line-height:1.6}
+  .foot-row.sub>span:first-child a{text-decoration:underline;text-decoration-color:var(--line-2)}
+
+  /* ---------- small screens ---------- */
   @media(max-width:650px){
-    header{padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left))}
-    .mark{width:30px;height:30px} .brand b{font-size:20px}
-    .chip{font-size:11px;padding:5px 10px;margin-left:auto}
-    main{padding:18px max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-area-inset-left))}
-    .hero{margin-bottom:20px}
-    .hero h1{font-size:clamp(30px,9.2vw,38px);letter-spacing:-.045em;line-height:1.08}
-    .hero p{font-size:14.5px;margin-top:14px;line-height:1.6}
+    body>header{padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));gap:12px}
+    .nav{display:none}
+    .mark{width:30px;height:30px}
+    .brand b{font-size:20px}
+    .chip{margin-left:auto;font-size:11px;padding:5px 10px 5px 8px}
+    main{padding:18px max(16px,env(safe-area-inset-right)) 34px max(16px,env(safe-area-inset-left))}
+    .hero{margin-bottom:22px}
     .hero .eyebrow{font-size:10px;padding:6px 11px;margin-bottom:14px}
+    .hero h1{font-size:clamp(31px,9.4vw,40px);letter-spacing:-.045em;line-height:1.07}
+    .hero p{font-size:14.5px;margin-top:14px;line-height:1.6;max-width:340px}
     .studio{padding:8px;border-radius:24px}
     #drop{padding:26px 14px 20px;border-radius:18px}
-    .dz-art{transform:scale(.85);margin-bottom:12px}
+    .dz-art{transform:scale(.86);margin-bottom:12px}
     #drop .dz-title{font-size:20px}
     .choose{width:100%;margin:16px 0 4px;min-height:54px;font-size:16px}
-    #drop .dz-note{margin-top:12px;font-size:11px}
-    body.has-images .hero h1{font-size:26px}
-    body.has-images #drop{padding:12px}
-    body.has-images .choose{margin:0;min-height:48px}
-    .studio-foot{flex-direction:column;align-items:center;gap:4px;padding:12px 6px 4px;text-align:center}
-    .how article{border-radius:14px}
-    .workspace-head{flex-wrap:wrap}
+    #drop .dz-note{margin-top:12px}
+    .studio-foot{gap:4px 16px;padding:12px 6px 4px;font-size:11.5px}
+    body.has-images .hero h1{font-size:23px}
+    body.has-images #drop{padding:8px}
+    body.has-images .choose{width:100%;margin:0;min-height:48px}
+    .how{grid-template-columns:1fr;gap:10px;margin-top:44px}
+    .how article{display:grid;grid-template-columns:38px 1fr;column-gap:10px;padding:15px;border-radius:15px}
+    .how .step-no{grid-row:span 2;margin:0}
+    .faq{margin-top:40px}
+    .faq summary{padding:15px 16px;font-size:14px}
+    .faq details p{padding:0 16px 16px;font-size:13px}
+    .alert{flex-wrap:wrap;align-items:flex-start;padding:12px}
+    #alertText{flex:1 1 200px;min-width:0}
+    .alert .spacer{display:none}
+    .alert .btn{margin-left:36px}
+    .workspace{margin-top:26px}
+    .workspace-head{flex-wrap:wrap;align-items:center}
     .workspace-head h2{font-size:19px}
     #queue{gap:14px}
+    .card:hover{box-shadow:none}
     .card-body{padding:14px;gap:10px}
     .name{font-size:15px}
-    .meta{font-size:12px}
-    .bgs{gap:8px;padding-top:12px}
-    .acts{gap:8px}
-    .acts .btn.wide{flex:1 1 calc(50% - 4px)}
-    #batch{position:sticky;bottom:max(10px,env(safe-area-inset-bottom));padding:10px;border-radius:16px;gap:8px;background:var(--panel)}
-    #batch .txt{width:100%;font-size:12px}
+    .bgs{gap:8px}
+    .acts .btn.wide{flex:1 1 0}
+    .acts .btn{min-height:44px}
+    .acts .refine{min-height:40px}
+    #batch{bottom:max(10px,env(safe-area-inset-bottom));padding:10px;gap:8px}
+    #batch .txt{width:100%;padding:2px 4px 0}
+    #batch .spacer{display:none}
     #batch button{flex:1;min-height:48px}
     #overlay{align-items:flex-end;padding:0}
-    .modal{max-width:none;border-radius:24px 24px 0 0;border-bottom:0;padding:20px 16px max(16px,env(safe-area-inset-bottom));max-height:92dvh;animation:sheet .28s ease both}
-    .modal::before{content:'';display:block;width:40px;height:4px;border-radius:2px;background:var(--line-2);margin:-8px auto 14px}
+    .modal{max-width:none;max-height:92vh;max-height:92dvh;border-radius:24px 24px 0 0;border-bottom:0;animation:sheet .28s ease both}
     @keyframes sheet{from{transform:translateY(40px);opacity:0}}
+    .modal::before{content:'';flex:none;display:block;width:40px;height:4px;border-radius:2px;background:var(--line-2);margin:10px auto 0}
+    .modal-body{padding:16px 16px 6px}
     .modal h2{font-size:22px}
-    .modal .lead{font-size:13px}
-    .opt{padding:14px;min-height:64px}
+    .modal .lead{font-size:13px;margin-bottom:14px}
+    .modal .eyebrow{font-size:10px}
+    .opt{padding:13px;min-height:64px;gap:11px}
+    .opt .ico{width:34px;height:34px}
+    .opt .tag{font-size:8.5px}
     .opt .d{font-size:12px}
-    .modal .foot{bottom:-16px;padding:12px 0 4px;gap:8px;border-top:1px solid var(--line)}
+    .modal .foot{flex-wrap:wrap;gap:8px;padding:12px 16px max(16px,env(safe-area-inset-bottom))}
+    .modal .hint{width:100%;max-width:none}
+    .modal .hint:empty{display:none}
+    .modal .foot .spacer{display:none}
     .modal .foot .btn{flex:1;min-height:48px}
-    footer{text-align:center;padding:20px 0 max(24px,env(safe-area-inset-bottom));font-size:11.5px}
+    body>footer{padding:0 max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left))}
+    .site-foot{text-align:center;padding:22px 0 max(24px,env(safe-area-inset-bottom))}
+    .foot-row{flex-direction:column;justify-content:center}
+    .foot-links{justify-content:center}
   }
   @media(max-width:360px){
+    body>header,main{padding-left:14px;padding-right:14px}
     .chip{display:none}
-    .hero h1{font-size:28px}
+    .hero h1{font-size:29px}
+    .studio-foot{flex-direction:column}
   }
   @media(max-height:480px) and (orientation:landscape){
-    .modal{max-height:96dvh}
-    .hero{margin-bottom:14px} .dz-art{display:none}
+    .modal{max-height:96vh;max-height:96dvh}
+    .hero{margin-bottom:14px}
+    .dz-art{display:none}
   }
-  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}}
+  @media(pointer:coarse){
+    .dz-hint{display:none}
+    .sw{width:36px;height:36px}
+    .bgs{gap:10px}
+    button.btn{min-height:44px}
+    button.mini{width:44px;height:44px}
+    .stage-tools{top:10px;right:10px;gap:8px}
+  }
+  @media(hover:none){.sw:hover{transform:none}.card:hover{box-shadow:none;border-color:var(--line)}}
+  @media(prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *,*::before,*::after{animation:none!important;transition:none!important}
+    body.busy .choose::before{border-right-color:currentColor;opacity:.5}
+  }
 </style>
 </head>
 <body>
@@ -407,9 +478,15 @@
     <b>Cutout</b>
     <span class="version">Beta</span>
   </a>
-  <span class="spacer"></span>
-  <a class="header-link" href="#how">How it works</a>
-  <span class="chip"><span class="dot"></span>Private by design</span>
+  <nav class="nav" aria-label="Site">
+    <a class="header-link" href="#how">How it works</a>
+    <a class="header-link" href="#faq">FAQ</a>
+    <a class="header-link" href="https://github.com/scadavide55/cutout" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+  <span class="chip">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 10 4-1.7 7-5.6 7-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+    Private by design
+  </span>
 </header>
 
 <main>
@@ -422,21 +499,36 @@
 
   <section class="hero" aria-labelledby="headline">
     <div class="eyebrow">Free background remover</div>
-    <h1 id="headline">Remove image backgrounds.<br><span>Right in your browser.</span></h1>
-    <p>No account, no upload, no watermark.<br>Your photos never leave your device.</p>
+    <h1 id="headline">Remove image backgrounds.<br> <span>Right in your browser.</span></h1>
+    <p>No account, no upload, no watermark.<br> Your photos never leave your device.</p>
   </section>
 
   <div class="studio">
     <div id="drop" tabindex="0" role="button" aria-label="Choose images to remove backgrounds from" aria-disabled="false">
       <div class="dz-art" aria-hidden="true">
         <div class="art-photo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="18" rx="3"/><circle cx="8" cy="9" r="2"/><path d="m3 19 6-6 4 4 4-5 4 5"/>
+          <svg viewBox="0 0 66 80" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="dzSky" x1="0" y1="0" x2="0.4" y2="1">
+                <stop offset="0" stop-color="#ffb38a"/><stop offset=".55" stop-color="#ff86b4"/><stop offset="1" stop-color="#8f7cff"/>
+              </linearGradient>
+            </defs>
+            <rect class="sky" width="66" height="80"/>
+            <circle class="sun" cx="48" cy="19" r="7"/>
+            <path class="hill" d="M0 60 Q17 47 33 55 T66 50 V80 H0Z"/>
+            <circle class="who" cx="33" cy="38" r="9"/>
+            <path class="who" d="M15 80c0-13 8-21 18-21s18 8 18 21z"/>
           </svg>
         </div>
         <div class="art-cutout">
-          <svg viewBox="0 0 32 36" fill="currentColor"><circle cx="16" cy="10" r="7"/><path d="M3 33c0-10 5-15 13-15s13 5 13 15z"/></svg>
+          <svg viewBox="0 0 66 80" preserveAspectRatio="xMidYMid slice">
+            <circle class="who" cx="33" cy="38" r="9"/>
+            <path class="who" d="M15 80c0-13 8-21 18-21s18 8 18 21z"/>
+          </svg>
         </div>
+        <span class="art-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+        </span>
       </div>
       <div class="dz-title">Drop your photos here</div>
       <div class="dz-sub">One image or up to 20 at a time.</div>
@@ -444,13 +536,14 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-4 4 4-4 4 4M4 16v4h16v-4"/></svg>
         <span id="chooseLabel">Choose images</span>
       </span>
-      <div class="dz-sub dz-hint">or drop here · paste with <kbd id="pasteKey">⌘ V</kbd></div>
+      <div class="dz-sub dz-hint">or drop them here · paste with <kbd id="pasteKey">⌘ V</kbd></div>
       <div class="dz-note">JPG, PNG, WebP &amp; more · up to 20 images · 30 MB each</div>
     </div>
     <input id="file" type="file" accept="image/*" multiple hidden>
     <div class="studio-foot">
-      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg>Nothing is uploaded</span>
-      <span>No account. No watermark.</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg>Nothing is uploaded</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c.8-3.6 3.8-6 7.5-6s6.7 2.4 7.5 6"/></svg>No account</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4.5 4.5L19 7"/></svg>No watermark</span>
     </div>
   </div>
   <div class="device-status" role="status">
@@ -458,10 +551,41 @@
   </div>
   <p id="capHint" hidden></p>
 
-  <section class="how" id="how" aria-label="How it works">
-    <article><span class="step-no">01</span><h2>Add your images</h2><p>Drop, choose or paste them. Up to 20 at once.</p></article>
-    <article><span class="step-no">02</span><h2>Pick an engine</h2><p>Low is fastest. High and Ultra handle hair and fine edges.</p></article>
-    <article><span class="step-no">03</span><h2>Download</h2><p>Save a transparent PNG, or add a new background first.</p></article>
+  <section class="how" id="how" aria-labelledby="howTitle">
+    <div class="section-head"><h2 id="howTitle">How it works</h2></div>
+    <article><span class="step-no">01</span><h3>Add your images</h3><p>Drop, choose or paste them. Up to 20 at once.</p></article>
+    <article><span class="step-no">02</span><h3>Pick an engine</h3><p>Low is fastest. High and Ultra handle hair and fine edges.</p></article>
+    <article><span class="step-no">03</span><h3>Download</h3><p>Save a transparent PNG, or add a new background first.</p></article>
+  </section>
+
+  <section class="faq" id="faq" aria-labelledby="faqTitle">
+    <div class="section-head"><h2 id="faqTitle">Questions</h2></div>
+    <div class="faq-list">
+      <details>
+        <summary>Are my photos uploaded anywhere?</summary>
+        <p>No. Each image is decoded, cut out and exported inside this tab, on your own GPU or CPU. Your browser only downloads the page, the AI runtime and the engine you pick, never your pictures. The <a href="https://github.com/scadavide55/cutout/blob/main/PRIVACY.md" target="_blank" rel="noopener">privacy policy</a> lists every host involved.</p>
+      </details>
+      <details>
+        <summary>Which engine should I pick?</summary>
+        <p>Low is the quickest and works well for portraits and simple backgrounds. Medium suits people, products and pets. High handles hair, fur and tricky edges on a capable GPU, and Ultra refines High with a second pass on high-end devices. Engines your device can't run safely are dimmed, with the reason shown. The <a href="https://github.com/scadavide55/cutout/blob/main/MODEL%20GUIDE.md" target="_blank" rel="noopener">model guide</a> goes deeper.</p>
+      </details>
+      <details>
+        <summary>Why is the first cut-out slower?</summary>
+        <p>The engine downloads the first time you use it, between 6.6 MB and 223 MB depending on which one you pick. Your browser keeps it in its cache and reuses it for the whole batch, so later runs are much faster.</p>
+      </details>
+      <details>
+        <summary>What can I export?</summary>
+        <p>A transparent PNG, a JPG on a colour or on a photo of your own, a copy to the clipboard, or every result at once as a ZIP. Exports keep the original resolution.</p>
+      </details>
+      <details>
+        <summary>Are there any limits?</summary>
+        <p>Up to 20 images per batch, 30 MB each. A single image can be up to 24 megapixels on a computer and 12 on a phone, with at most 8192 px per side.</p>
+      </details>
+      <details>
+        <summary>Is it really free?</summary>
+        <p>Yes. No account, no watermark, no ads. The code is open source under the <a href="https://github.com/scadavide55/cutout" target="_blank" rel="noopener">Apache-2.0 licence</a>.</p>
+      </details>
+    </div>
   </section>
 
   <section class="workspace" id="workspace" hidden aria-labelledby="resultsTitle">
@@ -472,70 +596,93 @@
     </div>
     <div id="queue"></div>
 
-  <div id="batch" style="display:none">
-    <span class="txt"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--good);display:inline-block"></span><span id="batchText"></span></span>
-    <span class="spacer"></span>
-    <button class="btn pri" id="batchZip">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 7.5V5.6A2.1 2.1 0 0 1 10.1 3.5h3.8A2.1 2.1 0 0 1 16 5.6v1.9"/><path d="M12 11v5"/><path d="m9.6 13.6 2.4 2.4 2.4-2.4"/></svg>
-      <span>Download .zip</span>
-    </button>
-    <button class="btn" id="batchClear">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15"/><path d="M10 11v6M14 11v6"/><path d="M6.5 7l1 12.5h9L17.5 7"/><path d="M9.5 7V4.5h5V7"/></svg>
-      Clear all
-    </button>
-  </div>
+    <div id="batch" style="display:none">
+      <span class="txt"><span class="dot"></span><span id="batchText"></span></span>
+      <span class="spacer"></span>
+      <button class="btn pri" id="batchZip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 7.5V5.6A2.1 2.1 0 0 1 10.1 3.5h3.8A2.1 2.1 0 0 1 16 5.6v1.9"/><path d="M12 11v5"/><path d="m9.6 13.6 2.4 2.4 2.4-2.4"/></svg>
+        <span>Download .zip</span>
+      </button>
+      <button class="btn" id="batchClear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15"/><path d="M10 11v6M14 11v6"/><path d="M6.5 7l1 12.5h9L17.5 7"/><path d="M9.5 7V4.5h5V7"/></svg>
+        Clear all
+      </button>
+    </div>
   </section>
 </main>
 
 <footer>
-  <b>Nothing uploaded. Nothing to sign up for.</b>
-  <span>AI loads only when you start. Your images stay yours. This is a public beta — expect rough edges; the code is <a href="https://github.com/scadavide55/cutout" target="_blank" rel="noopener">Apache-2.0 licensed</a>.<br><a href="https://github.com/scadavide55/cutout/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a> · <a href="https://github.com/scadavide55/cutout/blob/main/TERMS.md" target="_blank" rel="noopener">Terms</a><br>Made with ❤️ by scadavide55</span>
+  <div class="site-foot">
+    <div class="foot-row">
+      <span class="foot-brand">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <rect x="2" y="2" width="19" height="19" rx="5" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"/>
+            <rect x="11" y="11" width="19" height="19" rx="5" fill="currentColor"/>
+          </svg>
+        </span>
+        Nothing uploaded. Nothing to sign up for.
+      </span>
+      <nav class="foot-links" aria-label="Legal and source">
+        <a href="https://github.com/scadavide55/cutout/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a>
+        <a href="https://github.com/scadavide55/cutout/blob/main/TERMS.md" target="_blank" rel="noopener">Terms</a>
+        <a href="https://github.com/scadavide55/cutout/blob/main/MODEL%20GUIDE.md" target="_blank" rel="noopener">Model guide</a>
+        <a href="https://github.com/scadavide55/cutout" target="_blank" rel="noopener">Source code</a>
+      </nav>
+    </div>
+    <div class="foot-row sub">
+      <span>Public beta, expect rough edges. The AI loads only when you start, and the code is <a href="https://github.com/scadavide55/cutout" target="_blank" rel="noopener">Apache-2.0 licensed</a>.</span>
+      <span>Made with ❤️ by <a href="https://github.com/scadavide55" target="_blank" rel="noopener">scadavide55</a></span>
+    </div>
+  </div>
 </footer>
 
 <div id="overlay" role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="modal">
-    <div class="eyebrow">Engine</div>
-    <h2 id="mTitle">Choose your cutout</h2>
-    <div class="lead" id="mLead">Everything runs on this device. Bigger engines give cleaner edges but download more.</div>
+    <div class="modal-body">
+      <div class="eyebrow">Engine</div>
+      <h2 id="mTitle">Choose your cutout</h2>
+      <div class="lead" id="mLead">Everything runs on this device. Bigger engines give cleaner edges but download more.</div>
 
-    <div class="opts" role="radiogroup" aria-label="Cutout engine">
-      <button class="opt" id="optLow" role="radio" aria-checked="true">
-        <span class="ico">Lo</span>
-        <span>
-          <span class="t">Low <span class="tag rec">QUICKEST</span></span>
-          <span class="d">For portraits and simple backgrounds. Small download, soft on fine hair.</span>
-          <span class="cost"><span>25.9 MB GPU · 6.6 MB CPU</span><span>GPU first</span></span>
-        </span>
-      </button>
-      <button class="opt" id="optMedium" role="radio" aria-checked="false">
-        <span class="ico">M</span>
-        <span>
-          <span class="t">Medium <span class="tag rec">BALANCED</span></span>
-          <span class="d">People, products and pets. Close to High quality with a smaller download.</span>
-          <span class="cost"><span>130 MB</span><span>GPU first</span></span>
-        </span>
-      </button>
-      <button class="opt" id="optHigh" role="radio" aria-checked="false">
-        <span class="ico">H</span>
-        <span>
-          <span class="t">High <span class="tag">FINE DETAIL</span></span>
-          <span class="d">Full precision for hair, fur and tricky edges. Needs a capable GPU.</span>
-          <span class="cost"><span>223 MB</span><span>GPU required</span></span>
-        </span>
-      </button>
-      <button class="opt" id="optUltra" role="radio" aria-checked="false">
-        <span class="ico">U</span>
-        <span>
-          <span class="t">Ultra <span class="tag">TWO PASSES</span></span>
-          <span class="d">High, refined with a second pass. A modest edge improvement, at twice the processing time.</span>
-          <span class="cost"><span>223 MB · shared with High</span><span>high-end GPU</span></span>
-        </span>
-      </button>
+      <div class="opts" role="radiogroup" aria-label="Cutout engine">
+        <button class="opt" id="optLow" role="radio" aria-checked="true">
+          <span class="ico">Lo</span>
+          <span class="opt-body">
+            <span class="t">Low <span class="tag rec">QUICKEST</span></span>
+            <span class="d">For portraits and simple backgrounds. Small download, soft on fine hair.</span>
+            <span class="cost"><span>25.9 MB GPU · 6.6 MB CPU</span><span>GPU first</span></span>
+          </span>
+        </button>
+        <button class="opt" id="optMedium" role="radio" aria-checked="false">
+          <span class="ico">M</span>
+          <span class="opt-body">
+            <span class="t">Medium <span class="tag rec">BALANCED</span></span>
+            <span class="d">People, products and pets. Close to High quality with a smaller download.</span>
+            <span class="cost"><span>130 MB</span><span>GPU first</span></span>
+          </span>
+        </button>
+        <button class="opt" id="optHigh" role="radio" aria-checked="false">
+          <span class="ico">H</span>
+          <span class="opt-body">
+            <span class="t">High <span class="tag">FINE DETAIL</span></span>
+            <span class="d">Full precision for hair, fur and tricky edges. Needs a capable GPU.</span>
+            <span class="cost"><span>223 MB</span><span>GPU required</span></span>
+          </span>
+        </button>
+        <button class="opt" id="optUltra" role="radio" aria-checked="false">
+          <span class="ico">U</span>
+          <span class="opt-body">
+            <span class="t">Ultra <span class="tag">TWO PASSES</span></span>
+            <span class="d">High, refined with a second pass. A modest edge improvement, at twice the processing time.</span>
+            <span class="cost"><span>223 MB · shared with High</span><span>High-end GPU</span></span>
+          </span>
+        </button>
+      </div>
+
+      <p class="guide">Still can't decide? <a href="https://github.com/scadavide55/cutout/blob/main/MODEL%20GUIDE.md" target="_blank" rel="noopener">Read the model guide</a>.</p>
+
+      <div class="warnbox" id="mWarn" style="display:none"></div>
     </div>
-
-    <p class="guide">Still can't decide? <a href="https://github.com/scadavide55/cutout/blob/main/MODEL%20GUIDE.md" target="_blank" rel="noopener">Read the model guide</a>.</p>
-
-    <div class="warnbox" id="mWarn" style="display:none"></div>
 
     <div class="foot">
       <span class="hint" id="mHint"></span>
@@ -1346,9 +1493,7 @@ function buildCard(file){
 }
 
 /* ---------------------------- ZIP writer -------------------------- */
-// PNGs are already compressed, so the archive stores them as-is. A 60-line
-// store-only writer beats a ~100 KB zip library for headers around bytes
-// we already have.
+// pngs already compressed so archive stores them 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
   for (let n = 0; n < 256; n++){
@@ -1533,10 +1678,7 @@ function addFiles(files){
 /* ------------------------------- dialog --------------------------- */
 const ENGINE_BTNS = [['low','optLow'], ['medium','optMedium'], ['high','optHigh'], ['ultra','optUltra']];
 
-// A model weighing more than the GPU's per-allocation limit cannot be loaded
-// at all. This is arithmetic, not a guess about speed, and it is worth
-// honouring: on phones the attempt has been measured taking the whole tab
-// down instead of failing with an error the visitor could recover from.
+// checks if the model can run on your gpu  
 function engineFits(m){
   if (usesGPU(m) || canUseCPU(m)) return { ok:true };
   if (!caps.webgpu)
@@ -1712,7 +1854,7 @@ window.addEventListener('drop', e => {
   if (!queue.length && e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
 });
 
-// Paste straight from the clipboard.
+// clipboard paste 
 document.addEventListener('paste', e => {
   const items = e.clipboardData && e.clipboardData.items;
   if (!items) return;
@@ -1727,10 +1869,7 @@ document.addEventListener('paste', e => {
 });
 
 /* ------------------------ service reachability -------------------- */
-// Models are downloaded from HuggingFace on first use, so if that host is
-// unreachable the app looks broken for no visible reason. This probes a
-// ~300 byte file on the *same host and CORS setup* as the models, so we know
-// before a 6.6 MB download fails.
+// models are downloaded from hf , this checks if they're available
 const PING_URL = 'tacet-plugin://cutout/ping.json';
 
 function setAlert(kind, html){
@@ -1766,14 +1905,10 @@ async function checkServices(){
 
 $('#alertRetry').onclick = () => checkServices();
 
-/* ------------------------------ startup --------------------------- */
+/* startup */
 const capsReady = detectCaps();
 $('#pasteKey').textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ V' : 'Ctrl V';
-
-// Deliberately no model preload: nothing is downloaded until the visitor
-// actually asks for a cut-out. The probe is ~300 bytes and only reports
-// whether the servers are reachable. The cut-off check runs after it, so a
-// server outage keeps the louder message.
+// 
 checkServices().then(ok => { if (ok) reportCutOff(); });
 
 })();

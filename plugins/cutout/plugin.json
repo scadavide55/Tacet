@@ -5,7 +5,7 @@
   "developer": "scadavide55",
   "website": "https://scadavide55.github.io/cutout",
   "description": "Remove the background of any picture, on this Mac: rest the pointer on a picture and click ✂ Cutout (or press ⌥⇧X), or open Cutout and drop your own photos. Four AI engines, transparent PNG at full resolution, nothing uploaded. The engines are downloaded once when you add it (413 MB), then it works offline.",
-  "version": "1.1",
+  "version": "1.2",
   "icon": "scissors",
   "sites": [
     "*"
