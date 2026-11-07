@@ -1,0 +1,11 @@
+/* Ads over and around the stream (from the public EasyList and uBlock lists). */
+.stream-display-ad__wrapper, [data-test-selector="sda-wrapper"], button[aria-label="Learn more about this ad"],
+/* Prime and Turbo offers in the top bar. */
+[data-a-target="top-nav-get-ad-free-button"], [data-test-selector="top-nav-get-ad-free-button"],
+[data-a-target="prime-offers-icon"], .top-nav__prime,
+/* Recommended channels and categories in the left sidebar. */
+.side-nav-section[aria-label="Recommended Channels"], .side-nav-section[aria-label="Recommended Categories"],
+.side-nav-section[aria-label="Canali consigliati"], .side-nav-section[aria-label="Chaînes recommandées"],
+[data-test-selector="recommended-channels"] {
+  display: none !important;
+}

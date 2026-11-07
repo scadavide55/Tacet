@@ -1,0 +1,13 @@
+{
+  "id": "sticky-hider",
+  "name": "Sticky Hider",
+  "description": "On articles, hides headers and bars that stay stuck to the top or bottom of the window while you scroll, and newsletter and sign-up pop-ups that cover the text. Pages that are apps, like mail or documents, are left alone.",
+  "version": "1.0",
+  "icon": "pin.slash",
+  "author": "Tacet Plugins",
+  "sites": ["*"],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "toggle"
+}

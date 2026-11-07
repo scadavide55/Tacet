@@ -1,0 +1,13 @@
+{
+  "id": "twitch-clean",
+  "name": "Twitch, Clean",
+  "description": "Hides the ads over streams, the Prime and Turbo offers, and the recommended channels in the sidebar, so you see the channels you follow.",
+  "version": "1.0",
+  "icon": "tv",
+  "author": "Tacet Plugins",
+  "sites": ["twitch.tv"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

@@ -2,6 +2,7 @@
 // They use only pure functions and temporary files: nothing touches your Tacet data.
 import Foundation
 import CoreText
+import CryptoKit
 import JavaScriptCore
 import SQLite3
 import UniformTypeIdentifiers
@@ -166,6 +167,59 @@ do {
     check(!item.isOff(on: "notyoutube.com") && !item.isOff(on: nil), "plugins: still on elsewhere")
 } catch {
     check(false, "plugins: old list loads", "\(error)")
+}
+
+// The plugins folder itself: every plugin reads, has its files, a real icon, and the signed list matches what's on disk.
+do {
+    let fm = FileManager.default
+    let root = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent("plugins")
+    let folders = ((try? fm.contentsOfDirectory(atPath: root.path)) ?? [])
+        .filter { fm.fileExists(atPath: root.appendingPathComponent($0).appendingPathComponent("plugin.json").path) }.sorted()
+    check(folders.count >= 24, "plugins folder: plugins found", "\(folders.count)")
+    var byId: [String: PluginStore.Plugin] = [:]
+    for id in folders {
+        let dir = root.appendingPathComponent(id)
+        // A manifest has no "files": the signed list adds them, with each file's hash.
+        guard let raw = try? Data(contentsOf: dir.appendingPathComponent("plugin.json")),
+              var obj = (try? JSONSerialization.jsonObject(with: raw)) as? [String: Any],
+              let data = { obj["files"] = obj["files"] ?? [String: String](); return try? JSONSerialization.data(withJSONObject: obj) }(),
+              let p = try? JSONDecoder().decode(PluginStore.Plugin.self, from: data) else { check(false, "plugin \(id): plugin.json reads"); continue }
+        byId[id] = p
+        eq(p.id, id, "plugin \(id): id is the folder name")
+        var needed = [p.js, p.css].compactMap { $0 }
+        needed += (p.app?.files ?? []).map { "app/" + $0 }
+        check(!needed.isEmpty, "plugin \(id): has files")
+        for f in needed { check(fm.fileExists(atPath: dir.appendingPathComponent(f).path), "plugin \(id): \(f) exists") }
+        check(["toggle", "action", "info", "app"].contains(p.behaviour), "plugin \(id): known mode", p.behaviour)
+        check(p.runAt == nil || ["start", "end"].contains(p.runAt!), "plugin \(id): runAt is start or end")
+        check(!p.sites.isEmpty || p.app != nil, "plugin \(id): has sites or is an app")
+        check(p.version.split(separator: ".").allSatisfy { Int($0) != nil }, "plugin \(id): version is numbers", p.version)
+        check(!p.name.isEmpty && p.description.count > 20, "plugin \(id): name and description")
+        if let icon = p.icon { check(NSImage(systemSymbolName: icon, accessibilityDescription: nil) != nil, "plugin \(id): icon \(icon) exists") }
+        else { check(false, "plugin \(id): has an icon") }
+        if p.behaviour == "action", let js = p.js, let text = try? String(contentsOf: dir.appendingPathComponent(js), encoding: .utf8) {
+            check(text.contains("tacetAction") && p.action != nil, "plugin \(id): an action defines tacetAction and a name")
+        }
+        // A style-only plugin turns on and off live, so it must say it is a toggle.
+        if p.isStyleOnly { eq(p.behaviour, "toggle", "plugin \(id): style-only toggles") }
+    }
+    // The signed list: same plugins and versions, every file's hash right, and the signature valid with the app's key.
+    if let indexData = try? Data(contentsOf: root.appendingPathComponent("index.json")),
+       let sig = try? Data(contentsOf: root.appendingPathComponent("index.json.sig")),
+       let obj = try? JSONSerialization.jsonObject(with: indexData) as? [String: Any], let list = obj["plugins"] as? [[String: Any]] {
+        check(PluginStore.verify(indexData, signature: sig), "plugins index: signature is valid for Tacet's key")
+        eq(Set(list.compactMap { $0["id"] as? String }), Set(folders), "plugins index: lists every plugin folder")
+        for entry in list {
+            guard let id = entry["id"] as? String, let files = entry["files"] as? [String: String] else { continue }
+            eq(entry["version"] as? String, byId[id]?.version, "plugins index: \(id) has the folder's version")
+            for (name, hash) in files {
+                let file = (try? Data(contentsOf: root.appendingPathComponent(id).appendingPathComponent(name))) ?? Data()
+                eq(SHA256.hash(data: file).map { String(format: "%02x", $0) }.joined(), hash, "plugins index: \(id)/\(name) hash")
+            }
+        }
+    } else {
+        check(false, "plugins index: index.json and its signature read")
+    }
 }
 
 // MARK: AI providers

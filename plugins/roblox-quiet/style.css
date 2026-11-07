@@ -1,0 +1,6 @@
+/* Ads (from the public EasyList and uBlock lists). */
+.abp, .leaderboard-abp, #Skyscraper-Abp-Left, #Skyscraper-Abp-Right, .ads-container, iframe[src*="adservice" i],
+/* The chat window in the corner. */
+#chat-container {
+  display: none !important;
+}

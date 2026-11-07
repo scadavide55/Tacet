@@ -1,0 +1,13 @@
+{
+  "id": "reddit-clean",
+  "name": "Reddit, Clean",
+  "description": "Hides promoted posts and ads and the right-hand sidebar on Reddit's current design, so the page is the posts.",
+  "version": "1.0",
+  "icon": "bubble.left",
+  "author": "Tacet Plugins",
+  "sites": ["reddit.com"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

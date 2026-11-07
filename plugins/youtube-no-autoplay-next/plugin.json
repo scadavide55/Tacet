@@ -1,0 +1,13 @@
+{
+  "id": "youtube-no-autoplay-next",
+  "name": "YouTube, No Autoplay Next",
+  "description": "Turns off YouTube's Autoplay, so the next video doesn't start when the one you're watching ends.",
+  "version": "1.0",
+  "icon": "forward.end.alt",
+  "author": "Tacet Plugins",
+  "sites": ["youtube.com"],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "toggle"
+}

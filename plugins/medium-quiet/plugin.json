@@ -1,0 +1,13 @@
+{
+  "id": "medium-quiet",
+  "name": "Medium, Quiet",
+  "description": "Closes Medium's sign-up pop-ups and the \"Get unlimited access\" bar, and lets the page scroll again, so you read the article. It doesn't open articles that Medium keeps for members.",
+  "version": "1.0",
+  "icon": "text.quote",
+  "author": "Tacet Plugins",
+  "sites": ["medium.com"],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "toggle"
+}

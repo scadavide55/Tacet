@@ -1,0 +1,19 @@
+{
+  "id": "color-tools",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "Colour Tools",
+  "description": "Convert a colour between HEX, RGB and HSL, build palettes (shades, complement, analogous, triad) and check whether text and background colours are readable together, against the WCAG contrast rules. Offline.",
+  "icon": "paintpalette",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

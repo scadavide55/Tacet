@@ -1,0 +1,14 @@
+{
+  "id": "google-no-ai-overview",
+  "name": "Google, No AI Overview",
+  "description": "Hides Google's AI Overview and the \"People also ask\" box on search results, and the AI Mode tab, so the first thing you see is the real results. Works in English, Italian, French, German, Spanish, Dutch and Portuguese.",
+  "version": "1.0",
+  "icon": "sparkles",
+  "author": "Tacet Plugins",
+  "sites": ["google.com", "google.it", "google.fr", "google.de", "google.es", "google.co.uk", "google.ch", "google.be", "google.nl", "google.pt", "google.ca"],
+  "js": "main.js",
+  "css": "style.css",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "toggle"
+}

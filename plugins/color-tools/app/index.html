@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Colour Tools</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+</style></head>
+<body>
+
+<div class="wrap">
+  <h1>Colour Tools</h1>
+  <p class="sub">Convert a colour between HEX, RGB and HSL, check if two colours are readable together, and build a palette.</p>
+  <div class="card">
+    <div class="row"><input type="color" id="pick" value="#ff5a2a" style="width:64px;height:48px;border:0;background:none;padding:0">
+      <div class="grow"><label for="hex">HEX</label><input type="text" id="hex" spellcheck="false"></div>
+      <div class="grow"><label for="rgb">RGB</label><input type="text" id="rgb" spellcheck="false"></div>
+      <div class="grow"><label for="hsl">HSL</label><input type="text" id="hsl" spellcheck="false"></div></div>
+    <div id="swatch" style="height:56px;border-radius:10px;margin-top:12px;border:1px solid var(--line)"></div>
+    <div id="cmsg" class="bad" style="margin-top:6px"></div>
+  </div>
+  <div class="card"><label>Palette from this colour (click a swatch to copy)</label><div id="pal"></div></div>
+  <div class="card"><label>Contrast: text colour over background</label>
+    <div class="row"><input type="color" id="fg" value="#15162a" style="width:48px;height:36px;border:0;background:none;padding:0"><span class="muted">text</span>
+      <input type="color" id="bg" value="#ffffff" style="width:48px;height:36px;border:0;background:none;padding:0"><span class="muted">background</span>
+      <button class="ghost" id="swap">Swap</button></div>
+    <div id="sample" style="margin-top:12px;padding:16px;border-radius:10px;border:1px solid var(--line);font-size:20px">The quick brown fox jumps over the lazy dog</div>
+    <div id="ratio" style="margin-top:10px"></div></div>
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+const toHex = (r, g, b) => '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+const fromHex = (s) => {
+  s = s.trim().replace(/^#/, '');
+  if (/^[0-9a-f]{3}$/i.test(s)) s = s.split('').map((c) => c + c).join('');
+  if (!/^[0-9a-f]{6}$/i.test(s)) return null;
+  return [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16));
+};
+const rgbToHsl = (r, g, b) => {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  if (!d) return [0, 0, l * 100];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (h * 60 + 360) % 360;
+  return [h, s * 100, l * 100];
+};
+const hslToRgb = (h, s, l) => {
+  h = ((h % 360) + 360) % 360; s = clamp(s, 0, 100) / 100; l = clamp(l, 0, 100) / 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+};
+const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+globalThis.__color = { fromHex, toHex, rgbToHsl, hslToRgb, ratio };
+
+let cur = [255, 90, 42];
+const setColor = (rgb, from) => {
+  cur = rgb.map((v) => clamp(Math.round(v), 0, 255));
+  const hex = toHex(...cur), [h, s, l] = rgbToHsl(...cur);
+  if (from !== 'hex') $('#hex').value = hex;
+  if (from !== 'rgb') $('#rgb').value = 'rgb(' + cur.join(', ') + ')';
+  if (from !== 'hsl') $('#hsl').value = 'hsl(' + Math.round(h) + ', ' + Math.round(s) + '%, ' + Math.round(l) + '%)';
+  $('#pick').value = hex; $('#swatch').style.background = hex; $('#cmsg').textContent = '';
+  palette(h, s, l);
+};
+const palette = (h, s, l) => {
+  const sets = [['Shades', [15, 30, 45, 60, 75, 90].map((L) => [h, s, L])], ['Complement', [[h, s, l], [h + 180, s, l]]],
+    ['Analogous', [-30, 0, 30].map((d) => [h + d, s, l])], ['Triad', [0, 120, 240].map((d) => [h + d, s, l])]];
+  const root = $('#pal'); root.textContent = '';
+  for (const [name, list] of sets) {
+    const row = document.createElement('div'); row.style.marginBottom = '10px';
+    row.innerHTML = '<div class="muted" style="margin-bottom:4px">' + name + '</div>';
+    const strip = document.createElement('div'); strip.className = 'row'; strip.style.gap = '6px';
+    for (const hsl of list) {
+      const hex = toHex(...hslToRgb(...hsl));
+      const sw = document.createElement('button'); sw.className = 'ghost'; sw.title = hex; sw.textContent = hex;
+      sw.style.cssText = 'background:' + hex + ';color:' + (lum(fromHex(hex)) > 0.45 ? '#111' : '#fff') + ';border:1px solid var(--line);font:12px ui-monospace,monospace;min-width:84px';
+      sw.onclick = () => copy(hex); strip.appendChild(sw);
+    }
+    row.appendChild(strip); root.appendChild(row);
+  }
+};
+$('#pick').oninput = () => setColor(fromHex($('#pick').value));
+$('#hex').oninput = () => { const c = fromHex($('#hex').value); if (c) setColor(c, 'hex'); else $('#cmsg').textContent = 'Needs 3 or 6 hex digits, like #ff5a2a'; };
+$('#rgb').oninput = () => { const m = $('#rgb').value.match(/(\d{1,3})\D+(\d{1,3})\D+(\d{1,3})/); if (m) setColor([+m[1], +m[2], +m[3]], 'rgb'); else $('#cmsg').textContent = 'Needs three numbers, like rgb(255, 90, 42)'; };
+$('#hsl').oninput = () => { const m = $('#hsl').value.match(/(-?\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/); if (m) setColor(hslToRgb(+m[1], +m[2], +m[3]), 'hsl'); else $('#cmsg').textContent = 'Needs three numbers, like hsl(14, 100%, 58%)'; };
+
+const contrast = () => {
+  const f = fromHex($('#fg').value), b = fromHex($('#bg').value), r = ratio(f, b);
+  $('#sample').style.color = $('#fg').value; $('#sample').style.background = $('#bg').value;
+  const pass = (ok) => ok ? '<b class="ok">Pass</b>' : '<b class="bad">Fail</b>';
+  $('#ratio').innerHTML = '<b style="font-size:22px">' + r.toFixed(2) + ' : 1</b> &nbsp; Normal text AA ' + pass(r >= 4.5) + ' · AAA ' + pass(r >= 7) + ' &nbsp; Large text AA ' + pass(r >= 3) + ' · AAA ' + pass(r >= 4.5);
+};
+$('#fg').oninput = contrast; $('#bg').oninput = contrast;
+$('#swap').onclick = () => { const t = $('#fg').value; $('#fg').value = $('#bg').value; $('#bg').value = t; contrast(); };
+setColor(cur); contrast();
+
+})();
+</script>
+</body></html>

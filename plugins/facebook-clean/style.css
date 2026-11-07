@@ -1,0 +1,11 @@
+/* Ads and sponsored posts (from the public EasyList and uBlock lists). */
+a[aria-label="Advertiser"], a[aria-label="Advertiser link"],
+div[aria-posinset]:has(a[href*="/ads/about"]),
+div[aria-posinset]:has(a[aria-label="Advertiser"]),
+/* Stories and Reels in the feed, and the right column (sponsored, contacts). */
+[data-pagelet="Stories"], [data-pagelet="Reels"], [data-pagelet="RightRail"], [data-pagelet="VideoChatHomeUnit"],
+div[aria-posinset]:has(a[href*="/reel/"]),
+/* Menu entries for Reels and Watch. */
+a[href^="/reel/?"], a[href="/reel/"], a[href^="/watch"] {
+  display: none !important;
+}

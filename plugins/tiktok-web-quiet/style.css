@@ -1,0 +1,9 @@
+/* Ads (from the public EasyList and uBlock lists). */
+.banner-ads, [class*="ArticleItemContainer"]:has([data-e2e="ad-tag"]), [data-e2e="ad-tag"],
+/* Menu entries and the suggested-accounts box. */
+a[href="/live"], a[href="/explore"], a[href^="/live?"], a[href^="/explore?"],
+[data-e2e="nav-live"], [data-e2e="nav-explore"], [data-e2e="suggest-accounts"], [data-e2e="suggest-accounts-container"],
+/* The "get the app" and sign-up prompts. */
+[data-e2e="get-app-button"], [data-e2e="download-app-banner"] {
+  display: none !important;
+}

@@ -1,0 +1,7 @@
+/* Promoted posts and ads (from the public EasyList and uBlock lists). */
+shreddit-ad-post, shreddit-comments-page-ad, shreddit-post[promoted], faceplate-tracker:has(> shreddit-ad-post),
+[data-faceplate-tracking-context*="\"promoted\":true"], div[data-before-content="advertisement"],
+/* The right-hand sidebar. */
+#right-sidebar-container {
+  display: none !important;
+}

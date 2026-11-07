@@ -1,0 +1,13 @@
+{
+  "id": "fandom-clean",
+  "name": "Fandom, Clean",
+  "description": "Hides the ads, the featured video, the sticky banner and the recommendations on Fandom wikis, and the right column they sit in, so the article gets the room.",
+  "version": "1.0",
+  "icon": "text.book.closed",
+  "author": "Tacet Plugins",
+  "sites": ["fandom.com"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

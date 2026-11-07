@@ -1,0 +1,13 @@
+{
+  "id": "linkedin-quiet",
+  "name": "LinkedIn, Quiet",
+  "description": "Hides promoted posts and ads, the LinkedIn News column and the follow suggestions, leaving your feed.",
+  "version": "1.0",
+  "icon": "briefcase",
+  "author": "Tacet Plugins",
+  "sites": ["linkedin.com"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

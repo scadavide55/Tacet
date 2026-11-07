@@ -1,0 +1,19 @@
+{
+  "id": "todo",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "To-do",
+  "description": "A simple to-do list in a tab of its own: add tasks, tick them off, star the important ones and filter by to do or done. It's kept on your Mac, and the tab's title shows how many tasks are left.",
+  "icon": "checklist",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

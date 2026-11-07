@@ -1,0 +1,19 @@
+{
+  "id": "regex-tester",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "Regex Tester",
+  "description": "Test regular expressions in a tab of its own: type a pattern and some text and see every match and group highlighted at once, with flags and a replace box. Offline.",
+  "icon": "chevron.left.forwardslash.chevron.right",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

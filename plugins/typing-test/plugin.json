@@ -1,0 +1,19 @@
+{
+  "id": "typing-test",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "Typing Test",
+  "description": "A typing speed test in a tab of its own: type a short text for 15, 30 or 60 seconds, in English, Italian or French, and see your words per minute and accuracy. Your best scores are kept on your Mac.",
+  "icon": "keyboard.badge.ellipsis",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

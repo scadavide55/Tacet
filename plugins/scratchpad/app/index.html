@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scratchpad</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+</style></head>
+<body>
+
+<div class="wrap" style="max-width:1100px">
+  <h1>Scratchpad</h1>
+  <p class="sub">Quick notes that stay on this Mac. Every note saves as you type.</p>
+  <div class="row" style="align-items:stretch">
+    <div style="flex:0 0 250px;min-width:0" id="side" class="card">
+      <div class="row" style="margin-bottom:10px"><input type="search" id="q" placeholder="Search notes" class="grow"><button id="new">New</button></div>
+      <div id="list"></div>
+    </div>
+    <div style="flex:1 1 360px;min-width:0" class="card">
+      <textarea id="note" spellcheck="true" style="min-height:52vh;font:15px/1.6 -apple-system,sans-serif" placeholder="Start writing…"></textarea>
+      <div class="row" style="margin-top:10px;justify-content:space-between">
+        <span class="muted" id="status"></span>
+        <span class="row"><button class="ghost" id="copy">Copy</button><button class="ghost" id="export">Save .txt</button><button class="ghost" id="del">Delete</button></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+let notes = store.get('scratch.notes', []), current = store.get('scratch.current', null), timer = 0;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const title = (n) => (n.text.split('\n').find((l) => l.trim()) || 'New note').trim().slice(0, 48);
+const persist = () => { store.set('scratch.notes', notes); store.set('scratch.current', current); };
+const find = () => notes.find((n) => n.id === current);
+const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : new Date(t).toLocaleDateString(); };
+const draw = () => {
+  const q = $('#q').value.trim().toLowerCase(), list = $('#list'); list.textContent = '';
+  const shown = notes.filter((n) => !q || n.text.toLowerCase().includes(q)).sort((a, b) => b.updated - a.updated);
+  for (const n of shown) {
+    const b = document.createElement('button'); b.className = 'ghost'; b.style.cssText = 'display:block;width:100%;text-align:left;margin-bottom:6px;padding:8px 10px;' + (n.id === current ? 'border-color:var(--accent)' : '');
+    b.innerHTML = '<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(title(n)) + '</div><div class="muted" style="font-weight:400">' + ago(n.updated) + '</div>';
+    b.onclick = () => { current = n.id; persist(); load(); draw(); };
+    list.appendChild(b);
+  }
+  if (!shown.length) list.innerHTML = '<span class="muted">' + (q ? 'No note matches' : 'No notes yet') + '</span>';
+};
+const count = (t) => { const w = t.trim() ? t.trim().split(/\s+/).length : 0; return w + (w === 1 ? ' word' : ' words') + ' · ' + t.length + ' characters'; };
+const load = () => { const n = find(); $('#note').value = n ? n.text : ''; $('#note').disabled = !n; $('#status').textContent = n ? count(n.text) : 'Press New to start a note'; document.title = n ? title(n) + ' · Scratchpad' : 'Scratchpad'; };
+const create = () => { const n = { id: uid(), text: '', updated: Date.now() }; notes.push(n); current = n.id; persist(); load(); draw(); $('#note').focus(); };
+$('#new').onclick = create;
+$('#note').oninput = () => {
+  const n = find(); if (!n) return; n.text = $('#note').value; n.updated = Date.now();
+  $('#status').textContent = 'Saving… ' + count(n.text); clearTimeout(timer);
+  timer = setTimeout(() => { persist(); draw(); $('#status').textContent = 'Saved · ' + count(n.text); document.title = title(n) + ' · Scratchpad'; }, 300);
+};
+$('#q').oninput = draw;
+$('#copy').onclick = () => copy($('#note').value);
+$('#export').onclick = () => {
+  const n = find(); if (!n) return;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([n.text], { type: 'text/plain' }));
+  a.download = title(n).replace(/[\\/:*?"<>|]+/g, ' ').trim() + '.txt'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+};
+$('#del').onclick = () => {
+  const n = find(); if (!n || (n.text.trim() && !confirm('Delete this note?'))) return;
+  notes = notes.filter((x) => x !== n); current = notes.length ? notes.sort((a, b) => b.updated - a.updated)[0].id : null; persist(); load(); draw();
+};
+if (!notes.length) create(); else { if (!find()) current = notes[0].id; load(); draw(); }
+globalThis.__scratch = { notes: () => notes };
+
+})();
+</script>
+</body></html>

@@ -1,0 +1,13 @@
+{
+  "id": "warm-night",
+  "name": "Warm Night",
+  "description": "A soft amber tint over every page, to be easier on the eyes in the evening. Nothing on the page changes; the tint sits on top and never blocks a click.",
+  "version": "1.0",
+  "icon": "moon.zzz",
+  "author": "Tacet Plugins",
+  "sites": ["*"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

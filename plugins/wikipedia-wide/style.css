@@ -1,0 +1,26 @@
+/* Vector 2022: the page container and the article column are limited in width; lift both. */
+.mw-page-container,
+.mw-page-container-inner,
+.mw-content-container,
+.vector-feature-limited-width-content-enabled .mw-page-container,
+.vector-feature-limited-width-content-enabled .mw-content-container {
+  max-width: none !important;
+}
+.mw-body {
+  max-width: none !important;
+}
+/* Side columns (menu, contents, page tools, appearance), donation and site banners, edit links. */
+.vector-column-start,
+.vector-column-end,
+#centralNotice,
+#siteNotice,
+.frb-inline,
+.mw-editsection,
+.mw-editsection-bracket {
+  display: none !important;
+}
+/* Without the left column the article sits flush to the window's edge; give it room. */
+.mw-page-container-inner {
+  display: block !important;
+  padding: 0 4vw !important;
+}

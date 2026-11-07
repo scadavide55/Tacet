@@ -1,0 +1,13 @@
+{
+  "id": "instagram-quiet",
+  "name": "Instagram, Quiet",
+  "description": "Hides Reels and Explore in the menu and the Reels that show up in your feed, so the feed is the people you follow.",
+  "version": "1.0",
+  "icon": "camera",
+  "author": "Tacet Plugins",
+  "sites": ["instagram.com"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

@@ -1,0 +1,7 @@
+/* Promoted posts and ads (from the public EasyList and uBlock lists). */
+[componentkey*="urn:li:sponsoredContentV2"], [data-sponsored-tracking-url], article[data-is-sponsored], li[data-is-sponsored="true"],
+iframe[componentkey$="_ad"], iframe[title="Advertisement"], iframe[title="advertisement"], .ad-banner, .ad-banner-container,
+/* The news and follow suggestions column. */
+#feed-news-module, .news-module, .feed-follows-module, aside.scaffold-layout__aside {
+  display: none !important;
+}

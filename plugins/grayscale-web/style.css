@@ -1,0 +1,4 @@
+/* Grey on the whole page, pictures and video included. */
+html {
+  filter: grayscale(1) !important;
+}

@@ -1,0 +1,23 @@
+{
+  "id": "skip-intro",
+  "name": "Skip Intro",
+  "description": "Presses “Skip Intro” and “Skip Recap” for you on Netflix, Prime Video and Disney+, and answers “Are you still watching?” with Continue. It doesn't start the next episode.",
+  "version": "1.0",
+  "icon": "forward.fill",
+  "author": "Tacet Plugins",
+  "sites": [
+    "netflix.com",
+    "primevideo.com",
+    "amazon.com",
+    "amazon.it",
+    "amazon.fr",
+    "amazon.de",
+    "amazon.es",
+    "amazon.co.uk",
+    "disneyplus.com"
+  ],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "toggle"
+}

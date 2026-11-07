@@ -1,0 +1,5 @@
+/* The AI Mode tab and button, found by the address they open (udm=50). */
+a[href*="udm=50"],
+a[href*="/aimode"] {
+  display: none !important;
+}

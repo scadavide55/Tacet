@@ -1,0 +1,19 @@
+{
+  "id": "qr-generator",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "QR Code",
+  "description": "Make a QR code from a link, some text or your Wi-Fi details, in a tab of its own. Choose the error correction and the size and save it as PNG or SVG. It's drawn on your Mac and works offline.",
+  "icon": "qrcode",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

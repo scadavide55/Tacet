@@ -1,0 +1,19 @@
+{
+  "id": "scratchpad",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "Scratchpad",
+  "description": "Quick notes in a tab of its own: a list of notes with search, saved on your Mac as you type, with a word count, copy and export to a text file. Nothing leaves the computer.",
+  "icon": "note.text",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

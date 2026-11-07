@@ -1,0 +1,19 @@
+{
+  "id": "password-generator",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "Password Generator",
+  "description": "Makes strong random passwords in a tab of its own, with the length and kinds of characters you choose and a strength meter. Made on your Mac with secure random numbers; nothing is saved or sent.",
+  "icon": "key",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

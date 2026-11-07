@@ -1,0 +1,12 @@
+/* Cards and boxes over the video. */
+.ytp-ce-element, .ytp-endscreen-content, .ytp-ce-covering-overlay, .ytp-cards-teaser, .ytp-cards-button,
+.ytp-suggested-action, .iv-branding, .ytp-paid-content-overlay, yt-overlay-product-sticker, #sticker-layer,
+/* Shelves and banners around it. */
+ytd-merch-shelf-renderer, #merch-shelf, #shopping-timely-shelf, ytd-donation-shelf-renderer,
+ytd-statement-banner-renderer, ytd-banner-promo-renderer, ytd-mealbar-promo-renderer, ytd-info-panel-container-renderer,
+#masthead-ad, ytd-video-masthead-ad-v3-renderer,
+/* Mixes and promoted videos among the suggestions. */
+ytd-compact-radio-renderer, ytd-radio-renderer, ytd-compact-promoted-video-renderer, ytd-search-pyv-renderer,
+ytd-ad-slot-renderer, ytd-rich-item-renderer:has(> #content > ytd-ad-slot-renderer) {
+  display: none !important;
+}

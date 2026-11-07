@@ -1,0 +1,13 @@
+{
+  "id": "readable-font",
+  "name": "Readable Text",
+  "description": "Sets text in a clear, open typeface with roomier letters, words and lines, which helps with dyslexia and long reading. Icons, code and buttons keep their own look.",
+  "version": "1.0",
+  "icon": "textformat.size",
+  "author": "Tacet Plugins",
+  "sites": ["*"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

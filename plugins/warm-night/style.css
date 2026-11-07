@@ -1,0 +1,11 @@
+/* A warm layer above the page: multiplied with it, never in the way of the pointer. */
+html::after {
+  content: "" !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+  pointer-events: none !important;
+  background: rgb(255, 170, 70) !important;
+  mix-blend-mode: multiply !important;
+  opacity: 0.38 !important;
+}

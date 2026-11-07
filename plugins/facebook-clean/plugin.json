@@ -1,0 +1,13 @@
+{
+  "id": "facebook-clean",
+  "name": "Facebook, Clean",
+  "description": "Hides ads, Stories, Reels, the right column and the Watch and Reels menu entries on Facebook, so you see posts from people and groups.",
+  "version": "1.0",
+  "icon": "person.2",
+  "author": "Tacet Plugins",
+  "sites": ["facebook.com"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

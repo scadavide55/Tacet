@@ -1,0 +1,13 @@
+{
+  "id": "roblox-quiet",
+  "name": "Roblox, Quiet",
+  "description": "Hides the ads and the chat window on Roblox's website, so you see your games.",
+  "version": "1.0",
+  "icon": "gamecontroller",
+  "author": "Tacet Plugins",
+  "sites": ["roblox.com"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

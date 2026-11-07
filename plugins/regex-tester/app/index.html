@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Regex Tester</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+mark { background: rgba(255,200,40,.55); color: inherit; border-radius: 3px; padding: 0 1px; }</style></head>
+<body>
+
+<div class="wrap">
+  <h1>Regex Tester</h1>
+  <p class="sub">Write a regular expression and see what it matches, group by group, as you type.</p>
+  <div class="card">
+    <div class="row"><div class="grow"><label for="pat">Pattern</label><input type="text" id="pat" spellcheck="false" placeholder="(\w+)@(\w+)\.com"></div>
+      <div><label>Flags</label><div class="row" id="flags">
+        <label style="margin:0;text-transform:none"><input type="checkbox" value="g" checked> g</label>
+        <label style="margin:0;text-transform:none"><input type="checkbox" value="i"> i</label>
+        <label style="margin:0;text-transform:none"><input type="checkbox" value="m"> m</label>
+        <label style="margin:0;text-transform:none"><input type="checkbox" value="s"> s</label>
+        <label style="margin:0;text-transform:none"><input type="checkbox" value="u"> u</label></div></div></div>
+    <div id="err" class="bad" style="margin-top:8px"></div>
+  </div>
+  <div class="card"><label for="txt">Text to test</label><textarea id="txt" spellcheck="false" placeholder="Paste or type the text here"></textarea></div>
+  <div class="card"><label>Matches <span id="count" class="muted"></span></label>
+    <pre id="hl" class="mono" style="white-space:pre-wrap;word-break:break-word;margin:0 0 12px"></pre><div id="list"></div></div>
+  <div class="card"><label for="rep">Replace with (optional, $1 and $&amp; work)</label><input type="text" id="rep" spellcheck="false">
+    <textarea id="repout" readonly style="min-height:90px;margin-top:10px"></textarea></div>
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+const run = () => {
+  const pat = $('#pat').value, txt = $('#txt').value, err = $('#err');
+  const flags = $$('#flags input:checked').map((c) => c.value).join('');
+  $('#hl').textContent = ''; $('#list').textContent = ''; $('#count').textContent = ''; $('#repout').value = ''; err.textContent = '';
+  store.set('regex.state', { pat, txt, rep: $('#rep').value, flags });
+  if (!pat) { $('#hl').textContent = txt; return; }
+  let re;
+  try { re = new RegExp(pat, flags.includes('g') ? flags : flags + 'g'); } catch (e) { err.textContent = e.message; $('#hl').textContent = txt; return; }
+  const matches = [];
+  for (const m of txt.matchAll(re)) { matches.push(m); if (matches.length >= 1000) break; if (!flags.includes('g')) break; }
+  $('#count').textContent = '· ' + matches.length + (matches.length >= 1000 ? '+' : '');
+  // The text, with each match marked.
+  const hl = $('#hl'); let last = 0;
+  for (const m of matches) {
+    hl.append(document.createTextNode(txt.slice(last, m.index)));
+    const mark = document.createElement('mark'); mark.textContent = m[0]; hl.append(mark); last = m.index + m[0].length;
+  }
+  hl.append(document.createTextNode(txt.slice(last)));
+  const list = $('#list');
+  matches.slice(0, 200).forEach((m, i) => {
+    const d = document.createElement('div'); d.style.cssText = 'padding:6px 0;border-top:1px solid var(--line)';
+    let html = '<span class="muted">#' + (i + 1) + ' at ' + m.index + '</span> <span class="mono">' + esc(m[0]) + '</span>';
+    for (let g = 1; g < m.length; g++) html += '<div class="muted mono" style="margin-left:14px">group ' + g + ': ' + (m[g] === undefined ? '(not matched)' : esc(m[g])) + '</div>';
+    if (m.groups) for (const [k, v] of Object.entries(m.groups)) html += '<div class="muted mono" style="margin-left:14px">' + esc(k) + ': ' + (v === undefined ? '(not matched)' : esc(v)) + '</div>';
+    d.innerHTML = html; list.appendChild(d);
+  });
+  if (!matches.length) list.innerHTML = '<span class="muted">No match</span>';
+  if ($('#rep').value !== '') { try { $('#repout').value = txt.replace(re, $('#rep').value); } catch (e) {} }
+};
+const saved = store.get('regex.state', null);
+if (saved) { $('#pat').value = saved.pat || ''; $('#txt').value = saved.txt || ''; $('#rep').value = saved.rep || ''; $$('#flags input').forEach((c) => { c.checked = (saved.flags || 'g').includes(c.value); }); }
+['#pat', '#txt', '#rep'].forEach((s) => { $(s).oninput = run; });
+$('#flags').onchange = run;
+run();
+
+})();
+</script>
+</body></html>

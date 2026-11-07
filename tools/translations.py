@@ -1816,6 +1816,11 @@ T = {
 }
 
 
+# Names and descriptions of Tacet Plugins' plugins live in their own file.
+from plugin_translations import PLUGINS  # noqa: E402
+T.update(PLUGINS)
+
+
 def escape(s):
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

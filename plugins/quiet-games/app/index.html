@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quiet Games</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+</style></head>
+<body>
+
+<div class="wrap" style="max-width:640px">
+  <h1>Quiet Games</h1>
+  <p class="sub">Three small games, no sound, no ads, no account. Scores stay on this Mac.</p>
+  <div class="tabs" id="tabs"><button data-g="g2048" class="on">2048</button><button data-g="snake">Snake</button><button data-g="mines">Minesweeper</button></div>
+
+  <section id="g2048" class="card" style="text-align:center">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px"><span>Score <b id="s2048">0</b></span><span class="muted">Best <b id="b2048">0</b></span><button class="ghost" id="n2048">New game</button></div>
+    <div id="board" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;background:var(--line);padding:8px;border-radius:12px;max-width:380px;margin:0 auto;touch-action:none"></div>
+    <div class="muted" id="m2048" style="margin-top:10px">Arrow keys or swipe to slide the tiles. Equal tiles join.</div>
+  </section>
+
+  <section id="snake" class="card hide" style="text-align:center">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px"><span>Score <b id="ssnake">0</b></span><span class="muted">Best <b id="bsnake">0</b></span><button class="ghost" id="nsnake">New game</button></div>
+    <canvas id="cv" width="400" height="400" style="width:100%;max-width:400px;height:auto;aspect-ratio:1;border-radius:12px;background:rgba(128,128,128,.12)"></canvas>
+    <div class="muted" id="msnake" style="margin-top:10px">Arrow keys to steer. Space pauses.</div>
+  </section>
+
+  <section id="mines" class="card hide" style="text-align:center">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px"><span>Mines <b id="smines">10</b></span><span>Time <b id="tmines">0</b></span>
+      <span class="row"><select id="level" style="width:auto"><option value="9,9,10">Easy 9×9</option><option value="12,12,24">Medium 12×12</option><option value="16,16,40">Hard 16×16</option></select><button class="ghost" id="fmines">Flag: off</button><button class="ghost" id="nmines">New game</button></span></div>
+    <div id="grid" style="display:inline-grid;gap:2px;background:var(--line);padding:2px;border-radius:8px;user-select:none"></div>
+    <div class="muted" id="mmines" style="margin-top:10px">Click to open, right-click (or Flag mode) to mark a mine.</div>
+  </section>
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+// ============================== 2048
+const slideRow = (row) => {
+  const tiles = row.filter(Boolean), out = []; let gained = 0;
+  for (let i = 0; i < tiles.length; i++) {
+    if (tiles[i] === tiles[i + 1]) { out.push(tiles[i] * 2); gained += tiles[i] * 2; i++; } else out.push(tiles[i]);
+  }
+  while (out.length < row.length) out.push(0);
+  return { row: out, gained };
+};
+const rotate = (b) => b[0].map((_, c) => b.map((r) => r[c]).reverse());   // 90° clockwise
+const move = (board, dir) => {   // dir: 0 left, 1 up, 2 right, 3 down
+  let b = board.map((r) => r.slice()); for (let i = 0; i < ((4 - dir) % 4 + 4) % 4; i++) b = rotate(b);
+  let gained = 0; b = b.map((r) => { const s = slideRow(r); gained += s.gained; return s.row; });
+  for (let i = 0; i < dir; i++) b = rotate(b);
+  return { board: b, gained, moved: JSON.stringify(b) !== JSON.stringify(board) };
+};
+const canMove = (b) => [0, 1, 2, 3].some((d) => move(b, d).moved);
+let board, score, over = false, won = false, best2048 = store.get('games.best2048', 0);
+const addTile = (b) => {
+  const empty = []; b.forEach((r, y) => r.forEach((v, x) => { if (!v) empty.push([y, x]); }));
+  if (!empty.length) return; const [y, x] = empty[rand(empty.length)]; b[y][x] = rand(10) ? 2 : 4;
+};
+const colors = { 0: '', 2: '#eee4da', 4: '#ede0c8', 8: '#f2b179', 16: '#f59563', 32: '#f67c5f', 64: '#f65e3b', 128: '#edcf72', 256: '#edcc61', 512: '#edc850', 1024: '#edc53f', 2048: '#edc22e' };
+const draw2048 = () => {
+  const el = $('#board'); el.textContent = '';
+  board.flat().forEach((v) => {
+    const t = document.createElement('div'); t.textContent = v || '';
+    t.style.cssText = 'aspect-ratio:1;border-radius:8px;display:grid;place-items:center;font:700 ' + (v > 999 ? 22 : v > 99 ? 28 : 34) + 'px -apple-system,sans-serif;background:' + (v ? (colors[v] || '#3c3a32') : 'rgba(128,128,128,.16)') + ';color:' + (v > 4 ? '#fff' : '#5b5444');
+    el.appendChild(t);
+  });
+  $('#s2048').textContent = score; $('#b2048').textContent = best2048;
+  $('#m2048').textContent = over ? 'No moves left. Press New game.' : won ? 'You made 2048! Keep going if you like.' : 'Arrow keys or swipe to slide the tiles. Equal tiles join.';
+};
+const new2048 = () => { board = Array.from({ length: 4 }, () => [0, 0, 0, 0]); score = 0; over = false; won = false; addTile(board); addTile(board); draw2048(); };
+const play2048 = (dir) => {
+  if (over) return; const r = move(board, dir); if (!r.moved) return;
+  board = r.board; score += r.gained; addTile(board);
+  if (score > best2048) { best2048 = score; store.set('games.best2048', best2048); }
+  if (board.flat().includes(2048)) won = true; if (!canMove(board)) over = true; draw2048();
+};
+$('#n2048').onclick = new2048;
+let touch = null;
+$('#board').addEventListener('touchstart', (e) => { touch = [e.touches[0].clientX, e.touches[0].clientY]; }, { passive: true });
+$('#board').addEventListener('touchend', (e) => {
+  if (!touch) return; const dx = e.changedTouches[0].clientX - touch[0], dy = e.changedTouches[0].clientY - touch[1]; touch = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+  play2048(Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 0 : 2) : (dy < 0 ? 1 : 3));
+});
+
+// ============================== Snake
+const N = 20, CELL = 20;
+let snake, dirQ, food, sscore, sdead, spaused, stimer = 0, bestSnake = store.get('games.bestSnake', 0);
+const placeFood = () => { let p; do { p = [rand(N), rand(N)]; } while (snake.some((s) => s[0] === p[0] && s[1] === p[1])); return p; };
+const newSnake = () => { snake = [[10, 10], [9, 10], [8, 10]]; dirQ = [[1, 0]]; sscore = 0; sdead = false; spaused = false; food = placeFood(); drawSnake(); clearInterval(stimer); stimer = setInterval(stepSnake, 120); };
+const stepSnake = () => {
+  if (sdead || spaused || $('#snake').classList.contains('hide')) return;
+  const d = dirQ.length > 1 ? dirQ.shift() : dirQ[0], head = [snake[0][0] + d[0], snake[0][1] + d[1]];
+  const eat = head[0] === food[0] && head[1] === food[1], body = eat ? snake : snake.slice(0, -1);
+  if (head[0] < 0 || head[1] < 0 || head[0] >= N || head[1] >= N || body.some((s) => s[0] === head[0] && s[1] === head[1])) { sdead = true; drawSnake(); return; }
+  snake.unshift(head); if (eat) { sscore++; food = placeFood(); if (sscore > bestSnake) { bestSnake = sscore; store.set('games.bestSnake', bestSnake); } } else snake.pop();
+  drawSnake();
+};
+const steer = (d) => { const last = dirQ[dirQ.length - 1]; if ((d[0] === -last[0] && d[1] === -last[1]) || (d[0] === last[0] && d[1] === last[1])) return; if (dirQ.length < 3) dirQ.push(d); };
+const drawSnake = () => {
+  const c = $('#cv').getContext('2d'), css = getComputedStyle(document.documentElement);
+  c.clearRect(0, 0, 400, 400);
+  c.fillStyle = '#ff5a2a'; c.beginPath(); c.arc(food[0] * CELL + 10, food[1] * CELL + 10, 7, 0, 7); c.fill();
+  snake.forEach((s, i) => { c.fillStyle = sdead ? '#c62828' : (i ? '#34a853' : '#1a7f37'); c.beginPath(); c.roundRect(s[0] * CELL + 1, s[1] * CELL + 1, CELL - 2, CELL - 2, 5); c.fill(); });
+  $('#ssnake').textContent = sscore; $('#bsnake').textContent = bestSnake;
+  $('#msnake').textContent = sdead ? 'Game over. Press New game or Space.' : spaused ? 'Paused. Press Space.' : 'Arrow keys to steer. Space pauses.';
+};
+$('#nsnake').onclick = newSnake;
+
+// ============================== Minesweeper
+let mw, mh, mm, cells, started, mdone, flagMode = false, mtimer = 0, mt = 0;
+const neighbours = (x, y) => { const r = []; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if ((dx || dy) && x + dx >= 0 && y + dy >= 0 && x + dx < mw && y + dy < mh) r.push([x + dx, y + dy]); } return r; };
+const plant = (safeX, safeY) => {
+  let n = 0;
+  while (n < mm) { const x = rand(mw), y = rand(mh); const c = cells[y][x]; if (c.mine || (Math.abs(x - safeX) <= 1 && Math.abs(y - safeY) <= 1)) continue; c.mine = true; n++; }
+  cells.forEach((row, y) => row.forEach((c, x) => { c.n = neighbours(x, y).filter(([a, b]) => cells[b][a].mine).length; }));
+};
+const reveal = (x, y) => {
+  const stack = [[x, y]];
+  while (stack.length) {
+    const [a, b] = stack.pop(), c = cells[b][a]; if (c.open || c.flag) continue; c.open = true;
+    if (!c.mine && c.n === 0) neighbours(a, b).forEach((p) => stack.push(p));
+  }
+};
+const newMines = () => {
+  [mw, mh, mm] = $('#level').value.split(',').map(Number); store.set('games.level', $('#level').value);
+  cells = Array.from({ length: mh }, () => Array.from({ length: mw }, () => ({ mine: false, open: false, flag: false, n: 0 })));
+  started = false; mdone = false; mt = 0; clearInterval(mtimer); $('#tmines').textContent = 0; drawMines();
+};
+const checkWin = () => cells.flat().every((c) => c.mine || c.open);
+const clickCell = (x, y, flag) => {
+  if (mdone) return; const c = cells[y][x];
+  if (flag || flagMode) { if (!c.open) { c.flag = !c.flag; drawMines(); } return; }
+  if (c.open || c.flag) {
+    // Opening a number whose flags are all placed opens the cells around it.
+    if (c.open && c.n && neighbours(x, y).filter(([a, b]) => cells[b][a].flag).length === c.n) neighbours(x, y).forEach(([a, b]) => { if (!cells[b][a].flag) { if (cells[b][a].mine) { mdone = 'lost'; } reveal(a, b); } });
+  } else {
+    if (!started) { plant(x, y); started = true; mtimer = setInterval(() => { mt++; $('#tmines').textContent = mt; }, 1000); }
+    if (c.mine) mdone = 'lost'; reveal(x, y);
+  }
+  if (mdone === 'lost') { cells.flat().forEach((k) => { if (k.mine) k.open = true; }); clearInterval(mtimer); }
+  else if (checkWin()) { mdone = 'won'; clearInterval(mtimer); }
+  drawMines();
+};
+const NUMCOL = ['', '#1e6fd9', '#2e8b3d', '#d23a3a', '#5b3fb0', '#a8501c', '#138a8a', '#222', '#777'];
+const drawMines = () => {
+  const g = $('#grid'); g.textContent = ''; g.style.gridTemplateColumns = 'repeat(' + mw + ', ' + (mw > 12 ? 24 : 32) + 'px)';
+  const size = mw > 12 ? 24 : 32;
+  cells.forEach((row, y) => row.forEach((c, x) => {
+    const b = document.createElement('button'); b.style.cssText = 'width:' + size + 'px;height:' + size + 'px;padding:0;border-radius:4px;font:700 ' + (size - 12) + 'px -apple-system,sans-serif;' +
+      (c.open ? 'background:var(--card);color:' + (c.mine ? '#c62828' : NUMCOL[c.n]) : 'background:rgba(128,128,128,.4);color:var(--fg)');
+    b.textContent = c.open ? (c.mine ? '✹' : c.n || '') : (c.flag ? '⚑' : '');
+    b.onclick = () => clickCell(x, y, false); b.oncontextmenu = (e) => { e.preventDefault(); clickCell(x, y, true); };
+    g.appendChild(b);
+  }));
+  const flags = cells.flat().filter((c) => c.flag).length; $('#smines').textContent = mm - flags;
+  $('#mmines').textContent = mdone === 'won' ? 'Cleared in ' + mt + ' s. Well done!' : mdone === 'lost' ? 'Boom. Press New game.' : 'Click to open, right-click (or Flag mode) to mark a mine.';
+  $('#fmines').textContent = 'Flag: ' + (flagMode ? 'on' : 'off');
+};
+$('#nmines').onclick = newMines; $('#level').onchange = newMines;
+$('#fmines').onclick = () => { flagMode = !flagMode; drawMines(); };
+
+// ============================== Tabs and keys
+let game = store.get('games.tab', 'g2048');
+const show = (g) => { game = g; store.set('games.tab', g); $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.g === g)); ['g2048', 'snake', 'mines'].forEach((id) => $('#' + id).classList.toggle('hide', id !== g)); document.title = { g2048: '2048', snake: 'Snake', mines: 'Minesweeper' }[g] + ' · Quiet Games'; };
+$('#tabs').onclick = (e) => { if (e.target.dataset.g) show(e.target.dataset.g); };
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  const arrows = { ArrowLeft: 0, ArrowUp: 1, ArrowRight: 2, ArrowDown: 3 };
+  if (game === 'g2048' && e.key in arrows) { e.preventDefault(); play2048(arrows[e.key]); }
+  else if (game === 'snake') {
+    const dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    if (e.key in dirs) { e.preventDefault(); steer(dirs[e.key]); } else if (e.key === ' ') { e.preventDefault(); if (sdead) newSnake(); else { spaused = !spaused; drawSnake(); } }
+  }
+});
+globalThis.__games = { slideRow, move, canMove, play2048, state: () => ({ board, score, over }), setBoard: (b) => { board = b; over = false; draw2048(); },
+  snake: () => ({ snake, food, sscore, sdead, dirQ }), stepSnake, steer, setSnake: (s, f, d) => { snake = s; food = f; dirQ = [d]; sdead = false; spaused = false; },
+  mines: () => ({ cells, mdone, started }), clickCell, setLevel: (v) => { $('#level').value = v; newMines(); }, plant };
+$('#level').value = store.get('games.level', '9,9,10');
+new2048(); newSnake(); newMines(); show(game);
+
+})();
+</script>
+</body></html>

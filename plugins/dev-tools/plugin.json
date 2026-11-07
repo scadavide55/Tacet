@@ -1,0 +1,19 @@
+{
+  "id": "dev-tools",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "Dev Tools",
+  "description": "A small set of tools for developers in a tab of its own: format and check JSON, Base64, URL encoding, SHA hashes, Unix times and UUIDs. It all runs on your Mac, offline.",
+  "icon": "wrench.and.screwdriver",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

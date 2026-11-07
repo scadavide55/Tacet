@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Password Generator</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+</style></head>
+<body>
+
+<div class="wrap">
+  <h1>Password Generator</h1>
+  <p class="sub">Strong random passwords, made on this Mac with the system's secure random numbers. Nothing is stored or sent.</p>
+  <div class="card">
+    <label for="out">Password</label>
+    <div class="row"><input type="text" id="out" class="grow" readonly style="font-size:18px"><button id="copy">Copy</button><button id="go" class="ghost">New</button></div>
+    <div id="meter" style="height:6px;border-radius:3px;background:var(--line);margin:12px 0 4px;overflow:hidden"><div id="bar" style="height:100%;width:0"></div></div>
+    <div class="muted" id="info"></div>
+  </div>
+  <div class="card">
+    <div class="row"><label for="len" style="margin:0">Length</label><input type="range" id="len" min="8" max="64" value="20" class="grow"><b id="lenv">20</b></div>
+    <div class="row" style="margin-top:12px">
+      <label style="margin:0;text-transform:none;letter-spacing:0"><input type="checkbox" id="lo" checked> abc</label>
+      <label style="margin:0;text-transform:none;letter-spacing:0"><input type="checkbox" id="up" checked> ABC</label>
+      <label style="margin:0;text-transform:none;letter-spacing:0"><input type="checkbox" id="di" checked> 123</label>
+      <label style="margin:0;text-transform:none;letter-spacing:0"><input type="checkbox" id="sy" checked> !@#</label>
+      <label style="margin:0;text-transform:none;letter-spacing:0"><input type="checkbox" id="am"> no look-alikes (0 O 1 l I)</label>
+    </div>
+  </div>
+  <div class="card"><label>Five more to choose from</label><div id="more"></div></div>
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+const sets = { lo: 'abcdefghijklmnopqrstuvwxyz', up: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', di: '0123456789', sy: '!@#$%^&*()-_=+[]{};:,.?/' };
+const pool = () => {
+  const chosen = ['lo', 'up', 'di', 'sy'].filter((k) => $('#' + k).checked);
+  const strip = (s) => ($('#am').checked ? s.replace(/[0O1lI|]/g, '') : s);
+  return chosen.map((k) => strip(sets[k]));
+};
+const make = (len, groups) => {
+  if (!groups.length) return '';
+  const all = groups.join('');
+  const chars = groups.map((g) => g[rand(g.length)]);   // at least one of each kind chosen
+  while (chars.length < len) chars.push(all[rand(all.length)]);
+  for (let i = chars.length - 1; i > 0; i--) { const j = rand(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+  return chars.join('');
+};
+const bits = (len, groups) => groups.length ? Math.round(len * Math.log2(groups.join('').length)) : 0;
+const update = () => {
+  const len = +$('#len').value, groups = pool();
+  $('#lenv').textContent = len;
+  const pw = make(len, groups);
+  $('#out').value = pw || 'Choose at least one kind of character';
+  const b = bits(len, groups);
+  const level = b < 50 ? ['Weak', '#c62828', 25] : b < 75 ? ['Fair', '#e69500', 50] : b < 100 ? ['Strong', '#7cb342', 75] : ['Very strong', '#1a7f37', 100];
+  $('#bar').style.width = (pw ? level[2] : 0) + '%'; $('#bar').style.background = level[1];
+  $('#info').textContent = pw ? level[0] + ' · about ' + b + ' bits of randomness' : '';
+  const more = $('#more'); more.textContent = '';
+  for (let i = 0; i < 5 && pw; i++) {
+    const v = make(len, groups);
+    const row = document.createElement('div'); row.className = 'row'; row.style.marginBottom = '6px';
+    row.innerHTML = '<span class="mono grow" style="word-break:break-all">' + esc(v) + '</span>';
+    const btn = document.createElement('button'); btn.className = 'ghost'; btn.textContent = 'Copy'; btn.onclick = () => copy(v);
+    row.appendChild(btn); more.appendChild(row);
+  }
+  globalThis.__pw = { pw, groups: groups.length };
+};
+['#len', '#lo', '#up', '#di', '#sy', '#am'].forEach((s) => { $(s).oninput = update; $(s).onchange = update; });
+$('#go').onclick = update; $('#copy').onclick = () => copy($('#out').value);
+update();
+
+})();
+</script>
+</body></html>

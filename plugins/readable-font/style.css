@@ -1,0 +1,17 @@
+/* Body text only: headings, paragraphs, lists, quotes and tables. Not code, icons, inputs or buttons. */
+p, li, dd, dt, blockquote, figcaption, td, th, h1, h2, h3, h4, h5, h6 {
+  font-family: Verdana, "Atkinson Hyperlegible", "Trebuchet MS", sans-serif !important;
+  letter-spacing: 0.02em !important;
+  word-spacing: 0.08em !important;
+}
+p, li, dd, blockquote, td {
+  line-height: 1.65 !important;
+}
+p, li {
+  max-width: 75ch;
+}
+code, pre, kbd, samp, [class*="icon" i], [class*="Icon"], i {
+  font-family: revert !important;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+}

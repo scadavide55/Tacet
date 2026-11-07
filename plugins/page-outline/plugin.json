@@ -1,0 +1,17 @@
+{
+  "id": "page-outline",
+  "name": "Page Outline",
+  "description": "Press ⌥⇧O to see the headings of the page as a list. Click one to jump to it; Esc closes the list. Good for long articles, documentation and wikis.",
+  "version": "1.0",
+  "icon": "list.bullet.indent",
+  "author": "Tacet Plugins",
+  "sites": [
+    "*"
+  ],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "action",
+  "action": "Show the Outline",
+  "shortcut": "⌥⇧O"
+}

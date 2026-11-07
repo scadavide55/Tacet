@@ -1,0 +1,13 @@
+{
+  "id": "wikipedia-wide",
+  "name": "Wikipedia Wide",
+  "description": "Lets Wikipedia use the whole window and hides the side menus, the donation banner and the edit links, leaving the article.",
+  "version": "1.0",
+  "icon": "book.pages",
+  "author": "Tacet Plugins",
+  "sites": ["wikipedia.org"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

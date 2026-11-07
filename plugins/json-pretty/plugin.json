@@ -1,0 +1,15 @@
+{
+  "id": "json-pretty",
+  "name": "JSON, Readable",
+  "description": "When a page is just JSON (an API answer, a file), shows it as a tidy tree with colours, where each part can be opened or closed.",
+  "version": "1.0",
+  "icon": "curlybraces",
+  "author": "Tacet Plugins",
+  "sites": [
+    "*"
+  ],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "toggle"
+}

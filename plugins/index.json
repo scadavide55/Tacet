@@ -44,6 +44,26 @@
       }
     },
     {
+      "id": "autoscroll",
+      "name": "Autoscroll",
+      "description": "Press ⌥⇧A to have the page scroll by itself, slowly, while you read. ↑ and ↓ change the speed, Esc or ⌥⇧A stops it.",
+      "version": "1.0",
+      "icon": "arrow.down.to.line",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "action",
+      "action": "Start or Stop Autoscroll",
+      "shortcut": "⌥⇧A",
+      "files": {
+        "main.js": "e2ab5396b14532679d00c56bc100c1d5ffdfb49a7c3bf7ce0ad638a808536a84"
+      }
+    },
+    {
       "id": "back-to-top",
       "name": "Back to Top",
       "description": "A small round button appears at the bottom right when you've scrolled far down a page, and takes you back to the top.",
@@ -59,6 +79,26 @@
       "mode": "toggle",
       "files": {
         "main.js": "3ad6919ab4216e2b6adb3b60716d5598bd381c48ce7c787f6353f3925d392166"
+      }
+    },
+    {
+      "id": "bionic-reading",
+      "name": "Bionic Reading",
+      "description": "Press ⌥⇧B to put the first half of each word in bold, which guides the eye and can make reading faster. Press it again to go back to the normal text.",
+      "version": "1.0",
+      "icon": "bold",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "action",
+      "action": "Bold the Start of Words",
+      "shortcut": "⌥⇧B",
+      "files": {
+        "main.js": "531d1f0a7082f80b7e3e28c6ad7a2bc0310ce138aa940cf17c71d66845ff61bf"
       }
     },
     {
@@ -79,6 +119,28 @@
       "shortcut": "⌥⇧L",
       "files": {
         "main.js": "4aa217dfaf1249c6e9204d1aef7d108c4f101441255340f38b269813a4dd1ddc"
+      }
+    },
+    {
+      "id": "color-tools",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "Colour Tools",
+      "description": "Convert a colour between HEX, RGB and HSL, build palettes (shades, complement, analogous, triad) and check whether text and background colours are readable together, against the WCAG contrast rules. Offline.",
+      "icon": "paintpalette",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "f27618e34dfb3dd3d7a7b88721bf31ee7cf1618e39bf3c453dc015897ff957f5"
       }
     },
     {
@@ -176,6 +238,28 @@
       }
     },
     {
+      "id": "dev-tools",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "Dev Tools",
+      "description": "A small set of tools for developers in a tab of its own: format and check JSON, Base64, URL encoding, SHA hashes, Unix times and UUIDs. It all runs on your Mac, offline.",
+      "icon": "wrench.and.screwdriver",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "169e8ff5cf08f2cab8398d216307144ee46293864cb06ea84e716c152ad743fb"
+      }
+    },
+    {
       "id": "external-links-new-tab",
       "name": "Other Sites in New Tabs",
       "description": "Links that lead to a different site open in a new tab, so the page you were reading stays where it was.",
@@ -191,6 +275,64 @@
       "mode": "toggle",
       "files": {
         "main.js": "ee53cb6eaccecd6db98fe0f4f7e1775cef7a21fe3990a3f616dec1efc144c5d2"
+      }
+    },
+    {
+      "id": "facebook-clean",
+      "name": "Facebook, Clean",
+      "description": "Hides ads, Stories, Reels, the right column and the Watch and Reels menu entries on Facebook, so you see posts from people and groups.",
+      "version": "1.0",
+      "icon": "person.2",
+      "author": "Tacet Plugins",
+      "sites": [
+        "facebook.com"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "7d7c4c1a9d490b002f04fecae5b28fc4b5572bc49f53bc5e3f97cf16fa05ca82"
+      }
+    },
+    {
+      "id": "fandom-clean",
+      "name": "Fandom, Clean",
+      "description": "Hides the ads, the featured video, the sticky banner and the recommendations on Fandom wikis, and the right column they sit in, so the article gets the room.",
+      "version": "1.0",
+      "icon": "text.book.closed",
+      "author": "Tacet Plugins",
+      "sites": [
+        "fandom.com"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "9f6eead47971125b60126700287f80930fb7f20c0c547bd6c9f410b4dd3915f4"
+      }
+    },
+    {
+      "id": "flashcards",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "Flashcards",
+      "description": "Study with flashcards in a tab of its own: make decks by typing one card per line, and review them with spaced repetition, so cards you know come back later and the ones you miss come back soon. Saved on your Mac.",
+      "icon": "rectangle.on.rectangle.angled",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "6137936f0d106cd136631dbd30b666507cef9f6511101861bce8cb75180c0eaf"
       }
     },
     {
@@ -258,6 +400,54 @@
       }
     },
     {
+      "id": "google-no-ai-overview",
+      "name": "Google, No AI Overview",
+      "description": "Hides Google's AI Overview and the \"People also ask\" box on search results, and the AI Mode tab, so the first thing you see is the real results. Works in English, Italian, French, German, Spanish, Dutch and Portuguese.",
+      "version": "1.0",
+      "icon": "sparkles",
+      "author": "Tacet Plugins",
+      "sites": [
+        "google.com",
+        "google.it",
+        "google.fr",
+        "google.de",
+        "google.es",
+        "google.co.uk",
+        "google.ch",
+        "google.be",
+        "google.nl",
+        "google.pt",
+        "google.ca"
+      ],
+      "js": "main.js",
+      "css": "style.css",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "main.js": "411d0c8ce1f1c13b2b6ec9b8bfc573002b569e153fa365ad2f105497c565cea0",
+        "style.css": "eae1eb26aab8a8335c0de54eede100bf2fd6e83945b31065a6d3429f7a46863e"
+      }
+    },
+    {
+      "id": "grayscale-web",
+      "name": "Grayscale Web",
+      "description": "Shows every page in shades of grey, so colours stop pulling at your attention. Useful for studying, or to see how much of a site's pull is colour. Turn it off from the extensions menu.",
+      "version": "1.0",
+      "icon": "circle.lefthalf.filled",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "87f56773ce022dabd76cbaa54bce9374e56d0410e95fe71168854207ac0e0af6"
+      }
+    },
+    {
       "id": "hide-comments",
       "name": "Hide Comments",
       "description": "Hides comment sections on YouTube, news sites, blogs and Reddit, for a quieter read. Turn it off for a moment from Tacet Plugins when you want to read them.",
@@ -272,6 +462,42 @@
       "mode": "toggle",
       "files": {
         "style.css": "d47a6addc925adb588b203eaa12787e0237c2cb4b0d1c0ae475e5afa797f0da8"
+      }
+    },
+    {
+      "id": "instagram-quiet",
+      "name": "Instagram, Quiet",
+      "description": "Hides Reels and Explore in the menu and the Reels that show up in your feed, so the feed is the people you follow.",
+      "version": "1.0",
+      "icon": "camera",
+      "author": "Tacet Plugins",
+      "sites": [
+        "instagram.com"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "246ec762d56e48a65c047a74e64ca799ac34004131890703af47940187e341df"
+      }
+    },
+    {
+      "id": "json-pretty",
+      "name": "JSON, Readable",
+      "description": "When a page is just JSON (an API answer, a file), shows it as a tidy tree with colours, where each part can be opened or closed.",
+      "version": "1.0",
+      "icon": "curlybraces",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "main.js": "fdba3a315c1588f11066e5a32794cdd858f3da7489efbf01246ec159556289f7"
       }
     },
     {
@@ -295,6 +521,82 @@
       }
     },
     {
+      "id": "linkedin-quiet",
+      "name": "LinkedIn, Quiet",
+      "description": "Hides promoted posts and ads, the LinkedIn News column and the follow suggestions, leaving your feed.",
+      "version": "1.0",
+      "icon": "briefcase",
+      "author": "Tacet Plugins",
+      "sites": [
+        "linkedin.com"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "fe628b2e65fdf29bc6fcc60b02fdc4abb1f8bccbb8981d7e47ea068992a1eb0a"
+      }
+    },
+    {
+      "id": "markdown-editor",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "Markdown Editor",
+      "description": "Write Markdown on the left and read it on the right, in a tab of its own. Headings, lists, tables, quotes, code and links; it saves as you type, opens and saves .md files and copies the HTML. Offline.",
+      "icon": "doc.richtext",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "e5144cb3c788a00c3d6d2c0365a63ff608e9f578274f50e05c407c30243725b6"
+      }
+    },
+    {
+      "id": "medium-quiet",
+      "name": "Medium, Quiet",
+      "description": "Closes Medium's sign-up pop-ups and the \"Get unlimited access\" bar, and lets the page scroll again, so you read the article. It doesn't open articles that Medium keeps for members.",
+      "version": "1.0",
+      "icon": "text.quote",
+      "author": "Tacet Plugins",
+      "sites": [
+        "medium.com"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "main.js": "94a4e0e3d112f3b81ea6b5996e012cc658813d1ce7bbb4e85face9cfd1ef3413"
+      }
+    },
+    {
+      "id": "no-autoplay",
+      "name": "No Autoplay",
+      "description": "Stops videos from starting by themselves on any site, even silent ones. (Tacet already blocks videos that play sound; this also stops the muted ones.) They play when you press play.",
+      "version": "1.0",
+      "icon": "pause.circle",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "main.js": "4afcc942a83d2fac03756d5595c474eaa696ee36889691b770487d113a9e0844"
+      }
+    },
+    {
       "id": "old-reddit",
       "name": "Old Reddit",
       "description": "Opens Reddit in its classic layout at old.reddit.com: lighter, faster and with more posts on screen. Galleries, chat and settings still open in the new design.",
@@ -310,6 +612,48 @@
       "mode": "toggle",
       "files": {
         "main.js": "44aae5104e4816d09b5ab9c161bdc8b50ad9885b7659f0a1776229441e8d7552"
+      }
+    },
+    {
+      "id": "page-outline",
+      "name": "Page Outline",
+      "description": "Press ⌥⇧O to see the headings of the page as a list. Click one to jump to it; Esc closes the list. Good for long articles, documentation and wikis.",
+      "version": "1.0",
+      "icon": "list.bullet.indent",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "action",
+      "action": "Show the Outline",
+      "shortcut": "⌥⇧O",
+      "files": {
+        "main.js": "1b1a84ab8734a3881982bc69a77b9371ce101d6d78505cc1a1418cf76d408b11"
+      }
+    },
+    {
+      "id": "password-generator",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "Password Generator",
+      "description": "Makes strong random passwords in a tab of its own, with the length and kinds of characters you choose and a strength meter. Made on your Mac with secure random numbers; nothing is saved or sent.",
+      "icon": "key",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "660f3dbfa1d8aef05e6bbd89f67565885d14679cce3271e81d864f9025ad5587"
       }
     },
     {
@@ -333,6 +677,68 @@
       }
     },
     {
+      "id": "qr-generator",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "QR Code",
+      "description": "Make a QR code from a link, some text or your Wi-Fi details, in a tab of its own. Choose the error correction and the size and save it as PNG or SVG. It's drawn on your Mac and works offline.",
+      "icon": "qrcode",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "c722c5b2a970bacae87634db7918a4bcda5489443ed5a8e63f2133c60e4cbab7"
+      }
+    },
+    {
+      "id": "quiet-games",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "Quiet Games",
+      "description": "Three small games in a tab of its own: 2048, Snake and Minesweeper. No sound, no ads and no account, and your best scores stay on your Mac.",
+      "icon": "gamecontroller.fill",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "0dc49bf845ce3286907a6158659e0550d98570764b4a595a48f9976f67a34a25"
+      }
+    },
+    {
+      "id": "readable-font",
+      "name": "Readable Text",
+      "description": "Sets text in a clear, open typeface with roomier letters, words and lines, which helps with dyslexia and long reading. Icons, code and buttons keep their own look.",
+      "version": "1.0",
+      "icon": "textformat.size",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "ace2fac65b65475027ef5aacb87ace160c43af6d7ca14d2288791f02ac0729d9"
+      }
+    },
+    {
       "id": "reading-progress",
       "name": "Reading Progress",
       "description": "On articles, a thin bar at the top shows how far you've read, and a small label says how many minutes are left.",
@@ -347,6 +753,148 @@
       "mode": "toggle",
       "files": {
         "main.js": "330f73d6bd0fa6fe3d088644cead01c1d42a370e5c9e408dbd6e4c97bd5dd905"
+      }
+    },
+    {
+      "id": "reddit-clean",
+      "name": "Reddit, Clean",
+      "description": "Hides promoted posts and ads and the right-hand sidebar on Reddit's current design, so the page is the posts.",
+      "version": "1.0",
+      "icon": "bubble.left",
+      "author": "Tacet Plugins",
+      "sites": [
+        "reddit.com"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "80dfe68548b5a855bcbd9def4391a89b34d478049dd8f2cc27ae9d51d1ce865f"
+      }
+    },
+    {
+      "id": "redirect-skipper",
+      "name": "Redirect Skipper",
+      "description": "Skips the “you are leaving” pages that Google, Facebook, LinkedIn, YouTube, Reddit, Steam and others put between a link and the site it leads to, and goes straight to the site.",
+      "version": "1.0",
+      "icon": "arrowshape.turn.up.right",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "main.js": "fd9f0f01330f6f465db7de46a6973ea2de9c80667c52995766df8c43e00ddeb9"
+      }
+    },
+    {
+      "id": "regex-tester",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "Regex Tester",
+      "description": "Test regular expressions in a tab of its own: type a pattern and some text and see every match and group highlighted at once, with flags and a replace box. Offline.",
+      "icon": "chevron.left.forwardslash.chevron.right",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "5a4e1a3272f3bd701df2753612a0864f0b87f5d6c58372777615031610edb91a"
+      }
+    },
+    {
+      "id": "roblox-quiet",
+      "name": "Roblox, Quiet",
+      "description": "Hides the ads and the chat window on Roblox's website, so you see your games.",
+      "version": "1.0",
+      "icon": "gamecontroller",
+      "author": "Tacet Plugins",
+      "sites": [
+        "roblox.com"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "0c0ff0cb3617009f2630770028bc22ae10d115fc0d637862ed93e46b4d9543c5"
+      }
+    },
+    {
+      "id": "scratchpad",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "Scratchpad",
+      "description": "Quick notes in a tab of its own: a list of notes with search, saved on your Mac as you type, with a word count, copy and export to a text file. Nothing leaves the computer.",
+      "icon": "note.text",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "2e84d868df3d43406fc80bb045d0511b929b17d01388c225a1b5c16c97cd684a"
+      }
+    },
+    {
+      "id": "select-and-search",
+      "name": "Select and Search",
+      "description": "When you select a word or a phrase, a small bar appears next to it to search it on the web, Wikipedia or YouTube in a new tab. The text you select is only sent when you click one.",
+      "version": "1.0",
+      "icon": "text.magnifyingglass",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "main.js": "67b647674461022f4c9a7688cb5e063eab34e00b970db06dd912ca07b5f5075a"
+      }
+    },
+    {
+      "id": "skip-intro",
+      "name": "Skip Intro",
+      "description": "Presses “Skip Intro” and “Skip Recap” for you on Netflix, Prime Video and Disney+, and answers “Are you still watching?” with Continue. It doesn't start the next episode.",
+      "version": "1.0",
+      "icon": "forward.fill",
+      "author": "Tacet Plugins",
+      "sites": [
+        "netflix.com",
+        "primevideo.com",
+        "amazon.com",
+        "amazon.it",
+        "amazon.fr",
+        "amazon.de",
+        "amazon.es",
+        "amazon.co.uk",
+        "disneyplus.com"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "main.js": "529c26359b0a6a5f7bd9dc881f3d17361161dd358bdf00d2c94abf03557085c9"
       }
     },
     {
@@ -390,6 +938,142 @@
       }
     },
     {
+      "id": "sticky-hider",
+      "name": "Sticky Hider",
+      "description": "On articles, hides headers and bars that stay stuck to the top or bottom of the window while you scroll, and newsletter and sign-up pop-ups that cover the text. Pages that are apps, like mail or documents, are left alone.",
+      "version": "1.0",
+      "icon": "pin.slash",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "main.js": "0707b9d6c2448d3ff1355fe8a532a5d0d95884742bb98a1308be43bce6004101"
+      }
+    },
+    {
+      "id": "text-only",
+      "name": "Text Only",
+      "description": "Hides pictures, video and animations so only the words are left: a calmer page to read. The pictures are still loaded, they are just not shown.",
+      "version": "1.0",
+      "icon": "text.alignleft",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "1457a10a212cd7cf45d264b3816e2ca1baee57f6ad52b39981688c92a23a5376"
+      }
+    },
+    {
+      "id": "tiktok-web-quiet",
+      "name": "TikTok Web, Quiet",
+      "description": "Hides ads and the Live, Explore and suggested accounts entries on TikTok's website, leaving For You, Following and your own pages.",
+      "version": "1.0",
+      "icon": "play.rectangle",
+      "author": "Tacet Plugins",
+      "sites": [
+        "tiktok.com"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "bfb07c0a076a0cc49bb2f8c55a35e1a0ce87a0bb611649e9ef97a705146270be"
+      }
+    },
+    {
+      "id": "todo",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "To-do",
+      "description": "A simple to-do list in a tab of its own: add tasks, tick them off, star the important ones and filter by to do or done. It's kept on your Mac, and the tab's title shows how many tasks are left.",
+      "icon": "checklist",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "08fa28d1b9a4e73a2b7bd23e97f7ba439c3a69782a586a4653f7b2cbe39090fe"
+      }
+    },
+    {
+      "id": "twitch-clean",
+      "name": "Twitch, Clean",
+      "description": "Hides the ads over streams, the Prime and Turbo offers, and the recommended channels in the sidebar, so you see the channels you follow.",
+      "version": "1.0",
+      "icon": "tv",
+      "author": "Tacet Plugins",
+      "sites": [
+        "twitch.tv"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "0b1198b9aab206a4d18195904431ace453957fe38bfe78fe20bddc8201d0a481"
+      }
+    },
+    {
+      "id": "typing-test",
+      "author": "Tacet Plugins",
+      "version": "1.0",
+      "world": "isolated",
+      "name": "Typing Test",
+      "description": "A typing speed test in a tab of its own: type a short text for 15, 30 or 60 seconds, in English, Italian or French, and see your words per minute and accuracy. Your best scores are kept on your Mac.",
+      "icon": "keyboard.badge.ellipsis",
+      "sites": [],
+      "app": {
+        "start": "index.html",
+        "files": [
+          "index.html"
+        ],
+        "assets": []
+      },
+      "mode": "app",
+      "runAt": "end",
+      "files": {
+        "app/index.html": "50a504a06a51806f9ce46a5a815098a512af2c2677f0946f9133c96e0d1658b5"
+      }
+    },
+    {
+      "id": "video-frame",
+      "name": "Video Frame",
+      "description": "Press ⌥⇧V to save the picture on screen in the video as a PNG, at the video's own size. Some sites don't allow it; then Tacet says so.",
+      "version": "1.0",
+      "icon": "camera.viewfinder",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "action",
+      "action": "Save the Frame",
+      "shortcut": "⌥⇧V",
+      "files": {
+        "main.js": "e504b32d152bac18d2ab0687871cb014957f8ad93a31c6403a12c41b0fcb6434"
+      }
+    },
+    {
       "id": "video-speed",
       "name": "Video Speed",
       "description": "Change the speed of any video with ] and [ (in steps of 0.25×), and press \\ to go back to normal. A small label shows the speed.",
@@ -406,6 +1090,61 @@
       "shortcut": "] [ \\",
       "files": {
         "main.js": "a3b7b76cbc256c5338209a453aa40351b473d255217379b8b14b3c1e325a5129"
+      }
+    },
+    {
+      "id": "video-tools",
+      "name": "Video Tools",
+      "description": "More keys for any video: ⌥⇧← and ⌥⇧→ jump 10 seconds, ⌥⇧↑ turns the loop on or off, ⌥⇧, and ⌥⇧. step one frame back or forward. A small label tells what happened.",
+      "version": "1.0",
+      "icon": "film",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "info",
+      "shortcut": "⌥⇧← ⌥⇧→ ⌥⇧↑ ⌥⇧, ⌥⇧.",
+      "files": {
+        "main.js": "64cf1de892c276f1b164c49c91ab7308706a0edbf0e166ec34754948a8d3ba07"
+      }
+    },
+    {
+      "id": "warm-night",
+      "name": "Warm Night",
+      "description": "A soft amber tint over every page, to be easier on the eyes in the evening. Nothing on the page changes; the tint sits on top and never blocks a click.",
+      "version": "1.0",
+      "icon": "moon.zzz",
+      "author": "Tacet Plugins",
+      "sites": [
+        "*"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "c70ddbeaeca161aed0c51a487b607bb7941bce0920e941b3698a0099b1a3ffc2"
+      }
+    },
+    {
+      "id": "wikipedia-wide",
+      "name": "Wikipedia Wide",
+      "description": "Lets Wikipedia use the whole window and hides the side menus, the donation banner and the edit links, leaving the article.",
+      "version": "1.0",
+      "icon": "book.pages",
+      "author": "Tacet Plugins",
+      "sites": [
+        "wikipedia.org"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "17e7379c5ef3b14aa31524289f4d8c63945b10300553685506d24bf402a441c6"
       }
     },
     {
@@ -481,6 +1220,42 @@
       "mode": "toggle",
       "files": {
         "style.css": "94feab10b40d2ee7d4d4ae4110dd5a37614420d2c3269e004d1da3b22cfa15af"
+      }
+    },
+    {
+      "id": "youtube-minimal",
+      "name": "YouTube, Minimal",
+      "description": "Hides the end cards over the video, the merch and shopping shelves, the banners and promos, and the Mix and promoted suggestions, so the video and its title are what's left.",
+      "version": "1.0",
+      "icon": "play.rectangle.on.rectangle",
+      "author": "Tacet Plugins",
+      "sites": [
+        "youtube.com"
+      ],
+      "css": "style.css",
+      "runAt": "start",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "style.css": "9abe6f960e87d84a85cf7713d8aa438076b5d38dc8b2ed33343eb8403ba173e0"
+      }
+    },
+    {
+      "id": "youtube-no-autoplay-next",
+      "name": "YouTube, No Autoplay Next",
+      "description": "Turns off YouTube's Autoplay, so the next video doesn't start when the one you're watching ends.",
+      "version": "1.0",
+      "icon": "forward.end.alt",
+      "author": "Tacet Plugins",
+      "sites": [
+        "youtube.com"
+      ],
+      "js": "main.js",
+      "runAt": "end",
+      "world": "isolated",
+      "mode": "toggle",
+      "files": {
+        "main.js": "6483a9fe2e53208f8f1fa2d77c4cac4d2fe010f293b2ac4198e4b9d030ea4f40"
       }
     },
     {

@@ -1,0 +1,7 @@
+img, picture, video, canvas, embed, object, figure:has(> img:only-child) {
+  display: none !important;
+}
+* {
+  background-image: none !important;
+  animation: none !important;
+}

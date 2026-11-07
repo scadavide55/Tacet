@@ -1,0 +1,17 @@
+{
+  "id": "bionic-reading",
+  "name": "Bionic Reading",
+  "description": "Press ⌥⇧B to put the first half of each word in bold, which guides the eye and can make reading faster. Press it again to go back to the normal text.",
+  "version": "1.0",
+  "icon": "bold",
+  "author": "Tacet Plugins",
+  "sites": [
+    "*"
+  ],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "action",
+  "action": "Bold the Start of Words",
+  "shortcut": "⌥⇧B"
+}

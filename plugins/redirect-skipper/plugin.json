@@ -1,0 +1,15 @@
+{
+  "id": "redirect-skipper",
+  "name": "Redirect Skipper",
+  "description": "Skips the “you are leaving” pages that Google, Facebook, LinkedIn, YouTube, Reddit, Steam and others put between a link and the site it leads to, and goes straight to the site.",
+  "version": "1.0",
+  "icon": "arrowshape.turn.up.right",
+  "author": "Tacet Plugins",
+  "sites": [
+    "*"
+  ],
+  "js": "main.js",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

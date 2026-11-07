@@ -1,0 +1,13 @@
+{
+  "id": "grayscale-web",
+  "name": "Grayscale Web",
+  "description": "Shows every page in shades of grey, so colours stop pulling at your attention. Useful for studying, or to see how much of a site's pull is colour. Turn it off from the extensions menu.",
+  "version": "1.0",
+  "icon": "circle.lefthalf.filled",
+  "author": "Tacet Plugins",
+  "sites": ["*"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

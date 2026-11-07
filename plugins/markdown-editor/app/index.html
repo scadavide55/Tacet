@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Markdown Editor</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+
+.md { line-height: 1.6; } .md h1, .md h2, .md h3 { line-height: 1.25; margin: 1.1em 0 .4em; } .md h1 { font-size: 26px; } .md h2 { font-size: 21px; } .md h3 { font-size: 17px; }
+.md p, .md ul, .md ol, .md blockquote, .md pre, .md table { margin: 0 0 .9em; } .md code { font: 13px ui-monospace, Menlo, monospace; background: rgba(128,128,128,.18); padding: 1px 5px; border-radius: 5px; }
+.md pre { background: rgba(128,128,128,.14); padding: 12px; border-radius: 10px; overflow: auto; } .md pre code { background: none; padding: 0; }
+.md blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--muted); } .md table { border-collapse: collapse; } .md th, .md td { border: 1px solid var(--line); padding: 5px 10px; }
+.md img { max-width: 100%; } .md a { color: var(--accent); } .md hr { border: 0; border-top: 1px solid var(--line); }
+</style></head>
+<body>
+
+<div class="wrap" style="max-width:1200px">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h1>Markdown Editor</h1><p class="sub" style="margin:0">Write on the left, read on the right. Saved on this Mac as you type.</p></div>
+    <div class="row"><button class="ghost" id="open">Open .md</button><button class="ghost" id="save">Save .md</button><button class="ghost" id="chtml">Copy HTML</button><button class="ghost" id="clear">New</button></div></div>
+  <div class="row" style="align-items:stretch">
+    <div style="flex:1 1 320px;min-width:0"><textarea id="src" spellcheck="false" style="height:calc(100vh - 150px);min-height:420px"></textarea></div>
+    <div id="view" class="card md" style="flex:1 1 320px;min-width:0;height:calc(100vh - 150px);min-height:420px;overflow:auto;margin:0"></div>
+  </div>
+  <input type="file" id="file" accept=".md,.markdown,.txt,text/markdown,text/plain" class="hide">
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+const safeUrl = (u) => /^(https?:|mailto:|#|\/)/i.test(u.trim()) ? u.trim() : '#';
+const inline = (s) => {
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => { codes.push('<code>' + esc(c) + '</code>'); return '\u0000' + (codes.length - 1) + '\u0000'; });
+  s = esc(s);
+  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_, alt, u) => '<img alt="' + alt + '" src="' + esc(safeUrl(u.replace(/&amp;/g, '&'))) + '">');
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_, t, u) => '<a href="' + esc(safeUrl(u.replace(/&amp;/g, '&'))) + '" target="_blank" rel="noopener noreferrer">' + t + '</a>');
+  s = s.replace(/\*\*([^*]+)\*\*|__([^_]+)__/g, (_, a, b) => '<strong>' + (a || b) + '</strong>');
+  s = s.replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>').replace(/(^|[^_\w])_([^_\s][^_]*)_(?!\w)/g, '$1<em>$2</em>');
+  s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => codes[+i]);
+};
+const render = (md) => {
+  const lines = md.replace(/\r\n?/g, '\n').split('\n'), out = [];
+  let i = 0;
+  const startsBlock = (l) => /^(#{1,6}\s|```|>\s?|\s*([-*+]|\d+\.)\s|\s*([-*_])(\s*\3){2,}\s*$)/.test(l);
+  while (i < lines.length) {
+    const l = lines[i];
+    if (!l.trim()) { i++; continue; }
+    let m;
+    if ((m = l.match(/^```(\w*)/))) {
+      const code = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[i++]);
+      i++; out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>'); continue;
+    }
+    if ((m = l.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/))) { out.push('<h' + m[1].length + '>' + inline(m[2]) + '</h' + m[1].length + '>'); i++; continue; }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
+    if (/^>\s?/.test(l)) {
+      const q = []; while (i < lines.length && /^>\s?/.test(lines[i])) q.push(lines[i++].replace(/^>\s?/, ''));
+      out.push('<blockquote>' + render(q.join('\n')) + '</blockquote>'); continue;
+    }
+    if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(lines[i + 1])) {
+      const cells = (r) => r.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const head = cells(l); i += 2; const rows = [];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(cells(lines[i++]));
+      out.push('<table><thead><tr>' + head.map((c) => '<th>' + inline(c) + '</th>').join('') + '</tr></thead><tbody>' +
+        rows.map((r) => '<tr>' + r.map((c) => '<td>' + inline(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>');
+      continue;
+    }
+    if ((m = l.match(/^(\s*)([-*+]|\d+\.)\s+/))) {
+      const ordered = /\d/.test(m[2]), items = [];
+      while (i < lines.length && (m = lines[i].match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/))) {
+        const indent = m[1].length; let text = m[3]; i++;
+        const nested = [];
+        while (i < lines.length && /^\s+([-*+]|\d+\.)\s+/.test(lines[i]) && lines[i].match(/^(\s*)/)[1].length > indent) nested.push(lines[i++].slice(indent + 2));
+        items.push('<li>' + inline(text.replace(/^\[( |x)\]\s/i, (_, c) => (c === ' ' ? '☐ ' : '☑ '))) + (nested.length ? render(nested.join('\n')) : '') + '</li>');
+      }
+      out.push((ordered ? '<ol>' : '<ul>') + items.join('') + (ordered ? '</ol>' : '</ul>')); continue;
+    }
+    const para = [l]; i++;
+    while (i < lines.length && lines[i].trim() && !startsBlock(lines[i])) para.push(lines[i++]);
+    out.push('<p>' + inline(para.join('\n')).replace(/\n/g, '<br>') + '</p>');
+  }
+  return out.join('\n');
+};
+globalThis.__md = { render };
+const sample = '# Welcome\n\nWrite **Markdown** here and see it on the right.\n\n- Lists, *emphasis*, `code` and [links](https://example.com)\n- Tables and quotes work too\n\n> A quote\n\n| Name | Role |\n| --- | --- |\n| Tacet | Browser |\n';
+const src = $('#src'), view = $('#view');
+const update = () => { view.innerHTML = render(src.value); store.set('md.text', src.value); };
+src.value = store.get('md.text', sample); src.oninput = update; update();
+$('#clear').onclick = () => { if (!src.value.trim() || confirm('Start a new document? The current one will be lost.')) { src.value = ''; update(); } };
+$('#chtml').onclick = () => copy(render(src.value));
+$('#save').onclick = () => {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([src.value], { type: 'text/markdown' }));
+  a.download = ((src.value.match(/^#\s+(.+)$/m) || [])[1] || 'document').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + '.md';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+};
+$('#open').onclick = () => $('#file').click();
+$('#file').onchange = async () => { const f = $('#file').files[0]; if (f) { src.value = await f.text(); update(); } $('#file').value = ''; };
+
+})();
+</script>
+</body></html>

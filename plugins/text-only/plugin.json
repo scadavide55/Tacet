@@ -1,0 +1,13 @@
+{
+  "id": "text-only",
+  "name": "Text Only",
+  "description": "Hides pictures, video and animations so only the words are left: a calmer page to read. The pictures are still loaded, they are just not shown.",
+  "version": "1.0",
+  "icon": "text.alignleft",
+  "author": "Tacet Plugins",
+  "sites": ["*"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

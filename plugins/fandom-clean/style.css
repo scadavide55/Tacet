@@ -1,0 +1,11 @@
+/* Ad slots and wrappers (the first group is from the public EasyList and uBlock lists). */
+.top_leaderboard-odyssey-wrapper, .fandom-ad-wrapper, .aff-unit__wrapper, .marketplace,
+.sticky-placement-top, .featured-video-player-container,
+.top-ads-container, .bottom-ads-container, #top_leaderboard, #WikiaBar,
+[id^="div-gpt-ad"], [id^="google_ads_iframe"], [data-ad-slot], [class*="ad-slot"], [class*="ad-unit"],
+.notifications-placeholder,
+/* The right column: ads, "More from this wiki" and recommendations. */
+.page__right-rail, .right-rail-wrapper, .rail-module, .render-wiki-recommendations, .wiki-recommendations,
+.mcf-wrapper, .mcf-card, .mcf-card-article {
+  display: none !important;
+}

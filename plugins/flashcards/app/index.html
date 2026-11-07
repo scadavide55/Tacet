@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flashcards</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+</style></head>
+<body>
+
+<div class="wrap" style="max-width:900px">
+  <h1>Flashcards</h1>
+  <p class="sub">Study with spaced repetition: cards you know come back later, cards you miss come back soon.</p>
+  <div class="row" style="align-items:flex-start">
+    <div class="card" style="flex:0 0 230px;min-width:0"><div id="decks"></div><button id="newdeck" class="ghost" style="width:100%;margin-top:8px">New deck</button></div>
+    <div style="flex:1 1 380px;min-width:0">
+      <div class="tabs" id="modes"><button data-m="study" class="on">Study</button><button data-m="edit">Edit cards</button></div>
+      <div id="study" class="card" style="text-align:center">
+        <div id="prog" class="muted"></div>
+        <div id="face" style="min-height:150px;display:grid;place-items:center;font-size:24px;line-height:1.35;padding:14px;word-break:break-word"></div>
+        <div id="ans" class="hide" style="font-size:20px;color:var(--accent);padding-bottom:14px;word-break:break-word"></div>
+        <div class="row" style="justify-content:center" id="btns"></div>
+      </div>
+      <div id="edit" class="card hide">
+        <label for="cards">One card per line: front :: back</label>
+        <textarea id="cards" spellcheck="false" style="min-height:260px" placeholder="capital of France :: Paris&#10;7 × 8 :: 56"></textarea>
+        <div class="row" style="margin-top:10px"><button id="savecards">Save cards</button><button class="ghost" id="rename">Rename deck</button><button class="ghost" id="deldeck">Delete deck</button><span id="emsg" class="muted"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+const DAY = 86400000, STEPS = [0, 1, 3, 7, 14, 30, 60];
+let data = store.get('flash.data', { decks: [], current: null }), mode = 'study', queue = [], shown = false, total = 0;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const save = () => store.set('flash.data', data);
+const deck = () => data.decks.find((d) => d.id === data.current);
+const parse = (text, old) => {
+  const known = new Map((old || []).map((c) => [c.f + '\u0000' + c.b, c]));
+  return text.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+    const i = l.indexOf('::'); if (i < 0) return null;
+    const f = l.slice(0, i).trim(), b = l.slice(i + 2).trim(); if (!f || !b) return null;
+    return known.get(f + '\u0000' + b) || { f, b, box: 0, due: 0 };
+  }).filter(Boolean);
+};
+// What a rating does to a card: a miss starts it over, a pass moves it up a box and sets when it returns.
+const rate = (card, how, now = Date.now()) => {
+  card.box = how === 'again' ? 0 : Math.min(STEPS.length - 1, card.box + (how === 'easy' ? 2 : 1));
+  card.due = how === 'again' ? now + 10 * 60000 : now + STEPS[card.box] * DAY;
+  return card;
+};
+globalThis.__flash = { parse, rate, STEPS };
+const startSession = () => {
+  const d = deck(); queue = d ? d.cards.filter((c) => c.due <= Date.now()) : []; total = queue.length;
+  for (let i = queue.length - 1; i > 0; i--) { const j = rand(i + 1); [queue[i], queue[j]] = [queue[j], queue[i]]; }
+  shown = false; drawStudy();
+};
+const drawDecks = () => {
+  const root = $('#decks'); root.textContent = '';
+  for (const d of data.decks) {
+    const due = d.cards.filter((c) => c.due <= Date.now()).length;
+    const b = document.createElement('button'); b.className = 'ghost'; b.style.cssText = 'display:block;width:100%;text-align:left;margin-bottom:6px;' + (d.id === data.current ? 'border-color:var(--accent)' : '');
+    b.innerHTML = '<b>' + esc(d.name) + '</b><div class="muted" style="font-weight:400">' + d.cards.length + ' cards' + (due ? ' · ' + due + ' due' : '') + '</div>';
+    b.onclick = () => { data.current = d.id; save(); render(); }; root.appendChild(b);
+  }
+  if (!data.decks.length) root.innerHTML = '<span class="muted">No decks yet</span>';
+};
+const drawStudy = () => {
+  const d = deck(), face = $('#face'), ans = $('#ans'), btns = $('#btns'); btns.textContent = ''; ans.classList.add('hide');
+  if (!d) { $('#prog').textContent = ''; face.textContent = 'Make a deck to begin'; return; }
+  if (!d.cards.length) { $('#prog').textContent = ''; face.textContent = 'This deck has no cards yet. Open “Edit cards”.'; return; }
+  if (!queue.length) {
+    const next = Math.min(...d.cards.map((c) => c.due)), later = d.cards.filter((c) => c.due > Date.now()).length;
+    $('#prog').textContent = ''; face.innerHTML = '<div>All done<div class="muted" style="font-size:15px;margin-top:6px">' + (later ? later + ' cards come back ' + (next - Date.now() < 3600000 ? 'soon' : 'on ' + new Date(next).toLocaleDateString()) : '') + '</div></div>';
+    const again = document.createElement('button'); again.className = 'ghost'; again.textContent = 'Study everything again'; again.onclick = () => { d.cards.forEach((c) => { c.due = 0; }); save(); startSession(); drawDecks(); }; btns.appendChild(again); return;
+  }
+  const c = queue[0]; $('#prog').textContent = (total - queue.length + 1) + ' of ' + total; face.textContent = c.f;
+  if (!shown) { const s = document.createElement('button'); s.textContent = 'Show answer'; s.onclick = () => { shown = true; drawStudy(); }; btns.appendChild(s); return; }
+  ans.textContent = c.b; ans.classList.remove('hide');
+  for (const [how, label, cls] of [['again', 'Again', 'ghost'], ['good', 'Good', ''], ['easy', 'Easy', 'ghost']]) {
+    const b = document.createElement('button'); b.textContent = label; b.className = cls;
+    b.onclick = () => { rate(c, how); queue.shift(); if (how === 'again') queue.push(c); shown = false; save(); drawDecks(); drawStudy(); }; btns.appendChild(b);
+  }
+};
+const render = () => {
+  drawDecks(); $$('#modes button').forEach((b) => b.classList.toggle('on', b.dataset.m === mode));
+  $('#study').classList.toggle('hide', mode !== 'study'); $('#edit').classList.toggle('hide', mode !== 'edit');
+  const d = deck(); if (mode === 'edit') $('#cards').value = d ? d.cards.map((c) => c.f + ' :: ' + c.b).join('\n') : '';
+  if (mode === 'study') startSession();
+};
+$('#modes').onclick = (e) => { if (e.target.dataset.m) { mode = e.target.dataset.m; render(); } };
+$('#newdeck').onclick = () => { const name = prompt('Name of the deck'); if (!name || !name.trim()) return; const d = { id: uid(), name: name.trim(), cards: [] }; data.decks.push(d); data.current = d.id; save(); mode = 'edit'; render(); };
+$('#rename').onclick = () => { const d = deck(); if (!d) return; const n = prompt('New name', d.name); if (n && n.trim()) { d.name = n.trim(); save(); render(); } };
+$('#deldeck').onclick = () => { const d = deck(); if (!d || !confirm('Delete the deck “' + d.name + '”?')) return; data.decks = data.decks.filter((x) => x !== d); data.current = data.decks[0] ? data.decks[0].id : null; save(); mode = 'study'; render(); };
+$('#savecards').onclick = () => { const d = deck(); if (!d) { $('#emsg').textContent = 'Make a deck first'; return; } d.cards = parse($('#cards').value, d.cards); save(); $('#emsg').textContent = d.cards.length + ' cards saved'; drawDecks(); };
+document.addEventListener('keydown', (e) => {
+  if (mode !== 'study' || /^(INPUT|TEXTAREA)$/.test(e.target.tagName) || !queue.length) return;
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!shown) { shown = true; drawStudy(); } }
+  else if (shown && ['1', '2', '3'].includes(e.key)) $$('#btns button')[+e.key - 1].click();
+});
+if (!data.decks.length) {
+  const d = { id: uid(), name: 'Example', cards: parse('Capital of Italy :: Rome\nCapital of Belgium :: Brussels\n7 × 8 :: 56\nH₂O :: Water\nSquare root of 144 :: 12') }; data.decks.push(d); data.current = d.id; save();
+}
+if (!deck()) data.current = data.decks[0].id;
+render();
+
+})();
+</script>
+</body></html>

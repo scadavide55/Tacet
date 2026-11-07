@@ -1,0 +1,8 @@
+/* The Reels and Explore entries in the menu, found by the page they open. */
+a[href="/reels/"], a[href="/reels"], a[href="/explore/"], a[href="/explore"] {
+  display: none !important;
+}
+/* A Reel that comes up among the posts of your feed. */
+article:has(a[href*="/reel/"]), article:has(a[href*="/reels/"]) {
+  display: none !important;
+}

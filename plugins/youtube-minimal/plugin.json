@@ -1,0 +1,13 @@
+{
+  "id": "youtube-minimal",
+  "name": "YouTube, Minimal",
+  "description": "Hides the end cards over the video, the merch and shopping shelves, the banners and promos, and the Mix and promoted suggestions, so the video and its title are what's left.",
+  "version": "1.0",
+  "icon": "play.rectangle.on.rectangle",
+  "author": "Tacet Plugins",
+  "sites": ["youtube.com"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

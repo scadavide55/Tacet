@@ -1,0 +1,17 @@
+{
+  "id": "video-frame",
+  "name": "Video Frame",
+  "description": "Press ⌥⇧V to save the picture on screen in the video as a PNG, at the video's own size. Some sites don't allow it; then Tacet says so.",
+  "version": "1.0",
+  "icon": "camera.viewfinder",
+  "author": "Tacet Plugins",
+  "sites": [
+    "*"
+  ],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "action",
+  "action": "Save the Frame",
+  "shortcut": "⌥⇧V"
+}

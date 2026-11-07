@@ -1,0 +1,19 @@
+{
+  "id": "quiet-games",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "Quiet Games",
+  "description": "Three small games in a tab of its own: 2048, Snake and Minesweeper. No sound, no ads and no account, and your best scores stay on your Mac.",
+  "icon": "gamecontroller.fill",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

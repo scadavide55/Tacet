@@ -1,0 +1,13 @@
+{
+  "id": "tiktok-web-quiet",
+  "name": "TikTok Web, Quiet",
+  "description": "Hides ads and the Live, Explore and suggested accounts entries on TikTok's website, leaving For You, Following and your own pages.",
+  "version": "1.0",
+  "icon": "play.rectangle",
+  "author": "Tacet Plugins",
+  "sites": ["tiktok.com"],
+  "css": "style.css",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

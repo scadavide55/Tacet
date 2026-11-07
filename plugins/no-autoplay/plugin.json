@@ -1,0 +1,15 @@
+{
+  "id": "no-autoplay",
+  "name": "No Autoplay",
+  "description": "Stops videos from starting by themselves on any site, even silent ones. (Tacet already blocks videos that play sound; this also stops the muted ones.) They play when you press play.",
+  "version": "1.0",
+  "icon": "pause.circle",
+  "author": "Tacet Plugins",
+  "sites": [
+    "*"
+  ],
+  "js": "main.js",
+  "runAt": "start",
+  "world": "isolated",
+  "mode": "toggle"
+}

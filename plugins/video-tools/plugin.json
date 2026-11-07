@@ -1,0 +1,16 @@
+{
+  "id": "video-tools",
+  "name": "Video Tools",
+  "description": "More keys for any video: ⌥⇧← and ⌥⇧→ jump 10 seconds, ⌥⇧↑ turns the loop on or off, ⌥⇧, and ⌥⇧. step one frame back or forward. A small label tells what happened.",
+  "version": "1.0",
+  "icon": "film",
+  "author": "Tacet Plugins",
+  "sites": [
+    "*"
+  ],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "info",
+  "shortcut": "⌥⇧← ⌥⇧→ ⌥⇧↑ ⌥⇧, ⌥⇧."
+}

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Typing Test</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+</style></head>
+<body>
+
+<div class="wrap" style="max-width:820px">
+  <h1>Typing Test</h1>
+  <p class="sub">Type the text as fast and as cleanly as you can. The clock starts with your first key.</p>
+  <div class="row" style="margin-bottom:12px">
+    <div class="tabs" id="dur" style="margin:0"><button data-d="15">15 s</button><button data-d="30" class="on">30 s</button><button data-d="60">60 s</button></div>
+    <select id="lang" style="width:auto"><option value="en">English</option><option value="it">Italiano</option><option value="fr">Français</option></select>
+    <span class="grow"></span><span class="muted" id="best"></span>
+  </div>
+  <div class="card" id="stage" tabindex="0" style="outline:none">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px"><b id="clock" style="font-size:22px">30</b><span class="muted" id="live"></span></div>
+    <div id="text" style="font:20px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-word;user-select:none"></div>
+    <div class="muted" style="margin-top:10px" id="hint">Click here and start typing · Tab restarts</div>
+  </div>
+  <div class="card hide" id="result" style="text-align:center">
+    <div style="font-size:54px;font-weight:700;line-height:1" id="wpm"></div><div class="muted">words per minute</div>
+    <div class="row" style="justify-content:center;margin:14px 0" id="stats"></div>
+    <button id="again">Try again</button>
+  </div>
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+const TEXTS = {
+  en: ['The quick brown fox jumps over the lazy dog while the sun slowly sets behind the quiet hills.', 'A good habit is built one small step at a time, and every step counts even when nobody is watching.', 'Reading a little each day opens doors to places we have never been and to people we will never meet.', 'The old bridge creaked in the wind, but it had stood for a hundred years and it was not going anywhere.', 'When the rain finally stopped, the whole street smelled of wet stone, fresh bread and the coming of spring.', 'Learning to type without looking is a patient game: accuracy first, and the speed follows by itself.', 'She packed a small bag, locked the door, and walked toward the station without looking back at the house.', 'Every great project starts as a rough idea, a blank page and the courage to put the first line down.'],
+  it: ['La volpe veloce salta sopra il cane pigro mentre il sole tramonta lentamente dietro le colline silenziose.', 'Una buona abitudine si costruisce un passo alla volta, e ogni passo conta anche quando nessuno ci guarda.', 'Leggere un po\u2019 ogni giorno apre porte su luoghi che non abbiamo mai visto e su persone che non incontreremo mai.', 'Il vecchio ponte scricchiolava nel vento, ma era in piedi da cent\u2019anni e non aveva intenzione di andare da nessuna parte.', 'Quando la pioggia finalmente smise, tutta la strada sapeva di pietra bagnata, di pane fresco e di primavera.', 'Imparare a scrivere senza guardare la tastiera \u00e8 un gioco paziente: prima la precisione, poi la velocit\u00e0 arriva da sola.', 'Preparò una piccola borsa, chiuse la porta a chiave e si avviò verso la stazione senza voltarsi a guardare la casa.', 'Ogni grande progetto comincia come un\u2019idea confusa, una pagina bianca e il coraggio di scrivere la prima riga.'],
+  fr: ['Le renard brun rapide saute par-dessus le chien paresseux pendant que le soleil se couche derri\u00e8re les collines calmes.', 'Une bonne habitude se construit pas \u00e0 pas, et chaque pas compte m\u00eame quand personne ne regarde.', 'Lire un peu chaque jour ouvre des portes vers des lieux que nous n\u2019avons jamais vus et des gens que nous ne rencontrerons jamais.', 'Le vieux pont grin\u00e7ait dans le vent, mais il tenait debout depuis cent ans et n\u2019allait nulle part.', 'Quand la pluie s\u2019est enfin arr\u00eat\u00e9e, toute la rue sentait la pierre mouill\u00e9e, le pain frais et le printemps.', 'Apprendre \u00e0 taper sans regarder est un jeu patient : la pr\u00e9cision d\u2019abord, la vitesse vient toute seule.', 'Elle a pr\u00e9par\u00e9 un petit sac, ferm\u00e9 la porte \u00e0 cl\u00e9 et march\u00e9 vers la gare sans se retourner.', 'Tout grand projet commence par une id\u00e9e floue, une page blanche et le courage d\u2019\u00e9crire la premi\u00e8re ligne.'],
+};
+const wpm = (correctChars, ms) => ms <= 0 ? 0 : Math.round((correctChars / 5) / (ms / 60000));
+globalThis.__typing = { wpm, TEXTS };
+let duration = store.get('type.dur', 30), lang = store.get('type.lang', 'en'), target = '', typed = [], started = 0, ended = false, strokes = 0, hits = 0, tick = 0;
+const best = () => store.get('type.best', {});
+const makeText = () => { const list = TEXTS[lang].slice(); let out = []; while (out.join(' ').length < 420) { out.push(list.splice(rand(list.length), 1)[0] || TEXTS[lang][rand(TEXTS[lang].length)]); } return out.join(' '); };
+const drawText = () => {
+  const root = $('#text'); root.textContent = '';
+  [...target].forEach((ch, i) => {
+    const s = document.createElement('span'); s.textContent = ch;
+    if (i < typed.length) { s.style.color = typed[i] === ch ? 'var(--ok)' : 'var(--bad)'; if (typed[i] !== ch) s.style.background = 'rgba(198,40,40,.18)'; }
+    else if (i === typed.length) s.style.cssText = 'background:rgba(255,90,42,.28);border-radius:3px';
+    else s.style.color = 'var(--muted)';
+    root.appendChild(s);
+  });
+  const cur = root.children[typed.length]; if (cur && cur.offsetTop > 120) root.style.cssText += ';max-height:3.6em;overflow:hidden';
+  const line = root.children[typed.length]; if (line) root.scrollTop = Math.max(0, line.offsetTop - 40);
+};
+const reset = () => {
+  clearInterval(tick); target = makeText(); typed = []; started = 0; ended = false; strokes = 0; hits = 0;
+  $('#result').classList.add('hide'); $('#stage').classList.remove('hide'); $('#clock').textContent = duration; $('#live').textContent = '';
+  $('#best').textContent = best()[duration + lang] ? 'Best: ' + best()[duration + lang] + ' wpm' : '';
+  $$('#dur button').forEach((b) => b.classList.toggle('on', +b.dataset.d === duration)); $('#lang').value = lang; drawText(); $('#stage').focus();
+};
+const finish = () => {
+  ended = true; clearInterval(tick);
+  const ms = Math.min(duration * 1000, Date.now() - started), correct = typed.filter((c, i) => c === target[i]).length, speed = wpm(correct, ms), acc = strokes ? Math.round(hits / strokes * 100) : 100;
+  const b = best(), k = duration + lang, isBest = speed > (b[k] || 0); if (isBest) { b[k] = speed; store.set('type.best', b); }
+  $('#stage').classList.add('hide'); $('#result').classList.remove('hide'); $('#wpm').textContent = speed;
+  $('#stats').innerHTML = '<span class="card" style="margin:0">Accuracy <b>' + acc + '%</b></span><span class="card" style="margin:0">Characters <b>' + correct + '</b></span>' + (isBest ? '<span class="card" style="margin:0"><b class="ok">New best</b></span>' : '');
+  globalThis.__typing.last = { speed, acc, correct };
+};
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || /^(SELECT|INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if (e.key === 'Tab' || (ended && e.key === 'Enter')) { e.preventDefault(); reset(); return; }
+  if (ended) return;
+  if (e.key === 'Backspace') { e.preventDefault(); typed.pop(); drawText(); return; }
+  if (e.key.length !== 1) return;
+  e.preventDefault();
+  if (!started) { started = Date.now(); tick = setInterval(() => { const left = duration - Math.floor((Date.now() - started) / 1000); $('#clock').textContent = Math.max(0, left); const c = typed.filter((x, i) => x === target[i]).length; $('#live').textContent = wpm(c, Date.now() - started) + ' wpm'; if (left <= 0) finish(); }, 250); $('#hint').textContent = 'Tab restarts'; }
+  strokes++; if (e.key === target[typed.length]) hits++;
+  typed.push(e.key); drawText();
+  if (typed.length >= target.length) finish();
+});
+$('#dur').onclick = (e) => { if (e.target.dataset.d) { duration = +e.target.dataset.d; store.set('type.dur', duration); reset(); } };
+$('#lang').onchange = () => { lang = $('#lang').value; store.set('type.lang', lang); reset(); };
+$('#again').onclick = reset;
+reset();
+
+})();
+</script>
+</body></html>

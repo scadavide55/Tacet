@@ -1,0 +1,15 @@
+{
+  "id": "select-and-search",
+  "name": "Select and Search",
+  "description": "When you select a word or a phrase, a small bar appears next to it to search it on the web, Wikipedia or YouTube in a new tab. The text you select is only sent when you click one.",
+  "version": "1.0",
+  "icon": "text.magnifyingglass",
+  "author": "Tacet Plugins",
+  "sites": [
+    "*"
+  ],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "toggle"
+}

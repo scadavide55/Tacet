@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>To-do</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+</style></head>
+<body>
+
+<div class="wrap" style="max-width:640px">
+  <h1>To-do</h1>
+  <p class="sub" id="left"></p>
+  <div class="card"><div class="row"><input type="text" id="add" class="grow" placeholder="What needs doing? Press Return to add" style="font-family:inherit;font-size:15px"><button id="addb">Add</button></div></div>
+  <div class="tabs" id="filters"><button data-f="all" class="on">All</button><button data-f="active">To do</button><button data-f="done">Done</button></div>
+  <div class="card" id="box" style="padding:6px 16px"></div>
+  <div class="row" style="margin-top:10px;justify-content:space-between"><span class="muted">Double-click a task to edit it</span><button class="ghost" id="clear">Clear done</button></div>
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+let tasks = store.get('todo.tasks', []), filter = store.get('todo.filter', 'all');
+const save = () => store.set('todo.tasks', tasks);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const draw = () => {
+  $$('#filters button').forEach((b) => b.classList.toggle('on', b.dataset.f === filter));
+  const box = $('#box'); box.textContent = '';
+  const shown = tasks.filter((t) => filter === 'all' || (filter === 'done') === t.done).sort((a, b) => (a.done - b.done) || (b.star - a.star) || (a.created - b.created));
+  for (const t of shown) {
+    const row = document.createElement('div'); row.className = 'row'; row.style.cssText = 'padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:nowrap';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = t.done; cb.style.cssText = 'width:18px;height:18px'; cb.onchange = () => { t.done = cb.checked; save(); draw(); };
+    const txt = document.createElement('span'); txt.className = 'grow'; txt.textContent = t.text; txt.style.cssText = 'flex:1;min-width:0;word-break:break-word;' + (t.done ? 'text-decoration:line-through;color:var(--muted)' : '');
+    txt.ondblclick = () => {
+      const inp = document.createElement('input'); inp.type = 'text'; inp.value = t.text; inp.style.fontFamily = 'inherit'; txt.replaceWith(inp); inp.focus(); inp.select();
+      const done = (ok) => { if (ok && inp.value.trim()) t.text = inp.value.trim(); save(); draw(); };
+      inp.onkeydown = (e) => { if (e.key === 'Enter') done(true); else if (e.key === 'Escape') done(false); }; inp.onblur = () => done(true);
+    };
+    const star = document.createElement('button'); star.className = 'ghost'; star.textContent = t.star ? '★' : '☆'; star.title = 'Important'; star.style.cssText = 'padding:2px 8px;border:0;' + (t.star ? 'color:var(--accent)' : ''); star.onclick = () => { t.star = !t.star; save(); draw(); };
+    const del = document.createElement('button'); del.className = 'ghost'; del.textContent = '✕'; del.title = 'Delete'; del.style.cssText = 'padding:2px 8px;border:0'; del.onclick = () => { tasks = tasks.filter((x) => x !== t); save(); draw(); };
+    row.append(cb, txt, star, del); box.appendChild(row);
+  }
+  if (!shown.length) box.innerHTML = '<div class="muted" style="padding:14px 0">' + (tasks.length ? 'Nothing here' : 'Nothing to do. Enjoy it.') + '</div>';
+  const n = tasks.filter((t) => !t.done).length;
+  $('#left').textContent = n ? n + (n === 1 ? ' task left' : ' tasks left') : (tasks.length ? 'All done' : 'A short list is a good list');
+  document.title = (n ? '(' + n + ') ' : '') + 'To-do';
+};
+const add = () => { const v = $('#add').value.trim(); if (!v) return; tasks.push({ id: uid(), text: v, done: false, star: false, created: Date.now() }); $('#add').value = ''; save(); draw(); };
+$('#add').onkeydown = (e) => { if (e.key === 'Enter') add(); }; $('#addb').onclick = add;
+$('#filters').onclick = (e) => { if (e.target.dataset.f) { filter = e.target.dataset.f; store.set('todo.filter', filter); draw(); } };
+$('#clear').onclick = () => { tasks = tasks.filter((t) => !t.done); save(); draw(); };
+draw();
+globalThis.__todo = { tasks: () => tasks };
+
+})();
+</script>
+</body></html>

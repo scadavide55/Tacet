@@ -1,0 +1,17 @@
+{
+  "id": "autoscroll",
+  "name": "Autoscroll",
+  "description": "Press ⌥⇧A to have the page scroll by itself, slowly, while you read. ↑ and ↓ change the speed, Esc or ⌥⇧A stops it.",
+  "version": "1.0",
+  "icon": "arrow.down.to.line",
+  "author": "Tacet Plugins",
+  "sites": [
+    "*"
+  ],
+  "js": "main.js",
+  "runAt": "end",
+  "world": "isolated",
+  "mode": "action",
+  "action": "Start or Stop Autoscroll",
+  "shortcut": "⌥⇧A"
+}

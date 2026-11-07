@@ -1,0 +1,19 @@
+{
+  "id": "markdown-editor",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "Markdown Editor",
+  "description": "Write Markdown on the left and read it on the right, in a tab of its own. Headings, lists, tables, quotes, code and links; it saves as you type, opens and saves .md files and copies the HTML. Offline.",
+  "icon": "doc.richtext",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

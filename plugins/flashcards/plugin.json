@@ -1,0 +1,19 @@
+{
+  "id": "flashcards",
+  "author": "Tacet Plugins",
+  "version": "1.0",
+  "world": "isolated",
+  "name": "Flashcards",
+  "description": "Study with flashcards in a tab of its own: make decks by typing one card per line, and review them with spaced repetition, so cards you know come back later and the ones you miss come back soon. Saved on your Mac.",
+  "icon": "rectangle.on.rectangle.angled",
+  "sites": [],
+  "app": {
+    "start": "index.html",
+    "files": [
+      "index.html"
+    ],
+    "assets": []
+  },
+  "mode": "app",
+  "runAt": "end"
+}

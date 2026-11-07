@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dev Tools</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f2; --card:#ffffff; --fg:#15162a; --muted:#5b5e78; --line:rgba(20,22,40,.12); --accent:#ff5a2a; --ok:#1a7f37; --bad:#c62828; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d0e14; --card:#171923; --fg:#f3f2ef; --muted:#9a9cb2; --line:rgba(255,255,255,.12); --ok:#7ee787; --bad:#ff8a80; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; min-height: 100vh; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font: 600 26px/1.2 -apple-system, sans-serif; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+input[type=text], input[type=number], input[type=search], input[type=password], textarea, select {
+  width: 100%; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { min-height: 150px; resize: vertical; line-height: 1.45; }
+button { font: 600 14px -apple-system, sans-serif; border: 0; border-radius: 10px; padding: 8px 15px; cursor: pointer; background: var(--fg); color: var(--bg); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 200px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: rgba(20,20,28,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+</style></head>
+<body>
+
+<div class="wrap">
+  <h1>Dev Tools</h1>
+  <p class="sub">JSON, Base64, URL, hashes, dates and UUIDs. Everything runs on this Mac; nothing is sent anywhere.</p>
+  <div class="tabs" id="tabs">
+    <button data-t="json" class="on">JSON</button><button data-t="b64">Base64</button><button data-t="url">URL</button>
+    <button data-t="hash">Hash</button><button data-t="time">Time</button><button data-t="uuid">UUID</button>
+  </div>
+
+  <section data-p="json" class="card">
+    <label for="j-in">Input</label><textarea id="j-in" spellcheck="false" placeholder='{"paste":"JSON here"}'></textarea>
+    <div class="row" style="margin:10px 0"><button id="j-fmt">Format</button><button id="j-min" class="ghost">Minify</button><button id="j-sort" class="ghost">Sort keys</button><span id="j-msg" class="muted"></span></div>
+    <label for="j-out">Result</label><textarea id="j-out" spellcheck="false" readonly></textarea>
+    <div class="row" style="margin-top:10px"><button class="ghost" data-copy="j-out">Copy result</button></div>
+  </section>
+
+  <section data-p="b64" class="card hide">
+    <label for="b-in">Text or Base64</label><textarea id="b-in" spellcheck="false"></textarea>
+    <div class="row" style="margin:10px 0"><button id="b-enc">Encode</button><button id="b-dec" class="ghost">Decode</button>
+      <label style="margin:0;text-transform:none;letter-spacing:0"><input type="checkbox" id="b-safe"> URL-safe</label><span id="b-msg" class="muted"></span></div>
+    <label for="b-out">Result</label><textarea id="b-out" spellcheck="false" readonly></textarea>
+    <div class="row" style="margin-top:10px"><button class="ghost" data-copy="b-out">Copy result</button></div>
+  </section>
+
+  <section data-p="url" class="card hide">
+    <label for="u-in">Text or address</label><textarea id="u-in" spellcheck="false"></textarea>
+    <div class="row" style="margin:10px 0"><button id="u-enc">Encode part</button><button id="u-encall" class="ghost">Encode address</button><button id="u-dec" class="ghost">Decode</button><button id="u-parse" class="ghost">Take apart</button><span id="u-msg" class="muted"></span></div>
+    <label for="u-out">Result</label><textarea id="u-out" spellcheck="false" readonly></textarea>
+    <div class="row" style="margin-top:10px"><button class="ghost" data-copy="u-out">Copy result</button></div>
+  </section>
+
+  <section data-p="hash" class="card hide">
+    <label for="h-in">Text</label><textarea id="h-in" spellcheck="false" style="min-height:90px"></textarea>
+    <div id="h-out" style="margin-top:12px"></div>
+  </section>
+
+  <section data-p="time" class="card hide">
+    <label for="t-in">Unix time (seconds or milliseconds) or a date</label>
+    <div class="row"><input type="text" id="t-in" class="grow" placeholder="1700000000 or 2026-11-07 14:30"><button id="t-now" class="ghost">Now</button></div>
+    <div id="t-out" style="margin-top:12px"></div>
+  </section>
+
+  <section data-p="uuid" class="card hide">
+    <div class="row"><label style="margin:0">How many</label><input type="number" id="id-n" value="5" min="1" max="50" style="width:90px">
+      <label style="margin:0;text-transform:none;letter-spacing:0"><input type="checkbox" id="id-up"> Capitals</label>
+      <label style="margin:0;text-transform:none;letter-spacing:0"><input type="checkbox" id="id-dash" checked> Dashes</label>
+      <button id="id-go">Generate</button></div>
+    <textarea id="id-out" readonly spellcheck="false" style="margin-top:12px"></textarea>
+    <div class="row" style="margin-top:10px"><button class="ghost" data-copy="id-out">Copy all</button></div>
+  </section>
+</div>
+
+<script>
+(() => {
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let toastTimer = 0;
+const flash = (text) => {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1300);
+};
+// The clipboard API needs a secure page; if the page isn't, the old way works.
+const copy = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove();
+  }
+  flash('Copied');
+};
+// A random whole number below n, without bias.
+const rand = (n) => {
+  const limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return buf[0] % n;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+// ---- tabs
+const show = (t) => {
+  $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
+  $$('section[data-p]').forEach((s) => s.classList.toggle('hide', s.dataset.p !== t));
+  store.set('devtools.tab', t);
+};
+$('#tabs').onclick = (e) => { if (e.target.dataset.t) show(e.target.dataset.t); };
+$$('[data-copy]').forEach((b) => { b.onclick = () => copy($('#' + b.dataset.copy).value); });
+
+// ---- JSON
+const sortKeys = (v) => Array.isArray(v) ? v.map(sortKeys) : (v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v);
+const jsonWork = (how) => {
+  const msg = $('#j-msg'); msg.className = 'muted';
+  try {
+    let v = JSON.parse($('#j-in').value);
+    if (how === 'sort') v = sortKeys(v);
+    $('#j-out').value = how === 'min' ? JSON.stringify(v) : JSON.stringify(v, null, 2);
+    msg.textContent = 'Valid JSON'; msg.className = 'ok';
+  } catch (e) { $('#j-out').value = ''; msg.textContent = e.message; msg.className = 'bad'; }
+};
+$('#j-fmt').onclick = () => jsonWork('fmt'); $('#j-min').onclick = () => jsonWork('min'); $('#j-sort').onclick = () => jsonWork('sort');
+
+// ---- Base64 (UTF-8 safe)
+const toB64 = (text, safe) => {
+  const bytes = new TextEncoder().encode(text);
+  let bin = ''; for (const b of bytes) bin += String.fromCharCode(b);
+  let out = btoa(bin);
+  if (safe) out = out.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return out;
+};
+const fromB64 = (text) => {
+  let s = text.trim().replace(/-/g, '+').replace(/_/g, '/').replace(/\s+/g, '');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+};
+$('#b-enc').onclick = () => { $('#b-msg').textContent = ''; $('#b-out').value = toB64($('#b-in').value, $('#b-safe').checked); };
+$('#b-dec').onclick = () => {
+  const m = $('#b-msg'); m.className = 'muted'; m.textContent = '';
+  try { $('#b-out').value = fromB64($('#b-in').value); } catch (e) { $('#b-out').value = ''; m.textContent = 'Not valid Base64 text'; m.className = 'bad'; }
+};
+
+// ---- URL
+$('#u-enc').onclick = () => { $('#u-msg').textContent = ''; $('#u-out').value = encodeURIComponent($('#u-in').value); };
+$('#u-encall').onclick = () => { $('#u-msg').textContent = ''; $('#u-out').value = encodeURI($('#u-in').value); };
+$('#u-dec').onclick = () => {
+  const m = $('#u-msg'); m.className = 'muted'; m.textContent = '';
+  try { $('#u-out').value = decodeURIComponent($('#u-in').value.replace(/\+/g, ' ')); } catch (e) { $('#u-out').value = ''; m.textContent = 'Not a valid encoded text'; m.className = 'bad'; }
+};
+$('#u-parse').onclick = () => {
+  const m = $('#u-msg'); m.className = 'muted'; m.textContent = '';
+  try {
+    const u = new URL($('#u-in').value.trim());
+    const lines = ['Scheme: ' + u.protocol.replace(':', ''), 'Host: ' + u.hostname, 'Port: ' + (u.port || '(default)'), 'Path: ' + u.pathname];
+    u.searchParams.forEach((v, k) => lines.push('  ' + k + ' = ' + v));
+    if (u.hash) lines.push('Fragment: ' + u.hash.slice(1));
+    $('#u-out').value = lines.join('\n');
+  } catch (e) { $('#u-out').value = ''; m.textContent = 'Needs a full address, like https://example.com/page'; m.className = 'bad'; }
+};
+
+// ---- Hashes. crypto.subtle only exists on secure pages, so SHA is also written out here.
+const bytesOf = (text) => new TextEncoder().encode(text);
+const hex = (arr) => [...arr].map((b) => b.toString(16).padStart(2, '0')).join('');
+const rotl = (x, n) => ((x << n) | (x >>> (32 - n))) >>> 0;
+const rotr = (x, n) => ((x >>> n) | (x << (32 - n))) >>> 0;
+const primes = (n) => { const p = []; for (let i = 2; p.length < n; i++) if (p.every((q) => i % q)) p.push(i); return p; };
+const padMessage = (bytes, block, lenBytes) => {
+  const total = Math.ceil((bytes.length + 1 + lenBytes) / block) * block;
+  const out = new Uint8Array(total); out.set(bytes); out[bytes.length] = 0x80;
+  const bits = BigInt(bytes.length) * 8n;
+  for (let i = 0; i < lenBytes; i++) out[total - 1 - i] = Number((bits >> BigInt(8 * i)) & 0xffn);
+  return out;
+};
+const sha1 = (bytes) => {
+  const m = padMessage(bytes, 64, 8), w = new Uint32Array(80);
+  let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0;
+  for (let o = 0; o < m.length; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = (m[o + 4 * i] << 24 | m[o + 4 * i + 1] << 16 | m[o + 4 * i + 2] << 8 | m[o + 4 * i + 3]) >>> 0;
+    for (let i = 16; i < 80; i++) w[i] = rotl(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+    let a = h0, b = h1, c = h2, d = h3, e = h4;
+    for (let i = 0; i < 80; i++) {
+      let f, k;
+      if (i < 20) { f = (b & c) | (~b & d); k = 0x5A827999; } else if (i < 40) { f = b ^ c ^ d; k = 0x6ED9EBA1; }
+      else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC; } else { f = b ^ c ^ d; k = 0xCA62C1D6; }
+      const t = (rotl(a, 5) + f + e + k + w[i]) >>> 0;
+      e = d; d = c; c = rotl(b, 30); b = a; a = t;
+    }
+    h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
+  }
+  const out = new Uint8Array(20); [h0, h1, h2, h3, h4].forEach((h, i) => new DataView(out.buffer).setUint32(i * 4, h));
+  return out;
+};
+const K256 = primes(64).map((p) => Math.floor((Math.cbrt(p) % 1) * 4294967296));
+const sha256 = (bytes) => {
+  const H = primes(8).map((p) => Math.floor((Math.sqrt(p) % 1) * 4294967296));
+  const m = padMessage(bytes, 64, 8), w = new Uint32Array(64);
+  for (let o = 0; o < m.length; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = (m[o + 4 * i] << 24 | m[o + 4 * i + 1] << 16 | m[o + 4 * i + 2] << 8 | m[o + 4 * i + 3]) >>> 0;
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3), s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25), ch = (e & f) ^ (~e & g), t1 = (h + S1 + ch + K256[i] + w[i]) >>> 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22), maj = (a & b) ^ (a & c) ^ (b & c), t2 = (S0 + maj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    [a, b, c, d, e, f, g, h].forEach((v, i) => { H[i] = (H[i] + v) >>> 0; });
+  }
+  const out = new Uint8Array(32); H.forEach((h, i) => new DataView(out.buffer).setUint32(i * 4, h));
+  return out;
+};
+// SHA-512 and SHA-384 need 64-bit words, and constants with 64 fractional bits: integer roots from BigInt.
+const iroot = (n, k) => { const K = BigInt(k); let x = 1n << BigInt(Math.ceil(n.toString(2).length / k) + 1); for (;;) { const y = ((K - 1n) * x + n / (x ** (K - 1n))) / K; if (y >= x) return x; x = y; } };
+const M64 = (1n << 64n) - 1n;
+const frac64 = (p, k) => iroot(BigInt(p) << BigInt(64 * k), k) & M64;
+const K512 = primes(80).map((p) => frac64(p, 3));
+const rotr64 = (x, n) => ((x >> BigInt(n)) | (x << BigInt(64 - n))) & M64;
+const sha512 = (bytes, is384) => {
+  const pr = primes(16);
+  const H = (is384 ? pr.slice(8, 16).map((p) => frac64(p, 2)) : pr.slice(0, 8).map((p) => frac64(p, 2)));
+  const m = padMessage(bytes, 128, 16), w = new Array(80);
+  for (let o = 0; o < m.length; o += 128) {
+    for (let i = 0; i < 16; i++) { let v = 0n; for (let j = 0; j < 8; j++) v = (v << 8n) | BigInt(m[o + 8 * i + j]); w[i] = v; }
+    for (let i = 16; i < 80; i++) {
+      const s0 = rotr64(w[i - 15], 1) ^ rotr64(w[i - 15], 8) ^ (w[i - 15] >> 7n), s1 = rotr64(w[i - 2], 19) ^ rotr64(w[i - 2], 61) ^ (w[i - 2] >> 6n);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) & M64;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 80; i++) {
+      const S1 = rotr64(e, 14) ^ rotr64(e, 18) ^ rotr64(e, 41), ch = (e & f) ^ (~e & M64 & g), t1 = (h + S1 + ch + K512[i] + w[i]) & M64;
+      const S0 = rotr64(a, 28) ^ rotr64(a, 34) ^ rotr64(a, 39), maj = (a & b) ^ (a & c) ^ (b & c), t2 = (S0 + maj) & M64;
+      h = g; g = f; f = e; e = (d + t1) & M64; d = c; c = b; b = a; a = (t1 + t2) & M64;
+    }
+    [a, b, c, d, e, f, g, h].forEach((v, i) => { H[i] = (H[i] + v) & M64; });
+  }
+  const out = new Uint8Array(64);
+  H.forEach((v, i) => { for (let j = 0; j < 8; j++) out[i * 8 + j] = Number((v >> BigInt(56 - 8 * j)) & 0xffn); });
+  return is384 ? out.slice(0, 48) : out;
+};
+const digest = async (algo, text) => {
+  const bytes = bytesOf(text);
+  if (globalThis.crypto && crypto.subtle) {
+    try { return new Uint8Array(await crypto.subtle.digest(algo, bytes)); } catch (e) {}
+  }
+  return { 'SHA-1': sha1, 'SHA-256': sha256, 'SHA-384': (b) => sha512(b, true), 'SHA-512': (b) => sha512(b, false) }[algo](bytes);
+};
+globalThis.__devtools = { sha1, sha256, sha512, digest };
+const hashAll = async () => {
+  const text = $('#h-in').value, out = $('#h-out'); out.textContent = '';
+  for (const algo of ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512']) {
+    const value = hex(await digest(algo, text));
+    const row = document.createElement('div'); row.style.marginBottom = '10px';
+    row.innerHTML = '<label>' + algo + '</label><div class="row"><input type="text" class="grow" readonly value="' + value + '"><button class="ghost">Copy</button></div>';
+    row.querySelector('button').onclick = () => copy(value);
+    out.appendChild(row);
+  }
+};
+$('#h-in').oninput = hashAll; hashAll();
+
+// ---- Time
+const parseTime = (s) => {
+  s = s.trim(); if (!s) return null;
+  if (/^-?\d+(\.\d+)?$/.test(s)) { const n = parseFloat(s); return new Date(Math.abs(n) < 1e11 ? n * 1000 : n); }
+  const d = new Date(s); return isNaN(d) ? undefined : d;
+};
+const ago = (d) => {
+  const s = Math.round((Date.now() - d) / 1000), a = Math.abs(s);
+  const units = [[31536000, 'year'], [2592000, 'month'], [86400, 'day'], [3600, 'hour'], [60, 'minute'], [1, 'second']];
+  for (const [n, name] of units) if (a >= n) { const v = Math.floor(a / n); return s >= 0 ? v + ' ' + name + (v > 1 ? 's' : '') + ' ago' : 'in ' + v + ' ' + name + (v > 1 ? 's' : ''); }
+  return 'now';
+};
+const timeRender = () => {
+  const d = parseTime($('#t-in').value), out = $('#t-out');
+  if (d === null) { out.innerHTML = ''; return; }
+  if (d === undefined) { out.innerHTML = '<span class="bad">Not a time I can read</span>'; return; }
+  const rows = [['Local', d.toString()], ['UTC', d.toUTCString()], ['ISO 8601', d.toISOString()], ['Unix seconds', String(Math.floor(d / 1000))], ['Unix milliseconds', String(d.getTime())], ['Relative', ago(d)]];
+  out.innerHTML = rows.map(([k, v]) => '<div style="margin-bottom:8px"><label>' + k + '</label><div class="mono" style="cursor:pointer" data-v="' + esc(v) + '">' + esc(v) + '</div></div>').join('');
+  $$('#t-out [data-v]').forEach((el) => { el.onclick = () => copy(el.dataset.v); });
+};
+$('#t-in').oninput = timeRender; $('#t-now').onclick = () => { $('#t-in').value = String(Math.floor(Date.now() / 1000)); timeRender(); };
+
+// ---- UUID v4 from random bytes (randomUUID needs a secure page)
+const uuid4 = () => {
+  const b = new Uint8Array(16); crypto.getRandomValues(b); b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = hex(b); return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+};
+globalThis.__devtools.uuid4 = uuid4;
+const uuids = () => {
+  const n = Math.max(1, Math.min(50, +$('#id-n').value || 1)); const list = [];
+  for (let i = 0; i < n; i++) { let u = uuid4(); if (!$('#id-dash').checked) u = u.replace(/-/g, ''); if ($('#id-up').checked) u = u.toUpperCase(); list.push(u); }
+  $('#id-out').value = list.join('\n');
+};
+$('#id-go').onclick = uuids; uuids();
+
+show(store.get('devtools.tab', 'json'));
+
+})();
+</script>
+</body></html>
